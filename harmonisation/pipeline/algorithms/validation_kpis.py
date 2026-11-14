@@ -17,6 +17,7 @@ from aggregation.roll_up import roll_up_daily
 from pipeline.algorithms.event_quality import cohen_kappa, measure_event_agreement
 from pipeline.algorithms.harmonise_daily import classify_strength
 from pipeline.algorithms.uncertainty_model import evaluate_holdout_directions, factor_error, roll_up_units
+from pipeline.algorithms.viirs_kpis import viirs_checks
 
 SQL_TRUNC = {"week": "week", "month": "month", "quarter": "quarter", "year": "year"}
 
@@ -28,15 +29,15 @@ def default_prediction_columns(config: dict[str, Any]) -> tuple[str, str]:
 
 def select_evaluation_regions(region_units: pd.DataFrame, config: dict[str, Any]) -> list[str]:
     """Regionen mit genug VIIRS-Erkennungen, damit Tages- und Monatswerte nicht nur aus Rauschen bestehen."""
-    totals = region_units.groupby("area_id")["n_snpp"].sum()
+    totals = region_units.groupby("area_id")["n_viirs"].sum()
     selected = totals[totals >= config["kpi"]["eval_min_viirs_detections_region"]]
     return sorted(selected.index if len(selected) else totals.index)
 
 
 def measure_daily_count_accuracy(units: pd.DataFrame, column: str, offset: float) -> dict[str, float]:
     """D1: Fehler der Anzahl je Region und Tag, nur aktive Tage (Messung oder Umrechnung groesser 0)."""
-    active = units[(units["n_snpp"] > 0) | (units[column] > 0)]
-    errors = factor_error(active[column], active["n_snpp"], offset)
+    active = units[(units["n_viirs"] > 0) | (units[column] > 0)]
+    errors = factor_error(active[column], active["n_viirs"], offset)
     return {"median_factor_error": float(np.median(errors)), "p90_factor_error": float(np.quantile(errors, 0.9)),
             "n_active_days": int(len(active)), "share_active_days": float(len(active) / len(units))}
 
@@ -46,13 +47,13 @@ def measure_total_bias(units: pd.DataFrame, column: str) -> dict[str, float]:
     result = {}
     for grain in ("day", "week", "month"):
         rolled = roll_up_units(units, grain)
-        result[grain] = float(abs(rolled[column].sum() / rolled["n_snpp"].sum() - 1.0))
+        result[grain] = float(abs(rolled[column].sum() / rolled["n_viirs"].sum() - 1.0))
     return result
 
 
 def classify_by_reference_terciles(monthly: pd.DataFrame, value_column: str) -> np.ndarray:
     """Teilt Monatswerte in unter / normal / ueber ein, gemessen an den VIIRS-Terzilen je Region und Kalendermonat."""
-    bounds = monthly.groupby(["area_id", "month"])["n_snpp"].quantile([1 / 3, 2 / 3]).unstack()
+    bounds = monthly.groupby(["area_id", "month"])["n_viirs"].quantile([1 / 3, 2 / 3]).unstack()
     bounds.columns = ["lower", "upper"]
     joined = monthly[["area_id", "month"]].merge(bounds, left_on=["area_id", "month"], right_index=True, how="left")
     values = monthly[value_column].to_numpy()
@@ -63,17 +64,17 @@ def measure_monthly_accuracy(units: pd.DataFrame, column: str, offset: float) ->
     """D3: dieselben Kennzahlen wie in Version 1, berechnet aus den aufsummierten Tagen (Region x Monat)."""
     monthly = roll_up_units(units, "month")
     monthly = monthly.assign(month=monthly["period_start"].dt.month)
-    errors = factor_error(monthly[column], monthly["n_snpp"], offset)
-    predicted, measured = classify_by_reference_terciles(monthly, column), classify_by_reference_terciles(monthly, "n_snpp")
+    errors = factor_error(monthly[column], monthly["n_viirs"], offset)
+    predicted, measured = classify_by_reference_terciles(monthly, column), classify_by_reference_terciles(monthly, "n_viirs")
     return {"median_factor_error": float(np.median(errors)), "class_accuracy": float(np.mean(predicted == measured)),
             "kappa": cohen_kappa(predicted, measured), "n_region_months": int(len(monthly))}
 
 
 def measure_daily_frp_agreement(units: pd.DataFrame, column: str) -> dict[str, float]:
     """D4: Uebereinstimmung der FRP-Summe je Region und Tag, an Tagen mit Wert in beiden Reihen."""
-    both = units[(units["frp_snpp"] > 0) & (units[column] > 0)]
-    ratio = both["frp_snpp"] / both[column]
-    r2 = float(np.corrcoef(np.log(both["frp_snpp"]), np.log(both[column]))[0, 1] ** 2)
+    both = units[(units["frp_viirs"] > 0) & (units[column] > 0)]
+    ratio = both["frp_viirs"] / both[column]
+    r2 = float(np.corrcoef(np.log(both["frp_viirs"]), np.log(both[column]))[0, 1] ** 2)
     return {"r2_log": r2, "median_ratio": float(ratio.median()), "ratio_p10": float(ratio.quantile(0.1)),
             "ratio_p90": float(ratio.quantile(0.9)), "n_days": int(len(both))}
 
@@ -81,7 +82,7 @@ def measure_daily_frp_agreement(units: pd.DataFrame, column: str) -> dict[str, f
 def measure_extreme_class_hit(units: pd.DataFrame, column: str, config: dict[str, Any]) -> dict[str, float]:
     """D7: Anteil der gemessenen Tage der hoechsten Staerkeklasse, die auch die Umrechnung dort einordnet."""
     top = config["strength"]["class_labels"][-1]
-    measured = classify_strength(units["frp_snpp"], config) == top
+    measured = classify_strength(units["frp_viirs"], config) == top
     converted = classify_strength(units[column], config) == top
     return {"exact_share": float((measured & converted).sum() / max(int(measured.sum()), 1)), "n_days": int(measured.sum())}
 
@@ -99,7 +100,7 @@ def build_profile(units: pd.DataFrame, column: str, years: list[int], window_day
 def measure_climatology_agreement(units: pd.DataFrame, column: str, config: dict[str, Any]) -> dict[str, float]:
     """D8: Trifft der aus MODIS umgerechnete typische Jahresverlauf den gemessenen VIIRS-Verlauf?"""
     years, window = config["kpi"]["climatology_check_years"], config["climatology"]["window_days"]
-    measured, converted = build_profile(units, "n_snpp", years, window), build_profile(units, column, years, window)
+    measured, converted = build_profile(units, "n_viirs", years, window), build_profile(units, column, years, window)
     a, b = measured.to_numpy().ravel(), converted.to_numpy().ravel()
     offset = config["kpi"]["climatology_offset"]
     correlations = [float(np.corrcoef(measured.loc[region], converted.loc[region])[0, 1]) for region in measured.index]
@@ -111,10 +112,10 @@ def measure_climatology_agreement(units: pd.DataFrame, column: str, config: dict
 
 def measure_trend_of_ratio(units: pd.DataFrame, count_column: str, frp_column: str, config: dict[str, Any]) -> dict[str, float]:
     """D9: Hat das Jahresverhaeltnis Umrechnung / Messung einen Trend? Kleinster p-Wert aus Anzahl und FRP."""
-    yearly = units.assign(year=units["date"].dt.year).groupby("year")[["n_snpp", "frp_snpp", count_column, frp_column]].sum()
+    yearly = units.assign(year=units["date"].dt.year).groupby("year")[["n_viirs", "frp_viirs", count_column, frp_column]].sum()
     yearly = yearly[yearly.index.to_series().between(*config["kpi"]["trend_check_years"])]
     result = {}
-    for name, column, reference in (("count", count_column, "n_snpp"), ("frp", frp_column, "frp_snpp")):
+    for name, column, reference in (("count", count_column, "n_viirs"), ("frp", frp_column, "frp_viirs")):
         fit = stats.linregress(yearly.index.to_numpy(float), np.log(yearly[column] / yearly[reference]).to_numpy())
         result[f"p_value_{name}"], result[f"slope_{name}"] = float(fit.pvalue), float(fit.slope)
     result["p_value_min"] = min(result["p_value_count"], result["p_value_frp"])
@@ -164,8 +165,8 @@ def measure_uncertainty_calibration(units_by_area: dict[str, pd.DataFrame], coun
     for area_scale, grain in config["kpi"]["uncertainty_check_scales"]:
         rolled = roll_up_units(units_by_area[area_scale], grain)
         for quantity, column, measured, bounds, offset in (
-                ("count", count_column, "n_snpp", params["count_class_bounds"], params["count_offset"]),
-                ("frp", frp_column, "frp_snpp", params["frp_class_bounds_mw"], params["frp_offset_mw"])):
+                ("count", count_column, "n_viirs", params["count_class_bounds"], params["count_offset"]),
+                ("frp", frp_column, "frp_viirs", params["frp_class_bounds_mw"], params["frp_offset_mw"])):
             directions = evaluate_holdout_directions(rolled, column, measured, bounds, offset, params["split_years"])
             rows.append(directions[directions["size_class"] != "0"].assign(area_scale=area_scale, grain=grain, quantity=quantity))
     table = pd.concat(rows, ignore_index=True)
@@ -184,7 +185,7 @@ def measure_accuracy(units_by_area: dict[str, pd.DataFrame], config: dict[str, A
     regions = select_evaluation_regions(units_by_area["nuts2"], config)
     units = units_by_area["nuts2"][units_by_area["nuts2"]["area_id"].isin(regions)]
     offset, strength = config["uncertainty"]["count_offset"], config["strength"]
-    events = lambda table: measure_event_agreement((table["frp_snpp"] >= strength["big_fire_threshold_mw"]).to_numpy(),
+    events = lambda table: measure_event_agreement((table["frp_viirs"] >= strength["big_fire_threshold_mw"]).to_numpy(),
                                                    (table[frp_column] >= strength["big_fire_threshold_scaled_mw"]).to_numpy())
     return {"d1_daily_count": measure_daily_count_accuracy(units, count_column, offset),
             "d2_total_bias": measure_total_bias(units, count_column),
@@ -197,11 +198,11 @@ def measure_accuracy(units_by_area: dict[str, pd.DataFrame], config: dict[str, A
             "evaluation_regions": regions, "count_column": count_column, "frp_column": frp_column}
 
 
-def evaluate_thresholds(measured: dict[str, Any], config: dict[str, Any]) -> list[dict[str, Any]]:
-    """Vergleicht jeden Messwert mit seiner Schwelle und gibt je KPI eine Zeile mit `passed` zurueck."""
+def accuracy_checks(measured: dict[str, Any], config: dict[str, Any]) -> list[tuple[str, str, float, str, float]]:
+    """Die Pruefungen D1 bis M2 als (ID, Name, Wert, Regel, Schwelle)."""
     limits, acc, unc = config["kpi"]["thresholds"], measured["accuracy"], measured["uncertainty"]
     ratio_low, ratio_high = limits["d4_frp_day_median_ratio_range"]
-    checks = [
+    return [
         ("D1a", "Anzahl je Region x Tag: typischer Fehler", acc["d1_daily_count"]["median_factor_error"], "<=", limits["d1_day_median_factor_error_max"]),
         ("D1b", "Anzahl je Region x Tag: 90-%-Fehler", acc["d1_daily_count"]["p90_factor_error"], "<=", limits["d1_day_p90_factor_error_max"]),
         ("D2", "Gesamtverzerrung (Tag, Woche, Monat)", max(acc["d2_total_bias"].values()), "<=", limits["d2_total_bias_max"]),
@@ -232,12 +233,18 @@ def evaluate_thresholds(measured: dict[str, Any], config: dict[str, Any]) -> lis
         ("M1b", "Ortsmaske: faelschlich entfernte Feuer", measured["mask"]["all"]["false_removal"], "<=", limits["m1_mask_false_removal_max"]),
         ("M2", "Hotspots mit Region", measured["region_coverage"], ">=", limits["m2_region_coverage_min"]),
     ]
+
+
+def evaluate_thresholds(measured: dict[str, Any], config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Vergleicht jeden Messwert mit seiner Schwelle und gibt je KPI eine Zeile mit `passed` zurueck."""
+    checks = accuracy_checks(measured, config) + viirs_checks(measured, config)
     rows = [{"id": kpi, "name": name, "value": float(value), "rule": rule, "threshold": float(limit),
              "passed": bool(value <= limit if rule == "<=" else value >= limit)} for kpi, name, value, rule, limit in checks]
     flags = [("S1", "day_status lueckenlos, 0 gegen NA korrekt, Datumsfelder als DATE", measured["status_checks"]),
              ("I1a", "Zeilenbilanz geht auf", measured["integrity"]["row_balance"]),
              ("I1b", "Zwei Laeufe ergeben dieselben Dateien", measured["integrity"]["deterministic"]),
              ("I1c", "Alle Tests bestanden", measured["integrity"]["tests_passed"]),
-             ("I1d", "Schema gleich Dokumentation", measured["integrity"]["schema_matches_documentation"])]
+             ("I1d", "Schema gleich Dokumentation", measured["integrity"]["schema_matches_documentation"]),
+             ("N5", "Schema gleich in Parquet, CSV, Katalog und data_dictionary.md", measured["integrity"]["schema_everywhere"])]
     rows += [{"id": kpi, "name": name, "value": value, "rule": "==", "threshold": True, "passed": value is True} for kpi, name, value in flags]
     return rows

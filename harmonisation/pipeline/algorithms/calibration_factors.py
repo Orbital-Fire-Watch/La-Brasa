@@ -5,6 +5,9 @@ from typing import Any
 
 import pandas as pd
 
+from pipeline.algorithms.daily_grid import add_viirs_reference
+from pipeline.config import calibration_keys, satellite_key
+
 MODIS_VARIANTS = ("pair", "aqua", "terra")
 
 
@@ -15,16 +18,22 @@ def add_modis_pair_sums(grid: pd.DataFrame) -> pd.DataFrame:
 
 
 def select_calibration_days(grid: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
-    """Waehlt die Tage des Kalibrierfensters, an denen alle drei Satelliten in Betrieb sind.
+    """Waehlt die Tage des Kalibrierfensters, an denen die Kalibrier-Referenz und beide MODIS-Satelliten liefern.
 
     Das Fenster (Standard 02/2012 bis 12/2021) ist der Zeitraum, in dem VIIRS und MODIS
     gleichzeitig und zur festen Tageszeit messen. Ab 2022 driften Terra und Aqua von ihrer
     Ueberflugzeit weg. Spaetere Jahre wuerden den Faktor verfaelschen.
+    Kalibrier-Referenz (`calibration.reference_satellites`, Standard SNPP): In diesen Tagen ist
+    `n_viirs` das Mittel nur dieser Satelliten. Grund (Iteration 1): Das Fehlermodell prueft
+    Baender auf einer Haelfte der Jahre gegen die andere. Waere die Referenz ab 2018 das ruhigere
+    Mittel aus SNPP und NOAA-20, haetten die Haelften verschieden viel Rauschen (U1b verfehlt).
+    Die Faktoren aendern sich dadurch kaum (Voranalyse 09: +0,1 %), die Reihe bleibt auf einem Niveau.
     """
     window = config["calibration"]
     in_window = grid["date"].between(pd.Timestamp(window["window_start"]), pd.Timestamp(window["window_end"]))
-    operating = grid[[column for column in grid.columns if column.endswith("_operating")]].all(axis=1)
-    return add_modis_pair_sums(grid[in_window & operating])
+    keys = calibration_keys(config) + [satellite_key(config, satellite) for satellite in config["satellites"]["modis_pair"]]
+    operating = grid[[f"{key}_operating" for key in keys]].all(axis=1)
+    return add_modis_pair_sums(add_viirs_reference(grid[in_window & operating], config, calibration_keys(config)))
 
 
 def estimate_ratio_per_region(rows: pd.DataFrame, numerator: str, denominator: str, min_denominator: float) -> pd.DataFrame:
@@ -63,12 +72,12 @@ def estimate_calibration_factors(calibration_days: pd.DataFrame, config: dict[st
     minimum = config["calibration"]["min_modis_detections"]
     factors = pd.DataFrame({"region_id": sorted(calibration_days["region_id"].unique())})
     for variant in MODIS_VARIANTS:
-        ratio = estimate_ratio_per_region(calibration_days, "n_snpp", f"n_{variant}", minimum)
+        ratio = estimate_ratio_per_region(calibration_days, "n_viirs", f"n_{variant}", minimum)
         factors = factors.merge(ratio.rename(columns={
             "factor": f"k_count_{variant}", "denominator_sum": f"n_{variant}_calib",
             "used_fallback": f"used_fallback_{variant}", "overall_factor": f"k_count_{variant}_overall"}), on="region_id")
-        factors[f"k_frp_{variant}"] = calibration_days["frp_snpp"].sum() / calibration_days[f"frp_{variant}"].sum()
-    viirs = calibration_days.groupby("region_id")["n_snpp"].sum().rename("n_viirs_calib")
+        factors[f"k_frp_{variant}"] = calibration_days["frp_viirs"].sum() / calibration_days[f"frp_{variant}"].sum()
+    viirs = calibration_days.groupby("region_id")["n_viirs"].sum().rename("n_viirs_calib")
     factors = factors.merge(viirs, on="region_id")
     return factors.assign(calib_start=config["calibration"]["window_start"], calib_end=config["calibration"]["window_end"])
 

@@ -30,3 +30,37 @@ ausserhalb der Trainingsdaten gemessen (ein Jahr auslassen, 2012-2021). Iteriert
 - U1: 0,432 und 0,578 bei Grenzen 0,42 und 0,58. Die Randwerte stammen aus Klassen mit gut 100 Prueffaellen.
 - D8d: schwaechste Region korreliert mit 0,831 bei Schwelle 0,80.
 - D5b: Auch mit 80 MW findet die Umrechnung nur 67 % der gemessenen Grossfeuer-Tage. Vor 2012 fehlt etwa jeder dritte.
+
+## VIIRS-Erweiterung: NOAA-20 und NOAA-21 (14.11.2026, Schema-Version 2)
+
+Neue Schwellen N1-N5 vor der ersten Messung in `pipeline_config.yaml` festgelegt (N1c nach der Voranalyse 09 ergaenzt,
+vor der ersten Messung der Pipeline). Voranalyse: `data_analysis/09_viirs_satellites.py`, Regeln R1-R5 im Docstring.
+
+### Aufbau
+- **Erster NOAA-Download unvollstaendig:** Im Nordosten fehlten NOAA-20/21 (FRJ2 0,00, FRI1 0,01, ES51 0,44, ES22 0,83 der
+  SNPP-Erkennungen). Ein Mittel haette diese Regionen ab 2018 etwa halbiert. Angehalten, neu heruntergeladen (jetzt `Data_new`,
+  der alte Download liegt in `Data_new_false`).
+- **Zweiter Download zu gross:** Rechteck bis 44,8 N / 4,9 O, waehrend MODIS/SNPP ein Gebiet ohne Frankreich noerdlich von etwa
+  43,5 Grad abdecken. Aenderung: gemeinsames Gebiet (`common_area`, alle 0,25-Grad-Zellen mit Terra-, Aqua- oder SNPP-Erkennungen).
+  Danach liegen alle Regionen bei 0,83-1,23 von SNPP. Rasterweite 0,05-0,25 Grad aendert das kaum.
+- Voranalyse mit diesen Daten: R1 (N20 1,02, N21 0,98), R2 (Drift hoechstens 10 min), R3 (Faktor +0,1 %), R4 (Fehler x 2,0 -> x 1,5
+  in allen Rotationen, auch je Monat), R5 (Recall 98,2 / 97,7 %, Fehlentfernung 1,9 / 1,6 %) erfuellt.
+- Probelauf mit dem unvollstaendigen Download: N1c schlug wie beabsichtigt an (0,45, ES51).
+
+### Iteration 1
+- Ergebnis des ersten Laufs: verfehlt **U1b** (groesste Abdeckung des 50-%-Bands 0,614 bei Grenze 0,58; NUTS-2 x Monat, FRP 100-500 MW)
+  und **N4b** (Fehlentfernung der Ortsmaske bei NOAA-20 2,23 % bei Grenze 2 %). Dazu schlug ein Regressionstest an (Faktor ES11 -1,0 %).
+- Ursache U1b: Die Baender werden auf 2012-2016 bestimmt und auf 2017-2021 geprueft (und umgekehrt). Mit dem Mittel als Referenz
+  ist 2018-2021 ruhiger (SNPP + NOAA-20) als 2012-2016, die Haelften sind nicht vergleichbar.
+- Ursache N4b: Die Maske lernte auch aus MODIS-Zeilen. Deren 1-km-Pixel verschmieren den Ort einer Anlage, die Maske wird zu gross
+  fuer VIIRS. Mit einer reinen VIIRS-Maske 1,90 %, der MODIS-Recall fiele dann aber von 0,69 auf 0,50.
+- Aenderung: `calibration.reference_satellites: [SNPP]` (Kalibrierung und Fehlermodell gegen SNPP allein; aendert die Vorab-Regel R3,
+  Faktorunterschied laut Voranalyse +0,1 %). `static_sources.mask_training_sensors: {VIIRS: [VIIRS], MODIS: [MODIS, VIIRS]}`.
+  Der Regressionstest vergleicht wieder mit 08_series.py (SNPP) und zusaetzlich mit 09 (Faktor auf das Mittel, Toleranz 3 % wie R3).
+- Ergebnis: **alle 42 Pruefungen erfuellt** (D1-U3 identisch mit dem Lauf nur mit SNPP, N1 1,006, N1c 0,952, N2 3,7e-16,
+  N3 3 von 3, N4a 97,7 %, N4b 1,90 %, N5 ja). Keine Schwelle gesenkt. **Stopp laut Regel.**
+- Hypothesen H1-H5 neu gerechnet: alle 109 Kennzahlen unveraendert (die Kreuzvalidierung misst gegen SNPP).
+
+### Knappe Stellen
+- N4b: 1,90 % bei Grenze 2 % (NOAA-20).
+- U1 unveraendert knapp: 0,432 und 0,578 bei 0,42 und 0,58.

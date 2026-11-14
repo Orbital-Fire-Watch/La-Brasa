@@ -32,7 +32,7 @@ class Table:
 
 
 C = Column
-BASIS_TEXT = ("viirs_measured (VIIRS gemessen), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled "
+BASIS_TEXT = ("viirs_measured (VIIRS gemessen, Mittel der aktiven VIIRS-Satelliten), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled "
               "oder none (keine zulässige Quelle)")
 
 HOTSPOT_BASE = (
@@ -44,6 +44,8 @@ HOTSPOT_BASE = (
       "Position des Punkts auf der Karte, räumliche Filter."),
     C("cell_id", "string", "–", "Rasterzelle von 0,25° als „Breitenindex_Längenindex“ (Index = floor(Koordinate / 0,25)).",
       "nie leer", "Kacheln auf der Karte einfärben, schnelle Vorfilterung großer Flächen."),
+    C("h3_cell", "string", "–", "H3-Zelle der Pixelmitte (Sechseck-Raster, Auflösung 8, etwa 0,74 km²), z. B. „88390ca343fffff“.",
+      "nie leer", "Sechseck-Heatmap, Nachbarschaftsabfragen. Gröbere Zellen per h3.cell_to_parent (z. B. Auflösung 5 oder 6 für ganz Iberien)."),
     C("acq_date", "date", "UTC", "Datum der Messung in UTC, wie von FIRMS geliefert.", "nie leer",
       "Anzeige im Popup und im CSV. Für Zeitfilter und Summen besser obs_date nehmen."),
     C("acq_time", "string", "UTC, HHMM", "Uhrzeit der Messung als vierstelliger Text, z. B. „0114“.", "nie leer",
@@ -54,9 +56,9 @@ HOTSPOT_BASE = (
       "nie leer", "Der Zeitfilter der Karte und der Schlüssel zu day_status und zur Tagestabelle."),
     C("local_solar_hour", "double", "Stunden 0–24", "Lokale Sonnenzeit des Überflugs: UTC-Stunde + Länge / 15.", "nie leer",
       "Tageszeit im Popup („erkannt um 13:20 Ortszeit“), Auswertung nach Tageszeit."),
-    C("satellite", "string", "–", "Satellit: Terra, Aqua oder SNPP.", "nie leer",
+    C("satellite", "string", "–", "Satellit: Terra, Aqua (MODIS), SNPP, N20 (NOAA-20) oder N21 (NOAA-21) (VIIRS).", "nie leer",
       "Herkunft im Popup und im CSV. Nicht zum Vergleichen von Zahlen zwischen Satelliten."),
-    C("sensor", "string", "–", "Instrument: MODIS (Terra, Aqua, 1-km-Pixel) oder VIIRS (SNPP, 375-m-Pixel).", "nie leer",
+    C("sensor", "string", "–", "Instrument: MODIS (Terra, Aqua, 1-km-Pixel) oder VIIRS (SNPP, NOAA-20, NOAA-21, 375-m-Pixel).", "nie leer",
       "Symbol oder Legende auf der Karte. Pflichtbegleiter für frp_class und confidence_class."),
     C("source", "string", "–", "archive (endgültig, geprüft) oder nrt (vorläufig, wird später durch Archivdaten ersetzt).", "nie leer",
       "Vorläufige Punkte kennzeichnen, z. B. gestrichelt oder mit Hinweis „vorläufig“."),
@@ -79,11 +81,13 @@ HOTSPOT_BASE = (
 )
 
 HOTSPOT_WEIGHTS = (
-    C("in_series_n", "boolean", "–", "Wahr, wenn der Satellit des Punkts an diesem Tag die Basis der Anzahl ist.", "nie leer",
-      "Karte ohne Doppelte: nur Punkte mit in_series_n = wahr zeigen (ab 2012 nur VIIRS, davor MODIS)."),
+    C("in_series_n", "boolean", "–", "Wahr, wenn der Satellit des Punkts an diesem Tag zur Basis der Anzahl gehört und in Betrieb ist.", "nie leer",
+      "Karte ohne Sensor-Doppelte: nur Punkte mit in_series_n = wahr zeigen (ab 2012 nur VIIRS, davor MODIS). Ab 2018 kann dasselbe Feuer "
+      "als Punkt von SNPP und von NOAA-20/21 erscheinen (andere Überflugzeit), Filter nach satellite möglich."),
     C("in_series_frp", "boolean", "–", "Wahr, wenn der Punkt in die harmonisierte FRP-Summe eingeht.", "nie leer",
       "Wie in_series_n, für Darstellungen der Stärke."),
-    C("weight_n", "double", "VIIRS-Äquivalente", "Beitrag des Punkts zur harmonisierten Anzahl: 1 bei VIIRS, Regionsfaktor bei MODIS, 0 außerhalb der Reihe.",
+    C("weight_n", "double", "VIIRS-Äquivalente", "Beitrag des Punkts zur harmonisierten Anzahl: 1/k bei VIIRS (k = an dem Tag aktive VIIRS-Satelliten, 1 bis 3), "
+      "Regionsfaktor bei MODIS, 0 außerhalb der Reihe.",
       "0 = zählt nicht mit", "Harmonisierte Anzahl einer beliebigen Fläche: SUM(weight_n). Nicht als Eigenschaft des Punkts anzeigen."),
     C("weight_frp", "double", "Faktor", "Faktor, mit dem die FRP des Punkts in die harmonisierte Summe eingeht.", "0 = zählt nicht mit",
       "Harmonisierte Stärke einer beliebigen Fläche: SUM(frp × weight_frp)."),
@@ -113,12 +117,20 @@ DAILY = (
     C("n_aqua", "double", "Erkennungen", "Rohzahl Aqua (MODIS) an diesem Tag.", "0 = kein Feuer, leer = Aqua nicht in Betrieb", "Nur Tooltip „Rohdaten“ und Nachrechnen."),
     C("n_terra", "double", "Erkennungen", "Rohzahl Terra (MODIS) an diesem Tag.", "0 = kein Feuer, leer = Terra nicht in Betrieb", "Nur Tooltip „Rohdaten“ und Nachrechnen."),
     C("n_snpp", "double", "Erkennungen", "Rohzahl SNPP (VIIRS) an diesem Tag.", "0 = kein Feuer, leer = SNPP nicht in Betrieb (vor 20.01.2012)", "Nur Tooltip „Rohdaten“ und Nachrechnen."),
+    C("n_noaa20", "double", "Erkennungen", "Rohzahl NOAA-20 (VIIRS) an diesem Tag.", "0 = kein Feuer, leer = NOAA-20 nicht in Betrieb (vor 01.04.2018)", "Nur Tooltip „Rohdaten“ und Nachrechnen."),
+    C("n_noaa21", "double", "Erkennungen", "Rohzahl NOAA-21 (VIIRS) an diesem Tag.", "0 = kein Feuer, leer = NOAA-21 nicht in Betrieb (vor 01.03.2023)", "Nur Tooltip „Rohdaten“ und Nachrechnen."),
+    C("n_viirs", "double", "Erkennungen", "VIIRS-Referenz: Mittel der Rohzahlen der an diesem Tag aktiven VIIRS-Satelliten (SNPP, NOAA-20, NOAA-21). "
+      "An gemessenen Tagen gleich n_harm.", "0 = kein Feuer, leer = kein VIIRS-Satellit in Betrieb (vor 20.01.2012)", "Nur Tooltip „gemessen, Mittel aus k Satelliten“."),
     C("frp_aqua", "double", "MW", "FRP-Summe Aqua an diesem Tag.", "wie n_aqua", "Nur Tooltip und Nachrechnen."),
     C("frp_terra", "double", "MW", "FRP-Summe Terra an diesem Tag.", "wie n_terra", "Nur Tooltip und Nachrechnen."),
     C("frp_snpp", "double", "MW", "FRP-Summe SNPP an diesem Tag.", "wie n_snpp", "Nur Tooltip und Nachrechnen."),
+    C("frp_noaa20", "double", "MW", "FRP-Summe NOAA-20 an diesem Tag.", "wie n_noaa20", "Nur Tooltip und Nachrechnen."),
+    C("frp_noaa21", "double", "MW", "FRP-Summe NOAA-21 an diesem Tag.", "wie n_noaa21", "Nur Tooltip und Nachrechnen."),
+    C("frp_viirs", "double", "MW", "VIIRS-Referenz der Stärke: Mittel der FRP-Summen der aktiven VIIRS-Satelliten. An gemessenen Tagen gleich frp_harm.",
+      "wie n_viirs", "Nur Tooltip und Nachrechnen."),
     C("basis_count", "string", "–", f"Quelle von n_harm: {BASIS_TEXT}.", "none = kein Wert", "Kennzeichnung „gemessen“ gegen „umgerechnet“, z. B. als Schraffur."),
     C("basis_frp", "string", "–", f"Quelle von frp_harm: {BASIS_TEXT}.", "none = kein Wert", "Wie basis_count, für die Stärke."),
-    C("n_harm", "double", "VIIRS-Äquivalente", "Harmonisierte Anzahl der Erkennungen: gemessen oder MODIS × Regionsfaktor.",
+    C("n_harm", "double", "VIIRS-Äquivalente", "Harmonisierte Anzahl der Erkennungen: gemessen (n_viirs) oder MODIS × Regionsfaktor.",
       "0 = keine Erkennung (vor 2012 oft nur „MODIS sah nichts“), leer = Tag ohne Basis", "Hauptwert für Verlauf und Kalender. Vor 2012 immer mit Band zeigen."),
     C("frp_harm", "double", "MW (VIIRS-Äquivalente)", "Harmonisierte FRP-Summe des Tages, das Maß für die Stärke.", "wie n_harm",
       "Stärke eines Tages als Zahl, Höhe eines Balkens, Farbintensität im Kalender."),
@@ -137,7 +149,11 @@ DAILY = (
 
 DAY_STATUS = (
     C("date", "date", "–", "Tag.", "nie leer, lückenlos", "Zeitachse. Jeder Tag kommt genau einmal vor."),
-    C("snpp_operating", "boolean", "–", "SNPP (VIIRS) liefert an diesem Tag Daten.", "nie leer", "Erklärung, warum ein Tag gemessen oder umgerechnet ist."),
+    C("viirs_operating", "boolean", "–", "Mindestens ein VIIRS-Satellit (SNPP, NOAA-20, NOAA-21) liefert an diesem Tag Daten. Dann ist der Tag gemessen.",
+      "nie leer", "Erklärung, warum ein Tag gemessen oder umgerechnet ist."),
+    C("snpp_operating", "boolean", "–", "SNPP (VIIRS) liefert an diesem Tag Daten.", "nie leer", "Tooltip „gemessen mit …“ (welche Satelliten im Mittel stecken)."),
+    C("noaa20_operating", "boolean", "–", "NOAA-20 (VIIRS) liefert an diesem Tag Daten.", "nie leer", "Wie snpp_operating."),
+    C("noaa21_operating", "boolean", "–", "NOAA-21 (VIIRS) liefert an diesem Tag Daten.", "nie leer", "Wie snpp_operating."),
     C("aqua_operating", "boolean", "–", "Aqua (MODIS) liefert an diesem Tag Daten.", "nie leer", "Wie snpp_operating."),
     C("terra_operating", "boolean", "–", "Terra (MODIS) liefert an diesem Tag Daten.", "nie leer", "Wie snpp_operating."),
     C("basis_count", "string", "–", f"Quelle der Anzahl an diesem Tag: {BASIS_TEXT}.", "none = Tag ohne Wert", "Abschnitte der Zeitachse einfärben (gemessen, umgerechnet, keine Daten)."),
@@ -159,7 +175,7 @@ CALIB = (
     C("used_fallback_pair", "boolean", "–", "Wahr, wenn die Region zu wenige Daten hat und den Gesamtfaktor bekommt.", "nie leer", "Hinweis „Region mit wenig Daten“."),
     C("used_fallback_aqua", "boolean", "–", "Wie used_fallback_pair, für den Aqua-Faktor.", "nie leer", "Hinweis."),
     C("used_fallback_terra", "boolean", "–", "Wie used_fallback_pair, für den Terra-Faktor.", "nie leer", "Hinweis."),
-    C("n_viirs_calib", "double", "Erkennungen", "VIIRS-Erkennungen der Region im Kalibrierfenster.", "nie leer", "Nicht nötig (Diagnose)."),
+    C("n_viirs_calib", "double", "Erkennungen", "VIIRS-Referenz (Mittel der aktiven VIIRS-Satelliten) der Region im Kalibrierfenster, summiert.", "nie leer", "Nicht nötig (Diagnose)."),
     C("n_pair_calib", "double", "Erkennungen", "Aqua + Terra-Erkennungen im Kalibrierfenster.", "nie leer", "Nicht nötig (Diagnose)."),
     C("n_aqua_calib", "double", "Erkennungen", "Aqua-Erkennungen im Kalibrierfenster.", "nie leer", "Nicht nötig (Diagnose)."),
     C("n_terra_calib", "double", "Erkennungen", "Terra-Erkennungen im Kalibrierfenster.", "nie leer", "Nicht nötig (Diagnose)."),
@@ -219,7 +235,7 @@ ROLL_UP = (
     C("n_days", "double", "Tage", "Zahl der Tage im Datensatz für diesen Zeitschritt.", "nie leer", "Nicht nötig."),
     C("n_days_complete", "double", "Tage", "Zahl der Tage mit Wert.", "nie leer", "Fortschritt „bisher 12 von 30 Tagen“."),
     C("is_complete_period", "boolean", "–", "Wahr, wenn jeder Kalendertag des Zeitschritts einen Wert hat.", "nie leer", "Unvollständige Zeiträume grau zeigen und nicht in Median oder Rang nehmen."),
-    C("share_measured_days", "double", "Anteil", "Anteil der Tage mit gemessenem VIIRS.", "nie leer", "Feinere Kennzeichnung gemischter Zeiträume."),
+    C("share_measured_days", "double", "Anteil", "Anteil der Tage mit gemessenem VIIRS (mindestens ein VIIRS-Satellit).", "nie leer", "Feinere Kennzeichnung gemischter Zeiträume."),
     C("basis_mix", "string", "–", "measured, converted oder mixed.", "nie leer", "Kennzeichnung „gemessen“, „umgerechnet“, „gemischt“."),
     C("basis_count_converted", "string", "–", "Basis der umgerechneten Tage des Zeitschritts (Anzahl).", "leer, wenn alle Tage gemessen sind", "Nachschlagen der Unsicherheit, Tooltip."),
     C("basis_frp_converted", "string", "–", "Basis der umgerechneten Tage des Zeitschritts (FRP).", "leer, wenn alle Tage gemessen sind", "Nachschlagen der Unsicherheit, Tooltip."),
@@ -232,9 +248,15 @@ ROLL_UP = (
     C("n_aqua", "double", "Erkennungen", "Summe der Rohzahl Aqua.", "leer, wenn nie in Betrieb", "Tooltip."),
     C("n_terra", "double", "Erkennungen", "Summe der Rohzahl Terra.", "leer, wenn nie in Betrieb", "Tooltip."),
     C("n_snpp", "double", "Erkennungen", "Summe der Rohzahl SNPP.", "leer, wenn nie in Betrieb", "Tooltip."),
+    C("n_noaa20", "double", "Erkennungen", "Summe der Rohzahl NOAA-20.", "leer, wenn nie in Betrieb", "Tooltip."),
+    C("n_noaa21", "double", "Erkennungen", "Summe der Rohzahl NOAA-21.", "leer, wenn nie in Betrieb", "Tooltip."),
+    C("n_viirs", "double", "Erkennungen", "Summe der VIIRS-Referenz (Mittel der aktiven VIIRS-Satelliten je Tag).", "leer, wenn nie in Betrieb", "Tooltip."),
     C("frp_aqua", "double", "MW", "Summe der FRP Aqua.", "leer, wenn nie in Betrieb", "Tooltip."),
     C("frp_terra", "double", "MW", "Summe der FRP Terra.", "leer, wenn nie in Betrieb", "Tooltip."),
     C("frp_snpp", "double", "MW", "Summe der FRP SNPP.", "leer, wenn nie in Betrieb", "Tooltip."),
+    C("frp_noaa20", "double", "MW", "Summe der FRP NOAA-20.", "leer, wenn nie in Betrieb", "Tooltip."),
+    C("frp_noaa21", "double", "MW", "Summe der FRP NOAA-21.", "leer, wenn nie in Betrieb", "Tooltip."),
+    C("frp_viirs", "double", "MW", "Summe der VIIRS-Referenz der FRP.", "leer, wenn nie in Betrieb", "Tooltip."),
 )
 
 CLIMATOLOGY = (

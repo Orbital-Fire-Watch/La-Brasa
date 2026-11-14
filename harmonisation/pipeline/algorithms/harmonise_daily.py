@@ -8,6 +8,7 @@ import pandas as pd
 
 from pipeline.algorithms.calibration_factors import predict_viirs_equivalent
 from pipeline.algorithms.daily_grid import BASIS_AQUA, BASIS_NONE, BASIS_PAIR, BASIS_TERRA, BASIS_VIIRS
+from pipeline.config import satellite_key
 
 VARIANT_OF_BASIS = {BASIS_PAIR: "pair", BASIS_AQUA: "aqua", BASIS_TERRA: "terra"}
 
@@ -17,7 +18,7 @@ def pick_value_by_basis(scaled: pd.DataFrame, basis: pd.Series, measure: str, ki
     value = pd.Series(np.nan, index=scaled.index)
     factor = pd.Series(np.nan, index=scaled.index)
     measured = basis == BASIS_VIIRS
-    value[measured], factor[measured] = scaled.loc[measured, f"{measure}_snpp"], 1.0
+    value[measured], factor[measured] = scaled.loc[measured, f"{measure}_viirs"], 1.0
     for name, variant in VARIANT_OF_BASIS.items():
         rows = basis == name
         value[rows] = scaled.loc[rows, f"pred_{measure}_{variant}"]
@@ -25,10 +26,17 @@ def pick_value_by_basis(scaled: pd.DataFrame, basis: pd.Series, measure: str, ki
     return value, factor
 
 
-def harmonise_daily_activity(grid: pd.DataFrame, day_status: pd.DataFrame, factors: pd.DataFrame) -> pd.DataFrame:
+def raw_value_columns(config: dict[str, Any]) -> list[str]:
+    """Rohspalten der Tagestabelle in fester Reihenfolge: je Satellit, dann die VIIRS-Referenz (erst n_*, dann frp_*)."""
+    keys = [satellite_key(config, satellite) for satellite in config["satellites"]["modis_pair"] + config["satellites"]["viirs"]]
+    return [f"{measure}_{key}" for measure in ("n", "frp") for key in keys + ["viirs"]]
+
+
+def harmonise_daily_activity(grid: pd.DataFrame, day_status: pd.DataFrame, factors: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
     """Erzeugt je Region und Tag die harmonisierten Werte in VIIRS-Aequivalenten.
 
-    `n_harm` und `frp_harm` sind je nach Basis des Tages der gemessene VIIRS-Wert oder die mit dem
+    `n_harm` und `frp_harm` sind je nach Basis des Tages der gemessene VIIRS-Wert (das Mittel der
+    aktiven VIIRS-Satelliten, `n_viirs`) oder die mit dem
     Faktor umgerechnete MODIS-Summe. Damit steht die ganze Reihe ab 2001 auf einer Skala, und der
     Wechsel des Sensors 2012 erscheint nicht mehr als Sprung (ohne Umrechnung stiege das Mittel
     scheinbar auf das 2,2-Fache).
@@ -37,8 +45,7 @@ def harmonise_daily_activity(grid: pd.DataFrame, day_status: pd.DataFrame, facto
     Anzahl und FRP koennen an einem Tag verschiedene Basen haben (`basis_count`, `basis_frp`).
     """
     scaled = predict_viirs_equivalent(grid, factors).merge(day_status[["date", "basis_count", "basis_frp"]], on="date")
-    result = scaled[["region_id", "date", "n_aqua", "n_terra", "n_snpp", "frp_aqua", "frp_terra", "frp_snpp",
-                     "basis_count", "basis_frp"]].copy()
+    result = scaled[["region_id", "date"] + raw_value_columns(config) + ["basis_count", "basis_frp"]].copy()
     result["n_harm"], result["factor_count"] = pick_value_by_basis(scaled, scaled["basis_count"], "n", "count")
     result["frp_harm"], result["factor_frp"] = pick_value_by_basis(scaled, scaled["basis_frp"], "frp", "frp")
     result["country"] = result["region_id"].str[:2]

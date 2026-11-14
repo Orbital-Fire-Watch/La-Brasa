@@ -7,6 +7,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
+from pipeline.config import satellite_key, viirs_keys
 from pipeline.data_loading.ingest_csv_to_parquet import raw_parquet_path
 
 BASIS_VIIRS, BASIS_PAIR, BASIS_AQUA, BASIS_TERRA, BASIS_NONE = (
@@ -14,9 +15,9 @@ BASIS_VIIRS, BASIS_PAIR, BASIS_AQUA, BASIS_TERRA, BASIS_NONE = (
 
 
 def satellites_of_basis(config: dict[str, Any]) -> dict[str, list[str]]:
-    """Welche Satelliten liefern die Daten einer Basis (z. B. modis_pair_scaled -> Aqua und Terra)."""
+    """Welche Satelliten liefern die Daten einer Basis (z. B. modis_pair_scaled -> Aqua und Terra, viirs_measured -> alle VIIRS)."""
     roles = config["satellites"]
-    return {BASIS_VIIRS: [roles["reference"]], BASIS_PAIR: list(roles["modis_pair"]),
+    return {BASIS_VIIRS: list(roles["viirs"]), BASIS_PAIR: list(roles["modis_pair"]),
             BASIS_AQUA: [roles["modis_afternoon"]], BASIS_TERRA: [roles["modis_single"]], BASIS_NONE: []}
 
 
@@ -81,7 +82,8 @@ def choose_basis_per_day(status: pd.DataFrame, config: dict[str, Any], quantity:
     """Legt je Tag fest, aus welcher Quelle der harmonisierte Wert einer Groesse (count oder frp) kommt.
 
     Rangfolge:
-    1. SNPP in Betrieb -> VIIRS gemessen. Eine Messung ist immer besser als eine Umrechnung.
+    1. mindestens ein VIIRS-Satellit (SNPP, NOAA-20, NOAA-21) in Betrieb -> VIIRS gemessen. Eine
+       Messung ist immer besser als eine Umrechnung.
     2. sonst MODIS umgerechnet, aber nur bis `modis_last_valid_date`. Danach driften Terra und Aqua
        von ihrer Ueberflugzeit weg, der Faktor gilt nicht mehr.
        - Anzahl: Aqua + Terra, wenn beide in Betrieb sind (im Test die beste Vorhersage der VIIRS-Zahl).
@@ -92,11 +94,12 @@ def choose_basis_per_day(status: pd.DataFrame, config: dict[str, Any], quantity:
     Die Sensoren werden nie addiert: Dasselbe Feuer stuende sonst doppelt in der Reihe.
     """
     params, roles = config["daily"], config["satellites"]
-    snpp, aqua, terra = (status[f"{roles[role].lower()}_operating"] for role in ("reference", "modis_afternoon", "modis_single"))
+    viirs = status["viirs_operating"]
+    aqua, terra = (status[f"{satellite_key(config, roles[role])}_operating"] for role in ("modis_afternoon", "modis_single"))
     allowed = (status["date"] <= pd.Timestamp(params["modis_last_valid_date"])) | params["allow_drift_modis"]
     use_pair = quantity == "count" or config["strength"]["frp_modis_source"] == "pair"
     first, first_basis = (aqua & terra, BASIS_PAIR) if use_pair else (aqua, BASIS_AQUA)
-    basis = np.select([snpp, allowed & first, allowed & terra, allowed & aqua],
+    basis = np.select([viirs, allowed & first, allowed & terra, allowed & aqua],
                       [BASIS_VIIRS, first_basis, BASIS_TERRA, BASIS_AQUA], default=BASIS_NONE)
     return pd.Series(basis, index=status.index)
 
@@ -117,7 +120,7 @@ def flag_possible_gaps(daily_sums: pd.DataFrame, status: pd.DataFrame, config: d
     for satellite in config["satellites"]["sensor_of"]:
         counts = totals[satellite].to_numpy() if satellite in totals else np.zeros(len(status))
         median = pd.Series(counts).rolling(window, center=True, min_periods=1).median().to_numpy()
-        gaps[satellite] = status[f"{satellite.lower()}_operating"].to_numpy() & (counts == 0) & (median >= params["gap_min_neighbour_median"])
+        gaps[satellite] = status[f"{satellite_key(config, satellite)}_operating"].to_numpy() & (counts == 0) & (median >= params["gap_min_neighbour_median"])
     return gaps
 
 
@@ -134,8 +137,9 @@ def build_day_status(daily_sums: pd.DataFrame, coverage: pd.DataFrame, config: d
     status = pd.DataFrame({"date": pd.date_range(params["series_start"], coverage["window_end"].max(), freq="D")})
     nrt_days = {}
     for satellite in config["satellites"]["sensor_of"]:
-        status[f"{satellite.lower()}_operating"] = status["date"].isin(operating_days_of(coverage, satellite, tolerance))
+        status[f"{satellite_key(config, satellite)}_operating"] = status["date"].isin(operating_days_of(coverage, satellite, tolerance))
         nrt_days[satellite] = status["date"].isin(operating_days_of(coverage, satellite, tolerance, source="nrt"))
+    status["viirs_operating"] = status[[f"{key}_operating" for key in viirs_keys(config)]].any(axis=1)
     status["basis_count"] = choose_basis_per_day(status, config, "count")
     status["basis_frp"] = choose_basis_per_day(status, config, "frp")
     status["is_complete_day"] = (status["basis_count"] != BASIS_NONE) & (status["basis_frp"] != BASIS_NONE)
@@ -149,25 +153,52 @@ def build_day_status(daily_sums: pd.DataFrame, coverage: pd.DataFrame, config: d
     return status.assign(is_provisional=provisional, possible_gap=possible_gap)
 
 
-def build_daily_grid(daily_sums: pd.DataFrame, day_status: pd.DataFrame, key: str = "region_id") -> pd.DataFrame:
-    """Baut das lueckenlose Raster Schluessel x Tag mit Anzahl und FRP je Satellit.
+def build_daily_grid(daily_sums: pd.DataFrame, day_status: pd.DataFrame, config: dict[str, Any], key: str = "region_id") -> pd.DataFrame:
+    """Baut das lueckenlose Raster Schluessel x Tag mit Anzahl und FRP je Satellit und der VIIRS-Referenz.
 
     Drei Faelle werden unterschieden, weil sie Verschiedenes bedeuten:
     - Zahl > 0: es gab Erkennungen.
     - 0: der Satellit lieferte Daten, aber es brannte nichts. Diese Nullen fehlen in den Rohdaten.
     - NA: der Satellit war an dem Tag nicht in Betrieb (z. B. VIIRS vor 2012). Eine 0 waere hier
       falsch und wuerde als feuerfreier Tag gelesen.
+    Dazu kommen `n_viirs` und `frp_viirs`, das Mittel der aktiven VIIRS-Satelliten (siehe
+    `add_viirs_reference`).
     """
     keys = sorted(daily_sums[key].dropna().unique())
     index = pd.MultiIndex.from_product([keys, day_status["date"]], names=[key, "date"])
     wide = daily_sums.rename(columns={"obs_date": "date"}).pivot_table(index=[key, "date"], columns="satellite",
                                                                      values=["n", "frp"], aggfunc="sum")
-    wide.columns = [f"{measure}_{satellite.lower()}" for measure, satellite in wide.columns]
-    grid = wide.reindex(index).reset_index().merge(day_status[["date"] + [c for c in day_status if c.endswith("_operating")]], on="date")
-    for column in [c for c in day_status.columns if c.endswith("_operating")]:
+    wide.columns = [f"{measure}_{satellite_key(config, satellite)}" for measure, satellite in wide.columns]
+    operating = [column for column in day_status.columns if column.endswith("_operating") and column != "viirs_operating"]
+    grid = wide.reindex(index).reset_index().merge(day_status[["date", "viirs_operating"] + operating], on="date")
+    for column in operating:
         satellite = column.removesuffix("_operating")
         for measure in ("n", "frp"):
             name = f"{measure}_{satellite}"
             values = grid[name] if name in grid else pd.Series(np.nan, index=grid.index)
             grid[name] = values.fillna(0.0).where(grid[column])
+    grid = add_viirs_reference(grid, config)
     return grid.sort_values([key, "date"]).reset_index(drop=True)
+
+
+def add_viirs_reference(table: pd.DataFrame, config: dict[str, Any], keys: list[str] | None = None) -> pd.DataFrame:
+    """Ergaenzt `n_viirs` und `frp_viirs`: das Mittel ueber die an diesem Tag aktiven VIIRS-Satelliten.
+
+    Warum das Mittel und nicht die Summe: SNPP, NOAA-20 und NOAA-21 tragen baugleiche Instrumente
+    und ueberfliegen Iberien mit etwa 50 Minuten Abstand. Sie sehen dieselben Feuer zu einer
+    anderen Uhrzeit, ihre Erkennungen sind keine Doppelte desselben Pixels und lassen sich nicht
+    entdoppeln. Eine Summe wuerde die Reihe ab 2018 etwa verdoppeln. Das Mittel bleibt auf dem
+    Niveau eines Satelliten (Voranalyse 09: NOAA-20 / SNPP 0,98, NOAA-21 / SNPP 0,94) und damit
+    auf dem Niveau der Kalibrierung, und es daempft den Zufall, ob ein einzelner Ueberflug ein
+    kleines Feuer gerade trifft (typischer Fehler gegen einen zurueckgehaltenen Satelliten x 2,0
+    einzeln, x 1,5 gemittelt).
+    Regeln: Ein aktiver Satellit ohne Erkennung zaehlt als 0. Ein nicht aktiver Satellit
+    (`<key>_operating` falsch oder Wert leer) zaehlt nicht mit. Ist keiner aktiv, bleibt der Wert leer.
+    `keys` waehlt andere Satelliten als alle VIIRS-Satelliten (die Kalibrierung nutzt nur SNPP).
+    """
+    result = table.copy()
+    for measure in ("n", "frp"):
+        parts = [result[f"{measure}_{key}"].where(result[f"{key}_operating"]) if f"{key}_operating" in result else result[f"{measure}_{key}"]
+                 for key in (keys or viirs_keys(config))]
+        result[f"{measure}_viirs"] = pd.concat(parts, axis=1).mean(axis=1, skipna=True)
+    return result

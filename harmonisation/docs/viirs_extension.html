@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VIIRS-Erweiterung</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: eine Lesespalte (max. 940px), Stand zuerst, danach Tabellen als abgesetzte Flaechen */
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --ink:#10161d; --ink2:#46505c; --muted:#77818d;
+  --line:#dde1e6; --accent:#1d5a66; --wash:#e7eff1; --ok:#1c6b3c; --fail:#b3261e;
+  --raw:#eef0f3; --proc:#e7eff1; --harm:#dcebe2; --agg:#efe9dc;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:"Space Grotesk","Inter",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1114; --surface:#171b20; --ink:#eef1f4; --ink2:#b9c1ca; --muted:#8a939e;
+    --line:#2a3038; --accent:#7fc4d1; --wash:#16262b; --ok:#6fcf97; --fail:#ff8a80;
+    --raw:#1b2026; --proc:#16262b; --harm:#16291f; --agg:#2a2518; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1114; --surface:#171b20; --ink:#eef1f4; --ink2:#b9c1ca; --muted:#8a939e;
+  --line:#2a3038; --accent:#7fc4d1; --wash:#16262b; --ok:#6fcf97; --fail:#ff8a80;
+  --raw:#1b2026; --proc:#16262b; --harm:#16291f; --agg:#2a2518; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:40px 80px;-webkit-text-size-adjust:100%}
+main{max-width:940px;margin:0 auto;display:flex;flex-direction:column;gap:18px;min-width:0}
+main>*{margin:0;min-width:0}
+p,li{max-width:74ch}
+h1,h2,h3{font-family:var(--display);font-weight:600;text-wrap:balance;line-height:1.2;letter-spacing:-0.01em}
+h1{font-size:clamp(1.8rem,5vw,2.5rem)}
+h2{font-size:1.45rem;margin-top:30px;padding-top:26px;border-top:1px solid var(--line)}
+h3{font-size:1.05rem;margin-top:10px}
+h3 .file{font-family:var(--mono);font-size:.8rem;font-weight:400;color:var(--muted);margin-left:6px;letter-spacing:0}
+.eyebrow{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.lede{font-size:1.1rem;color:var(--ink2);max-width:66ch}
+a{color:var(--accent)}
+code{font-family:var(--mono);font-size:.88em;background:var(--wash);padding:.06em .3em;border-radius:3px}
+pre{font-family:var(--mono);font-size:.84rem;background:var(--surface);border:1px solid var(--line);border-radius:6px;
+  padding:12px 14px;overflow-x:auto;line-height:1.5}
+pre code{background:none;padding:0}
+ul{padding-left:1.25em;display:flex;flex-direction:column;gap:7px}
+.status{background:var(--wash);border-radius:8px;padding:16px 20px;font-family:var(--display);font-size:1.12rem;font-weight:500;line-height:1.4;max-width:none}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.tile b{font-family:var(--display);font-size:1.55rem;font-weight:600;line-height:1.15}
+.tile span{font-size:.86rem;color:var(--ink2);line-height:1.4}
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.layer{border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:5px;min-width:0;border:1px solid var(--line)}
+.layer b{font-family:var(--display);font-size:.96rem}
+.layer span{font-size:.8rem;color:var(--ink2);line-height:1.4;overflow-wrap:anywhere}
+.layer i{font-style:normal;font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.l-src{background:var(--surface)} .l-raw{background:var(--raw)} .l-proc{background:var(--proc)} .l-harm{background:var(--harm)} .l-agg{background:var(--agg)}
+.scroll{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;font-size:.86rem;width:100%;background:var(--surface);border:1px solid var(--line)}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.45}
+th{font-weight:600;color:var(--ink2);font-size:.79rem}
+table.wide{min-width:760px}
+table code{white-space:nowrap}
+table.num td:not(:first-child),table.num th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.kpi td:nth-child(2),table.kpi th:nth-child(2){text-align:left;white-space:normal}
+table.cols td:nth-child(2){color:var(--ink2);white-space:nowrap}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.88rem;color:var(--ink2)}
+.meta b{color:var(--ink);font-weight:600}
+.ok{color:var(--ok);font-weight:600} .fail{color:var(--fail);font-weight:600}
+nav.toc{font-size:.92rem;color:var(--ink2)}
+nav.toc ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 24px;margin:0;list-style:none;padding:0}
+details{font-size:.92rem} summary{cursor:pointer;width:fit-content;color:var(--ink2)}
+details>div{margin-top:10px}
+summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{font-size:.9rem;color:var(--ink2)}
+@media (max-width:760px){ .flow{grid-template-columns:1fr 1fr} h2{font-size:1.3rem} }
+</style>
+<style>
+figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+figure svg{width:100%;height:auto;max-width:100%;display:block}
+figcaption{font-size:.86rem;color:var(--ink2)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.82rem;color:var(--ink2)}
+.legend span::before{content:"";display:inline-block;width:14px;height:3px;margin-right:6px;vertical-align:middle;background:var(--c)}
+.chart text{fill:var(--ink2);font:11px var(--body)}
+.chart .grid{stroke:var(--line)} .chart .band{fill:var(--wash)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps li{counter-increment:s;padding-left:2.1em;position:relative}
+.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:1.5em;height:1.5em;border-radius:50%;background:var(--wash);
+  color:var(--accent);font:600 .8rem/1.5em var(--display);text-align:center}
+</style>
+</head>
+<body>
+
+<main>
+<p class="eyebrow">NASA Space Apps 2026 · FIRMS · Iberien · Schema-Version 2</p>
+<h1>VIIRS-Erweiterung: NOAA-20 und NOAA-21</h1>
+<p class="lede">Seit dieser Version misst die Harmonisierung VIIRS nicht mehr nur mit SNPP, sondern mit drei baugleichen Satelliten. Diese Seite zeigt, wie das gebaut und geprüft wurde: was die Daten verlangten, welche Entscheidung warum fiel und woran sich zeigt, dass die Reihe nicht schlechter, sondern genauer wurde. Die Kurzfassung für das Team steht in <code>docs/viirs_extension.md</code>.</p>
+<p class="status">42 von 42 Prüfungen erfüllt, keine Schwelle gesenkt. Die Reihe reicht jetzt bis 2026-11-13.</p>
+
+<div class="tiles">
+<div class="tile"><b>1,006</b><span>VIIRS-Mittel / SNPP je Region und Jahr (Median). Kein Sprung beim Start von NOAA-20 und NOAA-21.</span></div>
+<div class="tile"><b>× 2,0 → × 1,5</b><span>typischer Tagesfehler gegen einen zurückgehaltenen Satelliten: einzeln gegen gemittelt</span></div>
+<div class="tile"><b>1.343</b><span>Tage mit drei VIIRS-Satelliten, 1.806 mit zwei, 2.263 mit einem</span></div>
+<div class="tile"><b>746.558</b><span>Hotspots von 940.293 gelesenen Zeilen, 52.941 NOAA-Zeilen außerhalb des gemeinsamen Gebiets</span></div>
+</div>
+
+<h2>Wie es entstand</h2>
+<ol class="steps">
+<li><strong>Analyse vor dem Umbau</strong> (<code>data_analysis/09_viirs_satellites.py</code>): fünf Regeln R1–R5 und die Prüfungen N1–N5 vorab festgelegt, dann gemessen.</li>
+<li><strong>Erster NOAA-Download angehalten:</strong> Im Nordosten fehlten die NOAA-Daten (Katalonien 0,44, Midi-Pyrénées 0,00, Aquitaine 0,01 der SNPP-Erkennungen). Ein Mittel hätte diese Regionen ab 2018 halbiert. Das Team hat neu heruntergeladen.</li>
+<li><strong>Zweiter Download zu groß:</strong> ein Rechteck bis 44,8° N und 4,9° O, MODIS und SNPP decken aber Frankreich nördlich von etwa 43,5° nicht ab. Lösung: ein gemeinsames Gebiet aus den Zellen, in denen MODIS oder SNPP je gemessen haben.</li>
+<li><strong>Umbau der Pipeline:</strong> Satellitenliste in der Config, Mittel der aktiven Satelliten, Gewicht 1/k, neue und umbenannte Spalten, H3-Zelle, Datenbankschema Version 2.</li>
+<li><strong>Iteration 1:</strong> zwei Prüfungen verfehlt (U1b, N4b), Ursache gefunden, zwei Einstellungen geändert, danach alles erfüllt. Stopp laut Regel.</li>
+</ol>
+
+<h2>Analyse: Passen NOAA-20 und NOAA-21 zu SNPP?</h2>
+<p>Die Regeln standen vor der Messung fest. Verglichen wird nur an Tagen, an denen beide Satelliten liefern, und nur im gemeinsamen Gebiet. Archivzeilen zählen nur mit <code>type</code> = 0.</p>
+<div class="scroll"><table class="wide"><thead><tr><th>#</th><th>Regel (vor der Messung festgelegt)</th><th>gemessen</th><th>Stand</th></tr></thead><tbody><tr><td>R1</td><td>Median NOAA / SNPP je Region und Jahr in 0,85–1,15</td><td>N20 1,017, N21 0,982 (FRP 1,00 / 1,18)</td><td><span class="ok">erfüllt</span></td></tr><tr><td>R2</td><td>Überflugzeit am Tag driftet höchstens 15 min</td><td>größte Abweichung 12 min</td><td><span class="ok">erfüllt</span></td></tr><tr><td>R3</td><td>Faktor auf das Mittel weicht höchstens 3 % von SNPP ab</td><td>0,1 % (2,996 → 2,999)</td><td><span class="ok">erfüllt</span></td></tr><tr><td>R4</td><td>Mittel trifft den zurückgehaltenen Satelliten besser (alle 3 Rotationen, Tag)</td><td>× 1,50 statt × 2,00, 3 von 3</td><td><span class="ok">erfüllt</span></td></tr><tr><td>R5</td><td>Ortsmaske je NOAA-Satellit: Recall ≥ 90 %, Fehlentfernung ≤ 2 %</td><td>N20 98,2 % / 1,90 %, N21 97,7 % / 1,59 %</td><td><span class="ok">erfüllt</span></td></tr></tbody></table></div>
+<figure>
+<svg class="chart" viewBox="0 0 640 260" role="img" aria-label="Verhältnis zu SNPP je Jahr"><rect class="band" x="44" y="67.0" width="486" height="110.0"/><line class="grid" x1="44" x2="530" y1="232.0" y2="232.0" stroke-width="0.6"/><text x="38" y="236.0" text-anchor="end">0,7</text><line class="grid" x1="44" x2="530" y1="195.3" y2="195.3" stroke-width="0.6"/><text x="38" y="199.3" text-anchor="end">0,8</text><line class="grid" x1="44" x2="530" y1="158.7" y2="158.7" stroke-width="0.6"/><text x="38" y="162.7" text-anchor="end">0,9</text><line class="grid" x1="44" x2="530" y1="122.0" y2="122.0" stroke-width="1.4"/><text x="38" y="126.0" text-anchor="end">1,0</text><line class="grid" x1="44" x2="530" y1="85.3" y2="85.3" stroke-width="0.6"/><text x="38" y="89.3" text-anchor="end">1,1</text><line class="grid" x1="44" x2="530" y1="48.7" y2="48.7" stroke-width="0.6"/><text x="38" y="52.7" text-anchor="end">1,2</text><line class="grid" x1="44" x2="530" y1="12.0" y2="12.0" stroke-width="0.6"/><text x="38" y="16.0" text-anchor="end">1,3</text><text x="44.0" y="252" text-anchor="middle">2018</text><text x="104.8" y="252" text-anchor="middle">2019</text><text x="165.5" y="252" text-anchor="middle">2020</text><text x="226.2" y="252" text-anchor="middle">2021</text><text x="287.0" y="252" text-anchor="middle">2022</text><text x="347.8" y="252" text-anchor="middle">2023</text><text x="408.5" y="252" text-anchor="middle">2024</text><text x="469.2" y="252" text-anchor="middle">2025</text><text x="530.0" y="252" text-anchor="middle">2026</text><path d="M44.0,103.6 L104.8,134.2 L165.5,119.9 L226.2,110.1 L287.0,89.2 L347.8,93.9 L408.5,110.9 L469.2,120.9 L530.0,115.0" fill="none" stroke="var(--accent)" stroke-width="2"/><circle cx="44.0" cy="103.6" r="3.2" fill="var(--accent)"/><circle cx="104.8" cy="134.2" r="3.2" fill="var(--accent)"/><circle cx="165.5" cy="119.9" r="3.2" fill="var(--accent)"/><circle cx="226.2" cy="110.1" r="3.2" fill="var(--accent)"/><circle cx="287.0" cy="89.2" r="3.2" fill="var(--accent)"/><circle cx="347.8" cy="93.9" r="3.2" fill="var(--accent)"/><circle cx="408.5" cy="110.9" r="3.2" fill="var(--accent)"/><circle cx="469.2" cy="120.9" r="3.2" fill="var(--accent)"/><circle cx="530.0" cy="115.0" r="3.2" fill="var(--accent)"/><text x="538.0" y="119.0" style="fill:var(--accent);font-weight:600">NOAA-20 / SNPP</text><path d="M347.8,103.5 L408.5,149.9 L469.2,150.8 L530.0,128.6" fill="none" stroke="#b7791f" stroke-width="2"/><circle cx="347.8" cy="103.5" r="3.2" fill="#b7791f"/><circle cx="408.5" cy="149.9" r="3.2" fill="#b7791f"/><circle cx="469.2" cy="150.8" r="3.2" fill="#b7791f"/><circle cx="530.0" cy="128.6" r="3.2" fill="#b7791f"/><text x="538.0" y="147.0" style="fill:#b7791f;font-weight:600">NOAA-21 / SNPP</text><path d="M44.0,113.3 L104.8,127.3 L165.5,120.7 L226.2,115.4 L287.0,105.0 L347.8,105.5 L408.5,126.4 L469.2,130.9 L530.0,120.0" fill="none" stroke="var(--ink)" stroke-width="2"/><circle cx="44.0" cy="113.3" r="3.2" fill="var(--ink)"/><circle cx="104.8" cy="127.3" r="3.2" fill="var(--ink)"/><circle cx="165.5" cy="120.7" r="3.2" fill="var(--ink)"/><circle cx="226.2" cy="115.4" r="3.2" fill="var(--ink)"/><circle cx="287.0" cy="105.0" r="3.2" fill="var(--ink)"/><circle cx="347.8" cy="105.5" r="3.2" fill="var(--ink)"/><circle cx="408.5" cy="126.4" r="3.2" fill="var(--ink)"/><circle cx="469.2" cy="130.9" r="3.2" fill="var(--ink)"/><circle cx="530.0" cy="120.0" r="3.2" fill="var(--ink)"/><text x="538.0" y="133.0" style="fill:var(--ink);font-weight:600">Mittel / SNPP</text></svg>
+<div class="legend"><span style="--c:var(--accent)">NOAA-20 / SNPP</span><span style="--c:#b7791f">NOAA-21 / SNPP</span><span style="--c:var(--ink)">Mittel / SNPP (Pipeline, N1)</span></div>
+<figcaption>Anzahl der Erkennungen je Jahr im Verhältnis zu SNPP. Die Fläche zeigt den Bereich 0,85–1,15 aus Regel R1. Einzelne Jahre schwanken bis etwa ±10 %, das Mittel bleibt nahe 1: Die Reihe hat 2018 und 2023 keinen Sprung.</figcaption>
+</figure>
+<details><summary>Verhältnis je Region</summary><div><div class="scroll"><table class="num"><thead><tr><th>Region</th><th>NOAA-20 / SNPP</th><th>NOAA-21 / SNPP</th></tr></thead><tbody><tr><td><code>ES30</code></td><td>0,92</td><td>0,98</td></tr><tr><td><code>ES22</code></td><td>0,95</td><td>0,99</td></tr><tr><td><code>ES51</code></td><td>0,97</td><td>0,93</td></tr><tr><td><code>ES43</code></td><td>0,97</td><td>1,02</td></tr><tr><td><code>ES41</code></td><td>1,00</td><td>0,98</td></tr><tr><td><code>PT18</code></td><td>1,00</td><td>1,08</td></tr><tr><td><code>PT16</code></td><td>1,01</td><td>0,83</td></tr><tr><td><code>FRI1</code></td><td>1,01</td><td>0,93</td></tr><tr><td><code>PT11</code></td><td>1,03</td><td>0,88</td></tr><tr><td><code>ES11</code></td><td>1,03</td><td>0,94</td></tr><tr><td><code>ES13</code></td><td>1,04</td><td>0,88</td></tr><tr><td><code>ES61</code></td><td>1,04</td><td>1,02</td></tr><tr><td><code>ES12</code></td><td>1,06</td><td>1,00</td></tr><tr><td><code>ES62</code></td><td>1,07</td><td>1,16</td></tr><tr><td><code>ES52</code></td><td>1,07</td><td>0,93</td></tr><tr><td><code>ES42</code></td><td>1,07</td><td>1,10</td></tr><tr><td><code>FRJ2</code></td><td>1,16</td><td>1,23</td></tr><tr><td><code>ES24</code></td><td>1,16</td><td>1,13</td></tr><tr><td><code>PT15</code></td><td>1,21</td><td>1,08</td></tr></tbody></table></div></div></details>
+
+<h2>Warum das Mittel und nicht die Summe</h2>
+<p>SNPP, NOAA-20 und NOAA-21 tragen dasselbe Instrument und überfliegen Iberien etwa 50 Minuten versetzt. Sie sehen dasselbe Feuer zu einer anderen Uhrzeit. Ihre Pixel liegen nicht übereinander, Doppelte lassen sich also nicht entfernen. Eine Summe würde die Reihe ab 2018 verdoppeln und ab 2023 verdreifachen. Das Mittel misst dieselbe Größe wie vorher (SNPP allein) und gleicht den Zufall aus, ob ein einzelner Überflug ein kleines Feuer gerade trifft.</p>
+<figure>
+<svg class="chart" viewBox="0 0 640 148" role="img" aria-label="Fehler einzeln gegen Mittel"><text x="142" y="28" text-anchor="end">SNPP zurückgehalten</text><rect x="150" y="6" width="358.3" height="14" rx="2" fill="var(--muted)"/><text x="514.3" y="17">× 2,00 einzeln</text><rect x="150" y="24" width="179.2" height="14" rx="2" fill="var(--accent)"/><text x="335.2" y="35">× 1,50 Mittel</text><text x="142" y="74" text-anchor="end">NOAA-20 zurückgehalten</text><rect x="150" y="52" width="358.3" height="14" rx="2" fill="var(--muted)"/><text x="514.3" y="63">× 2,00 einzeln</text><rect x="150" y="70" width="179.2" height="14" rx="2" fill="var(--accent)"/><text x="335.2" y="81">× 1,50 Mittel</text><text x="142" y="120" text-anchor="end">NOAA-21 zurückgehalten</text><rect x="150" y="98" width="358.3" height="14" rx="2" fill="var(--muted)"/><text x="514.3" y="109">× 2,00 einzeln</text><rect x="150" y="116" width="179.2" height="14" rx="2" fill="var(--accent)"/><text x="335.2" y="127">× 1,50 Mittel</text></svg>
+<figcaption>Prüfung ohne „wahren“ Wert: An Tagen mit allen drei Satelliten (ab März 2023) wird jeder einmal zurückgehalten. Grau: der bessere der beiden übrigen allein. Blau: ihr Mittel. Typischer Faktorfehler je Region und Tag. Je Monat sinkt er auf × 1,25.</figcaption>
+</figure>
+
+<h2>Was sich in der Pipeline ändert</h2>
+<div class="scroll"><table class="wide"><thead><tr><th>Baustein</th><th>Änderung</th><th>Grund</th></tr></thead><tbody>
+<tr><td>Config</td><td><code>satellites.viirs: [SNPP, N20, N21]</code>, <code>column_key</code>, acht Quellen in <code>data/raw/&lt;produkt&gt;/</code></td><td>Kein Satellitenname mehr im Code. Ein weiterer Satellit braucht nur Config und Spaltenkatalog.</td></tr>
+<tr><td>Gemeinsames Gebiet</td><td><code>common_area.py</code>: nur 0,25°-Zellen mit Terra-, Aqua- oder SNPP-Erkennungen</td><td>Die Downloads decken verschiedene Gebiete ab. Ohne Angleichung stiege das Mittel in Randregionen.</td></tr>
+<tr><td>Tagesraster</td><td><code>add_viirs_reference</code>: <code>n_viirs</code> = Mittel der aktiven VIIRS-Satelliten; <code>viirs_operating</code></td><td>Aktiv ohne Feuer zählt 0, nicht aktiv zählt nicht. Ab 03.11.2026 messen NOAA-20/21 allein weiter.</td></tr>
+<tr><td>Gewichte</td><td><code>weight_n</code> = 1/k für VIIRS, nur wenn der Satellit an dem Tag aktiv ist</td><td>Hält SUM(<code>weight_n</code>) = <code>n_harm</code> für jede Fläche exakt (D11, N2).</td></tr>
+<tr><td>Kalibrierung, Fehlermodell</td><td>gegen SNPP allein (<code>calibration.reference_satellites</code>)</td><td>Iteration 1: gleiches Rauschen der Referenz im ganzen Kalibrierfenster, sonst sind die Prüfhälften nicht vergleichbar.</td></tr>
+<tr><td>Ortsmaske</td><td>je Sensor: VIIRS aus VIIRS, MODIS aus allen (<code>mask_training_sensors</code>)</td><td>Iteration 1: MODIS-Pixel (1 km) blähen die Maske für VIIRS auf.</td></tr>
+<tr><td>Hotspots</td><td><code>h3_cell</code> (H3, Auflösung 8)</td><td>Sechseck-Heatmaps und Nachbarschaftsabfragen; gröber per <code>h3.cell_to_parent</code>.</td></tr>
+<tr><td>Spalten</td><td>neu <code>n_viirs</code>, <code>frp_viirs</code>, <code>viirs_operating</code>; Rohwerte <code>n_noaa20</code>, <code>n_noaa21</code>, <code>frp_noaa20</code>, <code>frp_noaa21</code>, <code>noaa20_operating</code>, <code>noaa21_operating</code></td><td>Die Referenz heißt nicht mehr SNPP. Die Rohzahlen bleiben zum Nachrechnen.</td></tr>
+<tr><td>Datenbank</td><td><code>db/init/001_schema.sql</code>, <code>load_to_db.py</code> prüft <code>schema_version</code> = 2</td><td>Daten und Schema können nicht unbemerkt auseinanderlaufen.</td></tr>
+</tbody></table></div>
+
+<h2>Prüfung</h2>
+<p>Alle bisherigen 34 Prüfungen bleiben mit unveränderten Schwellen. D1 bis U3 messen weiterhin gegen SNPP (die Kalibrier-Referenz) und haben dieselben Werte wie ohne NOAA. Neu sind N1 bis N5:</p>
+<div class="scroll"><table class="num kpi"><thead><tr><th>#</th><th>Kennzahl</th><th>Schwelle</th><th>gemessen</th><th>Stand</th></tr></thead><tbody><tr><td>N1a</td><td>VIIRS-Mittel / SNPP je Region und Jahr: Median</td><td>mindestens 0,95</td><td>1,01</td><td><span class="ok">erfüllt</span></td></tr><tr><td>N1b</td><td>VIIRS-Mittel / SNPP je Region und Jahr: Median</td><td>höchstens 1,05</td><td>1,01</td><td><span class="ok">erfüllt</span></td></tr><tr><td>N1c</td><td>VIIRS-Mittel / SNPP: kleinstes Verhältnis je Region (Abdeckung)</td><td>mindestens 0,85</td><td>0,95</td><td><span class="ok">erfüllt</span></td></tr><tr><td>N2</td><td>Gewichte 1/k: größte Abweichung zu n_viirs und frp_viirs</td><td>höchstens 1,0e-09</td><td>3,7e-16</td><td><span class="ok">erfüllt</span></td></tr><tr><td>N3</td><td>Mittel genauer als ein einzelner Satellit (gewonnene Rotationen von 3)</td><td>mindestens 3,00</td><td>3,00</td><td><span class="ok">erfüllt</span></td></tr><tr><td>N4a</td><td>Ortsmaske je VIIRS-Satellit: kleinster Recall</td><td>mindestens 90,0 %</td><td>97,7 %</td><td><span class="ok">erfüllt</span></td></tr><tr><td>N4b</td><td>Ortsmaske je VIIRS-Satellit: höchste Fehlentfernung</td><td>höchstens 2,0 %</td><td>1,9 %</td><td><span class="ok">erfüllt</span></td></tr><tr><td>N5</td><td>Schema gleich in Parquet, CSV, Katalog und data_dictionary.md</td><td>ja</td><td>ja</td><td><span class="ok">erfüllt</span></td></tr></tbody></table></div>
+<ul>
+<li><strong>N1c</strong> deckt fehlende Abdeckung auf: Mit dem ersten, unvollständigen Download lag das kleinste Verhältnis bei 0,45 (Katalonien). Jetzt 0,95 (ES30).</li>
+<li><strong>N1 je Region und Jahr:</strong> 10–90 % der Werte liegen zwischen 0,93 und 1,12. Die Abweichungen einzelner Jahre sind Zufall eines anderen Überflugs, kein Trend.</li>
+<li><strong>N4b ist knapp:</strong> 1,90 % bei Grenze 2 % (NOAA-20).</li>
+</ul>
+
+<h2>Iterationen</h2>
+<div class="scroll"><table class="wide"><thead><tr><th>Schritt</th><th>Befund</th><th>Änderung</th><th>Ergebnis</th></tr></thead><tbody>
+<tr><td>Probelauf</td><td>Erster NOAA-Download: N1c 0,45, dazu U1 und N4b verfehlt</td><td>angehalten, neuer Download</td><td>–</td></tr>
+<tr><td>Lauf 1</td><td>U1b 0,614 (Grenze 0,58): Bänder aus 2012–2016 treffen 2017–2021 zu oft, weil die Referenz ab 2018 aus zwei Satelliten gemittelt und ruhiger ist. N4b 2,23 % (Grenze 2 %): MODIS-Zeilen vergrößern die VIIRS-Maske.</td><td>Kalibrierung und Fehlermodell gegen SNPP allein; Ortsmaske je Sensor</td><td>U1b 0,578, N4b 1,90 %</td></tr>
+<tr><td>Iteration 1</td><td>alle 42 Prüfungen erfüllt</td><td>–</td><td>Stopp laut Regel</td></tr>
+</tbody></table></div>
+
+<h2>Hinweise für das Frontend</h2>
+<ul>
+<li><strong><code>n_snpp</code> ist nicht mehr die Referenz.</strong> Werte immer aus <code>n_harm</code> und <code>frp_harm</code>, „gemessen“ aus <code>n_viirs</code>.</li>
+<li><strong>Ein Feuer, mehrere Punkte:</strong> Ab 2018 erscheint ein Feuer oft als Punkt von SNPP und von NOAA-20/21. <code>in_series_n</code> filtert nur MODIS-Doppelte. Punkte nie zählen, sondern <code>weight_n</code> summieren.</li>
+<li><strong><code>weight_n</code> = 1/3 ist kein drittel Feuer</strong> und gehört nicht ins Popup.</li>
+<li><strong>H3:</strong> <code>h3_cell</code> hat Auflösung 8 (etwa 0,74 km²). Für ganz Iberien auf Auflösung 5 oder 6 zusammenfassen.</li>
+<li><strong>Datenbank neu anlegen:</strong> <code>docker compose down -v &amp;&amp; docker compose up -d db</code>, dann <code>pipeline/load_to_db.py</code>.</li>
+</ul>
+
+<h2>Offene Punkte</h2>
+<ul>
+<li>Bänder gemessener Tage nutzen noch die Annahme für einen Satelliten. Mit drei Satelliten wären sie enger.</li>
+<li>Ein Satellit mit Ausfall zählt an dem Tag als 0 im Mittel und ist nur als <code>possible_gap</code> markiert.</li>
+<li>Das gemeinsame Gebiet ist aus Daten gelernt. In Randzellen können einzelne NOAA-Punkte knapp außerhalb des SNPP-Gebiets mitzählen.</li>
+<li>Die H3-Auflösung ist ein Vorschlag (<code>grid.h3_resolution</code>).</li>
+</ul>
+</main>
+
+</body>
+</html>

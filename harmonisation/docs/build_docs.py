@@ -181,7 +181,7 @@ def collect_overview_values(config: dict[str, Any]) -> dict[str, str]:
     summary = read_json(path_of(config, "harmonised", "calib_summary.json"))
     balance, accuracy, mask = state["clean"]["report"], report["measured"]["accuracy"], report["measured"]["mask"]
     failed = [kpi["id"] for kpi in report["kpis"] if not kpi["passed"]]
-    status = (f"Alle {len(report['kpis'])} Prüfungen sind erfüllt. Die Iteration endete nach dem zweiten Durchlauf." if not failed
+    status = (f"Alle {len(report['kpis'])} Prüfungen sind erfüllt (Schema-Version {config['schema_version']}, VIIRS aus SNPP, NOAA-20 und NOAA-21)." if not failed
               else f"{len(report['kpis']) - len(failed)} von {len(report['kpis'])} Prüfungen sind erfüllt. Verfehlt: {', '.join(failed)}.")
     unreadable = sum(source.get("unreadable_rows", 0) for source in state["ingest"]["report"].values())
     return {
@@ -199,10 +199,19 @@ def collect_overview_values(config: dict[str, Any]) -> dict[str, str]:
         "h3_threshold": de(config["strength"]["big_fire_threshold_scaled_mw"], 0),
         "none_days": str(state["daily_grid"]["report"]["days_by_basis_count"].get("none", 0)),
         "gap_days": str(state["daily_grid"]["report"]["possible_gap_days"]),
+        **viirs_overview_values(report, config),
         "unreadable_note": (f"{unreadable} Zeile der Quelldateien enthielt einen unlesbaren Wert (eingefügter Text in einer Zahl) und wurde als "
                             "<code>invalid_value</code> verworfen. Die Quelldatei selbst bleibt unverändert." if unreadable
                             else "Alle Zeilen der Quelldateien waren lesbar."),
     }
+
+
+def viirs_overview_values(report: dict[str, Any], config: dict[str, Any]) -> dict[str, str]:
+    """Zahlen der VIIRS-Erweiterung fuer die Uebersicht (Niveau, Rauschen, H3-Aufloesung, Zahl der KPIs)."""
+    viirs = report["measured"]["viirs"]
+    rotation = viirs["noise"]["rotations"][0]
+    return {"n1_median": de(viirs["level"]["median"], 3), "n3_single": de(min(rotation["error_single"].values()), 1),
+            "n3_mean": de(rotation["error_mean"], 1), "h3_resolution": str(config["grid"]["h3_resolution"]), "n_kpis": str(len(report["kpis"]))}
 
 
 def build_kpi_notes(report: dict[str, Any]) -> str:
@@ -216,6 +225,8 @@ def build_kpi_notes(report: dict[str, Any]) -> str:
         f"<strong>Ortsmaske:</strong> gesamt {pct(mask['all']['recall'])}. Bei VIIRS {pct(mask['VIIRS']['recall'])}, bei MODIS wegen der größeren Pixel nur {pct(mask['MODIS']['recall'], 0)}.",
         f"<strong>Großfeuer-Tage:</strong> Auch mit der angepassten Schwelle findet die Umrechnung nur {pct(measured['accuracy']['d5_big_fire_region']['recall'], 0)} der gemessenen Tage. "
         "Vor 2012 fehlt also etwa jeder dritte.",
+        f"<strong>VIIRS-Mittel:</strong> je Region und Jahr im Median {de(measured['viirs']['level']['median'], 3)} von SNPP, kleinste Region "
+        f"{de(measured['viirs']['level']['region_min'])} ({measured['viirs']['level']['region_min_id']}). D1 bis U3 messen gegen SNPP allein (Kalibrier-Referenz).",
     ]
     return "".join(f"<li>{note}</li>" for note in notes)
 

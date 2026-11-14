@@ -3,7 +3,9 @@
 
 # local data (folder layout stays tracked)
 !data/**/.gitkeep
-raw/
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/fixtures/
 data/processed/*
 data/harmonised/csv
 

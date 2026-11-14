@@ -14,13 +14,14 @@ from aggregation.periods import period_start_of
 from aggregation.roll_up import add_uncertainty_to_periods
 from aggregation.uncertainty import ALL_CLASSES, ZERO_CLASS
 from pipeline.algorithms.calibration_factors import MODIS_VARIANTS, estimate_calibration_factors, predict_viirs_equivalent
-from pipeline.algorithms.daily_grid import BASIS_AQUA, BASIS_PAIR, BASIS_TERRA, BASIS_VIIRS, sum_hotspots_by_day
+from pipeline.algorithms.daily_grid import BASIS_AQUA, BASIS_PAIR, BASIS_TERRA, BASIS_VIIRS, add_viirs_reference, sum_hotspots_by_day
+from pipeline.config import calibration_keys, satellite_key
 
 BASIS_OF_VARIANT = {"pair": BASIS_PAIR, "aqua": BASIS_AQUA, "terra": BASIS_TERRA}
-MEASURED_COLUMN = {"count": "n_snpp", "frp": "frp_snpp"}
+MEASURED_COLUMN = {"count": "n_viirs", "frp": "frp_viirs"}      # Referenz: Mittel der aktiven VIIRS-Satelliten
 PREDICTION_PREFIX = {"count": "pred_n_", "frp": "pred_frp_"}
 NO_REGION = "_none_"
-VALUE_COLUMNS = ["n_snpp", "frp_snpp"] + [f"{prefix}{variant}" for prefix in PREDICTION_PREFIX.values() for variant in MODIS_VARIANTS]
+VALUE_COLUMNS = ["n_viirs", "frp_viirs"] + [f"{prefix}{variant}" for prefix in PREDICTION_PREFIX.values() for variant in MODIS_VARIANTS]
 
 
 def factor_error(expected: np.ndarray, measured: np.ndarray, offset: float) -> np.ndarray:
@@ -38,7 +39,7 @@ def predict_leave_one_year_out(calibration_days: pd.DataFrame, loyo_factors: dic
     """Rechnet jedes Jahr mit den Faktoren aus den uebrigen Jahren um (Region x Tag).
 
     So wird kein Tag mit einem Faktor bewertet, in den er selbst eingegangen ist. Das Ergebnis
-    enthaelt je MODIS-Variante `pred_n_*` und `pred_frp_*` neben der Messung `n_snpp`, `frp_snpp`.
+    enthaelt je MODIS-Variante `pred_n_*` und `pred_frp_*` neben der Messung `n_viirs`, `frp_viirs`.
     """
     years = calibration_days["date"].dt.year
     parts = [predict_viirs_equivalent(calibration_days[years == year], factors) for year, factors in loyo_factors.items()]
@@ -46,21 +47,36 @@ def predict_leave_one_year_out(calibration_days: pd.DataFrame, loyo_factors: dic
     return units.rename(columns={"region_id": "area_id"})[["area_id", "date"] + VALUE_COLUMNS]
 
 
-def predict_cell_units(hotspots: pd.DataFrame, calibration_dates: pd.DatetimeIndex, loyo_factors: dict[int, pd.DataFrame],
+def cell_pieces_by_satellite(points: pd.DataFrame, operating: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
+    """Zelle x Region x Tag mit Anzahl und FRP je Satellit (0 ohne Erkennung) und der VIIRS-Referenz.
+
+    `operating` sind die Betriebsflags je Tag aus dem Tagesraster. `n_viirs` mittelt wie auf
+    Regionsebene ueber die Kalibrier-Referenz (Standard: SNPP allein, siehe select_calibration_days).
+    """
+    pieces = sum_hotspots_by_day(points, config, keys=["cell_id", "region_id"])
+    pieces["region_id"] = pieces["region_id"].astype(object).fillna(NO_REGION)      # bekommt die Gesamtfaktoren
+    wide = pieces.pivot_table(index=["cell_id", "region_id", "obs_date"], columns="satellite", values=["n", "frp"],
+                              aggfunc="sum", fill_value=0)
+    wide.columns = [f"{measure}_{satellite_key(config, satellite)}" for measure, satellite in wide.columns]
+    wide = wide.reset_index().rename(columns={"obs_date": "date"})
+    for key in config["satellites"]["column_key"].values():
+        for measure in ("n", "frp"):
+            wide[f"{measure}_{key}"] = wide.get(f"{measure}_{key}", 0.0)
+    return add_viirs_reference(wide.merge(operating, on="date", how="left"), config, calibration_keys(config))
+
+
+def predict_cell_units(hotspots: pd.DataFrame, operating: pd.DataFrame, loyo_factors: dict[int, pd.DataFrame],
                        config: dict[str, Any]) -> pd.DataFrame:
     """Dasselbe auf Zellebene (0,25 Grad x Tag), lueckenlos ueber alle Zellen mit Erkennungen.
 
     Jeder Punkt einer Zelle wird mit dem Faktor seiner Region umgerechnet, genau wie spaeter bei
     den Gewichten. Zellen ohne Erkennung an einem Tag zaehlen als 0 / 0 und gehoeren dazu: Ohne
     sie saehe das Fehlermodell nur die aktiven Tage und waere zu pessimistisch.
+    `operating` enthaelt je Kalibriertag (`date`) die Betriebsflags `<key>_operating`.
     """
+    calibration_dates = pd.DatetimeIndex(sorted(operating["date"].unique()))
     points = hotspots[hotspots["obs_date"].isin(calibration_dates)]
-    pieces = sum_hotspots_by_day(points, config, keys=["cell_id", "region_id"])
-    pieces["region_id"] = pieces["region_id"].astype(object).fillna(NO_REGION)      # bekommt die Gesamtfaktoren
-    wide = pieces.pivot_table(index=["cell_id", "region_id", "obs_date"], columns="satellite", values=["n", "frp"],
-                              aggfunc="sum", fill_value=0)
-    wide.columns = [f"{measure}_{satellite.lower()}" for measure, satellite in wide.columns]
-    wide = wide.reset_index().rename(columns={"obs_date": "date"})
+    wide = cell_pieces_by_satellite(points, operating, config)
     years = wide["date"].dt.year
     scaled = pd.concat([predict_viirs_equivalent(wide[years == year], factors) for year, factors in loyo_factors.items()])
     sparse = scaled.groupby(["cell_id", "date"])[VALUE_COLUMNS].sum()

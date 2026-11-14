@@ -3,8 +3,10 @@
   "calibration_years_exceeding_limit": [],
   "latest_deviation_minutes": {
    "Aqua": 107.8,
+   "N20": 11.8,
+   "N21": -5.8,
    "SNPP": 8.2,
-   "Terra": -101.2
+   "Terra": -101.1
   },
   "max_abs_deviation_minutes_in_window": 5.340000000000025
  },

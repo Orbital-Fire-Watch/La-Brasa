@@ -1,7 +1,7 @@
 """Erzeugt den kleinen Test-Ausschnitt aus den echten CSVs (jede n-te Zeile, fest und wiederholbar).
 
 Aufruf: .venv/bin/python tests/make_fixture.py
-Die Ausschnitte liegen in tests/fixtures/ und machen die Tests unabhaengig von den grossen Dateien.
+Die Ausschnitte liegen in La-Brasa/data/raw/fixtures/ und machen die Tests unabhaengig von den grossen Dateien.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline.config import load_config  # noqa: E402
 
-FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+FIXTURE_DIR = Path(__file__).resolve().parents[2] / "data" / "raw" / "fixtures"   # Test-Ausschnitte im gemeinsamen Datenordner
 EVERY_NTH_ROW = {"archive": 150, "nrt": 5}
 
 
