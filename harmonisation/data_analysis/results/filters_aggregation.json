@@ -1,0 +1,121 @@
+{
+ "filters": [
+  {
+   "filter": "kein Filter (alle type, alle Konfidenzen)",
+   "n_modis": 62277,
+   "n_viirs": 223326,
+   "ratio": 3.58601088684426,
+   "factor_err": 1.5224356481841512,
+   "factor_err_p90": 4.713363333985521,
+   "r2_log": 0.74411362975475,
+   "class_acc": 0.6085802742149491,
+   "kappa": 0.39483949365741067
+  },
+  {
+   "filter": "nur type = 0",
+   "n_modis": 59259,
+   "n_viirs": 176661,
+   "ratio": 2.981167417607452,
+   "factor_err": 1.4872484478698353,
+   "factor_err_p90": 4.014278645649253,
+   "r2_log": 0.7794939078226245,
+   "class_acc": 0.6236178681999115,
+   "kappa": 0.42349321385190386
+  },
+  {
+   "filter": "type = 0 und Konfidenz nicht 'low'",
+   "n_modis": 56795,
+   "n_viirs": 167319,
+   "ratio": 2.9460163746808696,
+   "factor_err": 1.4871794871794872,
+   "factor_err_p90": 4.103678929765886,
+   "r2_log": 0.7782601886118287,
+   "class_acc": 0.6267138434321097,
+   "kappa": 0.42818119763227935
+  },
+  {
+   "filter": "type = 0 und nur Konfidenz 'high'",
+   "n_modis": 22668,
+   "n_viirs": 13191,
+   "ratio": 0.581921651667549,
+   "factor_err": 1.1405867970660148,
+   "factor_err_p90": 2.7566666666666664,
+   "r2_log": 0.7526461583043881,
+   "class_acc": 0.6873065015479877,
+   "kappa": 0.42812326713723026
+  },
+  {
+   "filter": "type = 0, nur Tag",
+   "n_modis": 39708,
+   "n_viirs": 94951,
+   "ratio": 2.3912309861992544,
+   "factor_err": 1.4636335012594457,
+   "factor_err_p90": 3.872498050428906,
+   "r2_log": 0.7830204886374322,
+   "class_acc": 0.6152145068553737,
+   "kappa": 0.4108536836657434
+  },
+  {
+   "filter": "type = 0, nur Nacht",
+   "n_modis": 19551,
+   "n_viirs": 81710,
+   "ratio": 4.1793258656846195,
+   "factor_err": 2.0209593777009505,
+   "factor_err_p90": 11.000000000000002,
+   "r2_log": 0.626454773766826,
+   "class_acc": 0.599734630694383,
+   "kappa": 0.31730221931287317
+  }
+ ],
+ "aggregation": [
+  {
+   "level": "NUTS-2 x Monat",
+   "n": 2261,
+   "factor_err": 1.4872484478698353,
+   "factor_err_p90": 4.014278645649253,
+   "r2_log": 0.7794939078226245
+  },
+  {
+   "level": "NUTS-2 x Quartal",
+   "n": 760,
+   "factor_err": 1.2975593223217476,
+   "factor_err_p90": 2.427448163226436,
+   "r2_log": 0.8623824045808381
+  },
+  {
+   "level": "NUTS-2 x Jahr",
+   "n": 190,
+   "factor_err": 1.1234992434763231,
+   "factor_err_p90": 1.4438808512268304,
+   "r2_log": 0.9431738511846213
+  },
+  {
+   "level": "Land x Monat",
+   "n": 357,
+   "factor_err": 1.2283478418440694,
+   "factor_err_p90": 2.074657800840624,
+   "r2_log": 0.959188428397812
+  },
+  {
+   "level": "Land x Jahr",
+   "n": 30,
+   "factor_err": 1.0578493753328098,
+   "factor_err_p90": 1.1764958723380852,
+   "r2_log": 0.9909392618418703
+  },
+  {
+   "level": "Iberien gesamt x Monat",
+   "n": 119,
+   "factor_err": 1.1506126183812622,
+   "factor_err_p90": 1.411055356415059,
+   "r2_log": 0.9588195221486792
+  },
+  {
+   "level": "Iberien gesamt x Jahr",
+   "n": 10,
+   "factor_err": 1.0629266047563377,
+   "factor_err_p90": 1.0824455802536541,
+   "r2_log": 0.9844793942897017
+  }
+ ]
+}

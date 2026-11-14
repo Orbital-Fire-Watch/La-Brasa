@@ -2,12 +2,10 @@
 .env
 
 # local data (folder layout stays tracked)
-data/**
-!data/*/
 !data/**/.gitkeep
-
-# generated test data (pipeline/tests/make_test_data.py)
-pipeline/tests/testdata/
+raw/
+data/processed/*
+data/harmonised/csv
 
 # python
 __pycache__/
@@ -24,3 +22,5 @@ dist/
 .vscode/
 .idea/
 .DS_Store
+
+

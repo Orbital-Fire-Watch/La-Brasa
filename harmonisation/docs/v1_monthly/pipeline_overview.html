@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Harmonisierungs-Pipeline FIRMS</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: eine Lesespalte (max. 900px), Stand zuerst, danach Datenfluss, Funktionen, Pruefungen */
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --ink:#10161d; --ink2:#46505c; --muted:#77818d;
+  --line:#dde1e6; --accent:#1d5a66; --wash:#e7eff1; --ok:#1c6b3c; --fail:#b3261e;
+  --raw:#eef0f3; --proc:#e7eff1; --harm:#dcebe2;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:"Space Grotesk","Inter",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1114; --surface:#171b20; --ink:#eef1f4; --ink2:#b9c1ca; --muted:#8a939e;
+    --line:#2a3038; --accent:#7fc4d1; --wash:#16262b; --ok:#6fcf97; --fail:#ff8a80;
+    --raw:#1b2026; --proc:#16262b; --harm:#16291f; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1114; --surface:#171b20; --ink:#eef1f4; --ink2:#b9c1ca; --muted:#8a939e;
+  --line:#2a3038; --accent:#7fc4d1; --wash:#16262b; --ok:#6fcf97; --fail:#ff8a80;
+  --raw:#1b2026; --proc:#16262b; --harm:#16291f; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:40px 80px;-webkit-text-size-adjust:100%}
+main{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:18px;min-width:0}
+main>*{margin:0;min-width:0}
+p,li{max-width:72ch}
+h1,h2,h3{font-family:var(--display);font-weight:600;text-wrap:balance;line-height:1.2;letter-spacing:-0.01em}
+h1{font-size:clamp(1.8rem,5vw,2.5rem)}
+h2{font-size:1.45rem;margin-top:30px;padding-top:26px;border-top:1px solid var(--line)}
+h3{font-size:1.05rem;margin-top:10px}
+h3 .file{font-family:var(--mono);font-size:.8rem;font-weight:400;color:var(--muted);margin-left:6px;letter-spacing:0}
+.eyebrow{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.lede{font-size:1.1rem;color:var(--ink2);max-width:64ch}
+a{color:var(--accent)}
+code{font-family:var(--mono);font-size:.88em;background:var(--wash);padding:.06em .3em;border-radius:3px;overflow-wrap:anywhere}
+pre{font-family:var(--mono);font-size:.85rem;background:var(--surface);border:1px solid var(--line);border-radius:6px;
+  padding:12px 14px;overflow-x:auto;line-height:1.5}
+ul{padding-left:1.25em;display:flex;flex-direction:column;gap:7px}
+.status{background:var(--wash);border-radius:8px;padding:16px 20px;font-family:var(--display);font-size:1.15rem;font-weight:500;line-height:1.4}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.tile b{font-family:var(--display);font-size:1.6rem;font-weight:600;line-height:1.15}
+.tile span{font-size:.86rem;color:var(--ink2);line-height:1.4}
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.layer{border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:5px;min-width:0;border:1px solid var(--line)}
+.layer b{font-family:var(--display);font-size:.98rem}
+.layer span{font-size:.82rem;color:var(--ink2);line-height:1.4;overflow-wrap:anywhere}
+.layer i{font-style:normal;font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.l-src{background:var(--surface)} .l-raw{background:var(--raw)} .l-proc{background:var(--proc)} .l-harm{background:var(--harm)}
+.scroll{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;font-size:.87rem;width:100%;background:var(--surface);border:1px solid var(--line)}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.45}
+th{font-weight:600;color:var(--ink2);font-size:.79rem}
+table.wide{min-width:720px}
+table code{white-space:nowrap;overflow-wrap:normal}
+.status{max-width:none}
+table.num td:not(:first-child),table.num th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.kpi td:nth-child(2),table.kpi th:nth-child(2){text-align:left;white-space:normal}
+.ok{color:var(--ok);font-weight:600} .fail{color:var(--fail);font-weight:600}
+details{font-size:.92rem} summary{cursor:pointer;width:fit-content;color:var(--ink2)}
+details>div{margin-top:10px}
+summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{font-size:.9rem;color:var(--ink2)}
+@media (max-width:700px){ .flow{grid-template-columns:1fr 1fr} h2{font-size:1.3rem} }
+</style>
+</head>
+<body>
+
+<main>
+<p class="eyebrow">NASA Space Apps 2026 · FIRMS MODIS → VIIRS · Iberien</p>
+<h1>Harmonisierungs-Pipeline</h1>
+<p class="lede">Die Pipeline liest die FIRMS-CSVs, bereinigt sie und bringt MODIS und VIIRS je Region und Monat auf eine gemeinsame Skala. Diese Seite beschreibt den Aufbau, jede umformende Funktion und die Prüfung des Ergebnisses.</p>
+<p class="status">Alle 17 von 17 Prüfungen sind erfüllt. Die Iteration endete nach dem ersten Durchlauf.</p>
+
+<div class="tiles">
+<div class="tile"><b>488.600</b><span>Hotspots bleiben von 573.462 gelesenen Zeilen</span></div>
+<div class="tile"><b>7.153</b><span>harmonisierte Zeilen: 23 Regionen × Monate von 2001-01 bis 2026-11</span></div>
+<div class="tile"><b>× 1,46</b><span>typischer Fehler der Umrechnung je Region und Monat, je Jahr × 1,12</span></div>
+<div class="tile"><b>15 s</b><span>Laufzeit aller Stufen mit 27 Tests</span></div>
+</div>
+
+<h2>Datenfluss</h2>
+<div class="flow">
+<div class="layer l-src"><i>Quelle</i><b>4 FIRMS-CSVs</b><span>MODIS und VIIRS, je Archiv und NRT</span></div>
+<div class="layer l-raw"><i>data/raw</i><b>Raw-Parquet</b><span>1:1, typisiert, alle Originalspalten, keine Logik</span></div>
+<div class="layer l-proc"><i>data/processed</i><b>Bereinigt</b><span>hotspots_clean, rejected_hotspots, static_mask, activity_daily, activity_monthly</span></div>
+<div class="layer l-harm"><i>data/harmonised</i><b>Harmonisiert</b><span>activity_harmonised, calib_factors, kpi_report.json, manifest.json</span></div>
+</div>
+<p>Einziger Einstieg ist <code>run_pipeline.py</code>. Parquet ist das Speicherformat, DuckDB die Abfrage-Engine darüber. Eine eigene Datenbankdatei gibt es nicht: Parquet ist für Frontend und Modell direkt lesbar, und bei 570.000 Zeilen bringt eine Datenbank keinen Vorteil. Alle Parameter stehen in <code>pipeline_config.yaml</code>.</p>
+<div class="scroll"><table class="wide"><thead><tr><th>Stufe</th><th>Skript</th><th>liest</th><th>schreibt</th><th>Dauer</th></tr></thead><tbody><tr><td><strong>ingest</strong></td><td><code>data_loading/ingest_csv_to_parquet.py</code></td><td>4 FIRMS-CSVs</td><td><code>raw/*.parquet</code></td><td>1,4 s</td></tr><tr><td><strong>clean</strong></td><td><code>data_loading/clean_hotspots.py</code>, dazu <code>static_source_mask.py</code>, <code>assign_region.py</code>, <code>classify_hotspots.py</code>, <code>schema_validation.py</code></td><td><code>raw/*.parquet</code>, NUTS-2-Grenzen</td><td><code>processed/hotspots_clean</code>, <code>rejected_hotspots</code>, <code>static_mask</code></td><td>4,0 s</td></tr><tr><td><strong>aggregate</strong></td><td><code>data_loading/aggregate_daily.py</code></td><td><code>hotspots_clean</code>, <code>raw</code></td><td><code>processed/activity_daily</code>, <code>satellite_coverage</code></td><td>0,5 s</td></tr><tr><td><strong>calibrate</strong></td><td><code>algorithms/activity_grid.py</code>, <code>calibration_factors.py</code>, <code>drift_monitor.py</code></td><td><code>activity_daily</code>, <code>satellite_coverage</code></td><td><code>processed/activity_monthly</code>, <code>drift_monitor</code>, <code>harmonised/calib_factors</code>, <code>calib_summary.json</code></td><td>0,3 s</td></tr><tr><td><strong>harmonise</strong></td><td><code>algorithms/harmonise_series.py</code></td><td><code>activity_daily</code>, <code>calib_factors</code></td><td><code>harmonised/activity_harmonised</code></td><td>0,1 s</td></tr><tr><td><strong>test</strong></td><td><code>tests/</code> (pytest)</td><td>Ausschnitt in <code>tests/fixtures</code></td><td>–</td><td>8,0 s</td></tr><tr><td><strong>validate</strong></td><td><code>algorithms/validation_kpis.py</code></td><td><code>activity_monthly</code>, <code>calib_factors</code>, <code>raw</code></td><td><code>harmonised/kpi_report.json</code>, <code>manifest.json</code></td><td>0,9 s</td></tr></tbody></table></div>
+<p class="note">Eine Datenstufe wird übersprungen, wenn Parameter, Code und Eingabedateien unverändert sind. <code>--force</code> rechnet alles neu und vergleicht die Dateien mit dem vorigen Lauf.</p>
+
+<h2>Das Ergebnis: <code>activity_harmonised.parquet</code></h2>
+<p>Eine Zeile je Region und Monat. Aus dieser Tabelle laufen Vorhersage, Brennkalender und Klassen.</p>
+<div class="scroll"><table class="wide">
+<thead><tr><th>Spalte</th><th>Inhalt</th></tr></thead>
+<tbody>
+<tr><td><code>region_id</code>, <code>country</code></td><td>NUTS-2-Region und Land</td></tr>
+<tr><td><code>period_start</code>, <code>year</code>, <code>month</code></td><td>Zeitschritt (Monatserster)</td></tr>
+<tr><td><code>basis</code></td><td><code>viirs_measured</code> (ab 02/2012), <code>modis_scaled</code> (08/2002 bis 01/2012), <code>modis_scaled_terra_only</code> (bis 07/2002), <code>none</code> (angebrochener Monat)</td></tr>
+<tr><td><code>n_harm</code></td><td>Anzahl der Erkennungen in VIIRS-Äquivalenten</td></tr>
+<tr><td><code>frp_harm</code></td><td>FRP-Summe in VIIRS-Äquivalenten (MW)</td></tr>
+<tr><td><code>n_aqua</code>, <code>n_terra</code>, <code>n_snpp</code></td><td>Rohzahlen. 0 = kein Feuer, leer = Satellit nicht in Betrieb</td></tr>
+<tr><td><code>factor_used</code></td><td>angewandter Faktor (1 bei Messung)</td></tr>
+<tr><td><code>rel_uncertainty</code></td><td>typischer Fehler als Faktor: × 1,46 für Aqua + Terra, × 1,74 nur Terra, bei Messung das Stichprobenrauschen</td></tr>
+<tr><td><code>is_complete_month</code></td><td>falsch, wenn keine Quelle den Monat vollständig abdeckt. Dann sind <code>n_harm</code> und <code>frp_harm</code> leer.</td></tr>
+</tbody></table></div>
+
+<h2>Funktionskatalog</h2>
+<p>Jede Funktion, die Daten umformt, mit dem Grund, warum ihr Vorgehen gilt. Die Belege stammen aus der Voranalyse (<code>data_analysis/harmonisierung_bericht.html</code>). Die ausführliche Fassung steht im Docstring der Funktion.</p>
+<h3>Einlesen <span class='file'>pipeline/data_loading/ingest_csv_to_parquet.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>convert_csv_to_raw_parquet</code></td><td>Schreibt eine CSV unverändert als typisiertes Parquet. Fehlt <code>type</code> (NRT), wird die Spalte leer angelegt.</td><td>Alle Spalten werden als Text gelesen und gezielt umgewandelt. Sonst rät das Programm die Typen: <code>confidence</code> ist bei MODIS eine Zahl und bei VIIRS ein Buchstabe, <code>acq_time</code> verlöre führende Nullen.</td></tr></tbody></table></div><h3>Bereinigen <span class='file'>pipeline/data_loading/clean_hotspots.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>load_raw_hotspots</code></td><td>Fügt alle Quellen zusammen und ergänzt <code>sensor</code> und <code>source</code>.</td><td><code>sensor</code> kommt aus <code>satellite</code>, weil <code>instrument</code> uneinheitlich befüllt ist („SNPP“ statt „VIIRS“).</td></tr><tr><td><code>reject_invalid_rows</code></td><td>Verwirft Zeilen mit unmöglichen Koordinaten, negativer FRP oder unbekanntem Satelliten.</td><td>Solche Zeilen würden später still in falsche Regionen oder Summen laufen. Sie werden mit Grund protokolliert.</td></tr><tr><td><code>deduplicate_hotspots</code></td><td>Entfernt doppelte Messungen (gleicher Satellit, Ort, Datum, Uhrzeit). Das Archiv gewinnt vor dem NRT.</td><td>Duplikate entstehen nur, wenn sich Archiv und NRT überlappen. Verschiedene Uhrzeiten bleiben: überlappende Bildstreifen sind echte Einzelbeobachtungen (29 % der Tag-Erkennungen von SNPP).</td></tr><tr><td><code>filter_static_sources</code></td><td>Behält nur Vegetationsfeuer. Archiv: <code>type</code> = 0. NRT: alles außerhalb der Ortsmaske.</td><td>Statische Quellen sind keine Feueraktivität und verzerren den Vergleich (32 % der SNPP-Nacht-Erkennungen, bei Aqua 4 %). Zeilen mit und ohne <code>type</code> werden getrennt behandelt, sonst fiele das ganze NRT weg.</td></tr><tr><td><code>enrich_hotspots</code></td><td>Ruft Regionszuordnung, Klassen und Sonnenzeit auf und droppt die vereinbarten Spalten.</td><td>Eine feste Reihenfolge an einer Stelle. Das Ergebnis hat genau das vereinbarte Schema.</td></tr></tbody></table></div><h3>Ortsmaske für das NRT <span class='file'>pipeline/data_loading/static_source_mask.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>learn_static_mask</code></td><td>Lernt aus dem Archiv Zellen von 0,005° mit mindestens 3 statischen Erkennungen und statischer Mehrheit, plus Nachbarzellen.</td><td>Fabriken und Fackeln stehen immer am selben Ort, Feuer nicht. Die Mehrheitsregel schützt Orte, an denen es auch echt brennt. Gelernt wird nur aus Zeilen mit bekanntem <code>type</code>.</td></tr><tr><td><code>flag_hotspots_in_mask</code></td><td>Markiert Hotspots, die in einer maskierten Zelle liegen.</td><td>Dieselbe Zellformel wie beim Lernen, damit Lernen und Anwenden nie auseinanderlaufen.</td></tr><tr><td><code>evaluate_mask_on_holdout</code></td><td>Lernt die Maske bis 2022 und prüft sie an 2023 bis 2026.</td><td>Nur so zeigt sich, ob die Maske auch neue Daten trifft. Ergebnis: 92,6 % erkannt, 1,5 % der echten Feuer fälschlich entfernt.</td></tr></tbody></table></div><h3>Region <span class='file'>pipeline/data_loading/assign_region.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>assign_nuts2_region</code></td><td>Ordnet jeden Punkt per Punkt-in-Polygon einer NUTS-2-Region zu. Küstenpunkte bis 0,05° bekommen die nächste Region. <code>country</code> sind die ersten zwei Zeichen.</td><td>Lokal und ohne API, mit räumlichem Index in Sekunden. Die Küstenregel fängt vereinfachte Grenzen ab. Land und Region können sich nicht widersprechen.</td></tr></tbody></table></div><h3>Klassen und Sonnenzeit <span class='file'>pipeline/data_loading/classify_hotspots.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>add_frp_class</code></td><td>Teilt nach FRP in low (unter 10 MW), mid (10 bis 50 MW) und high (ab 50 MW).</td><td>Feste Megawatt-Grenzen bedeuten bei beiden Sensoren physikalisch dasselbe. Die Klasse ist ein Merkmal für Frontend und Filter. In die Kalibrierung geht sie nicht ein, weil Faktoren je FRP-Klasse im Test nichts brachten (× 1,51 gegen × 1,49).</td></tr><tr><td><code>add_confidence_class</code></td><td>Vereinheitlicht zu low / nominal / high. MODIS: unter 30, 30 bis 79, ab 80. VIIRS: l, n, h. Der Originalwert bleibt als <code>confidence_raw</code>.</td><td>Die Klassen sind zwischen den Sensoren nicht vergleichbar: VIIRS-„h“ heißt nur „Kanal bei 367 K gesättigt“. Nur zusammen mit <code>sensor</code> auswerten.</td></tr><tr><td><code>add_local_solar_hour</code></td><td>Berechnet die lokale Sonnenzeit: UTC-Stunde + Länge / 15, modulo 24.</td><td>Die Sonnenzeit hängt nur von der Länge ab. Sie macht Überflugzeiten vergleichbar und die Bahndrift sichtbar.</td></tr></tbody></table></div><h3>Tagessummen <span class='file'>pipeline/data_loading/aggregate_daily.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>aggregate_daily_activity</code></td><td>Summiert Anzahl und FRP je Region, Tag, Satellit, Tageshälfte, FRP-Klasse und Konfidenzklasse.</td><td>Kleinste Einheit für alle späteren Auswertungen. Weil die Umrechnung ein Multiplikator je Region ist, ist es gleich, ob vor oder nach dem Aufsummieren skaliert wird.</td></tr><tr><td><code>find_satellite_coverage</code></td><td>Bestimmt je Satellit die Zeitfenster, in denen das Produkt Daten liefert.</td><td>Gemessen am Dateifenster, nicht an den Erkennungen: Ein Wintertag ohne Zeile heißt „kein Feuer“, nicht „keine Daten“.</td></tr></tbody></table></div><h3>Raster <span class='file'>pipeline/algorithms/activity_grid.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>flag_period_coverage</code></td><td>Markiert je Zeitschritt und Satellit, ob er vollständig abgedeckt ist.</td><td>Ein angebrochener Monat (Start des Satelliten, Ende des Downloads) wäre zu niedrig und sähe wie ein ruhiger Monat aus.</td></tr><tr><td><code>build_activity_grid</code></td><td>Baut das lückenlose Raster Region × Zeitschritt: Zahl, 0 (kein Feuer) oder leer (Satellit nicht in Betrieb).</td><td>In den Rohdaten gibt es nur Zeilen für Feuer. Ohne die ergänzten Nullen rechnet jede Statistik nur mit Brandmonaten. Vor 2012 wäre eine 0 für VIIRS dagegen falsch.</td></tr></tbody></table></div><h3>Kalibrierung <span class='file'>pipeline/algorithms/calibration_factors.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>select_calibration_rows</code></td><td>Wählt die Monate 02/2012 bis 12/2021, in denen alle drei Satelliten vollständig sind.</td><td>Nur in diesem Fenster messen MODIS und VIIRS gleichzeitig und zur festen Tageszeit. Ab 2022 driften Terra und Aqua (heute 108 und 101 Minuten).</td></tr><tr><td><code>estimate_ratio_per_region</code></td><td>Faktor je Region = Summe VIIRS / Summe MODIS über das Fenster. Unter 300 MODIS-Erkennungen gilt der Gesamtfaktor.</td><td>Ein Verhältnis von Summen verträgt Monate mit 0 und erhält die Gesamtsumme exakt. Kleine Regionen hätten ein zu unsicheres eigenes Verhältnis.</td></tr><tr><td><code>estimate_calibration_factors</code></td><td>Berechnet je Region den Faktor für Aqua + Terra, den Faktor nur für Terra und die FRP-Faktoren.</td><td>MODIS übersieht kleine Feuer. Wie viele, hängt von der typischen Feuergröße der Region ab. Im Vergleich von 17 Wegen traf kein aufwendigeres Modell die VIIRS-Klasse häufiger.</td></tr><tr><td><code>predict_viirs_equivalent</code></td><td>Rechnet um: MODIS-Summe × Faktor der Region.</td><td>Proportional, also ergibt ein Monat ohne MODIS-Erkennung 0. Modelle mit Sockelwert sagen dort positive Werte vorher und verschieben die unteren Klassen.</td></tr></tbody></table></div><h3>Harmonisierung <span class='file'>pipeline/algorithms/harmonise_series.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>choose_basis</code></td><td>Legt je Zeitschritt die Quelle fest: VIIRS gemessen, sonst Aqua + Terra umgerechnet, sonst nur Terra, sonst kein Wert.</td><td>Eine Messung ist besser als eine Umrechnung. Die Sensoren werden nie addiert, sonst stünde dasselbe Feuer doppelt in der Reihe.</td></tr><tr><td><code>poisson_uncertainty_factor</code></td><td>Stichprobenrauschen einer gemessenen Anzahl: 1 + 1 / Wurzel(n + 1).</td><td>Eine Zählung von n Zufallsereignissen streut um etwa Wurzel(n). 100 Erkennungen sind auf rund 10 % genau.</td></tr><tr><td><code>harmonise_activity</code></td><td>Erzeugt die Reihe in VIIRS-Äquivalenten mit Quelle, Faktor, Unsicherheit und Rohzahlen je Zeile.</td><td>Die ganze Reihe steht auf einer Skala. Ohne Umrechnung stiege das Mittel 2012 scheinbar auf das 2,2-Fache. Jede Zeile bleibt nachrechenbar.</td></tr></tbody></table></div><h3>Bewertung <span class='file'>pipeline/algorithms/validation_kpis.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>predict_leave_one_year_out</code></td><td>Sagt jedes Jahr mit Faktoren aus den übrigen Jahren vorher.</td><td>So wird kein Monat mit einem Faktor bewertet, in den er selbst eingegangen ist.</td></tr><tr><td><code>classify_by_reference_terciles</code></td><td>Teilt in unter / normal / über ein, gemessen an den VIIRS-Terzilen je Region und Kalendermonat.</td><td>Das ist die Zielgröße der Vorhersage. Messung und Umrechnung werden an denselben Schwellen gemessen.</td></tr><tr><td><code>evaluate_thresholds</code></td><td>Vergleicht jeden Messwert mit seiner Schwelle aus der Konfiguration.</td><td>Die Schwellen standen vor der ersten Messung fest. Der Lauf endet mit Fehlercode, wenn eine verfehlt wird.</td></tr></tbody></table></div><h3>Drift-Monitor <span class='file'>pipeline/algorithms/drift_monitor.py</span></h3><div class="scroll"><table class="wide"><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Warum das gilt</th></tr></thead><tbody><tr><td><code>monitor_overpass_drift</code></td><td>Vergleicht je Satellit und Jahr die mittlere Überflugzeit mit 2012 bis 2014.</td><td>Die Kalibrierung gilt nur, solange MODIS zur selben Tageszeit misst. Im Kalibrierfenster liegt die größte Abweichung bei 5 Minuten (Grenze 15).</td></tr></tbody></table></div>
+
+<h2>Gedroppte Spalten</h2>
+<p>Die Spalten fehlen in allen Tabellen ab <code>data/processed</code>. Im Raw-Parquet und in <code>rejected_hotspots</code> bleiben sie erhalten.</p>
+<div class="scroll"><table class="wide"><thead><tr><th>Spalte</th><th>Funktion</th><th>Grund</th><th>Beleg</th></tr></thead><tbody><tr><td><code>brightness</code>, <code>bright_t31</code></td><td><code>drop_not_comparable_columns</code></td><td>Zwischen den Sensoren nicht vergleichbar. Alle Intensitätsaussagen kommen aus <code>frp</code>.</td><td>VIIRS sättigt bei 367 K (14 % der Tag-Erkennungen). Bei MODIS folgt die FRP fast exakt aus der Helligkeit (R² 0,97).</td></tr><tr><td><code>instrument</code>, <code>version</code></td><td><code>drop_redundant_columns</code></td><td>Ersetzt durch <code>sensor</code> und <code>source</code>.</td><td><code>instrument</code> ist uneinheitlich befüllt. <code>version</code> beschreibt nur die Herkunft.</td></tr><tr><td><code>type</code></td><td><code>drop_type_after_filter</code></td><td>Nach dem Filter in jeder Archivzeile 0 und im NRT leer.</td><td>Welche Regel gegriffen hat, steht in <code>static_filter_basis</code> („type“ oder „mask“).</td></tr></tbody></table></div>
+
+<h2>Zeilenbilanz</h2>
+<p>Gelesen 573.462 = behalten 488.600 + verworfen 84.862. Jede verworfene Zeile steht mit Grund in <code>rejected_hotspots.parquet</code>.</p>
+<div class="scroll"><table class="num">
+<thead><tr><th>Grund</th><th>Zeilen</th></tr></thead>
+<tbody>
+<tr><td>statisch laut <code>type</code> (1, 2 oder 3), Archiv</td><td>83.408</td></tr>
+<tr><td>statisch laut Ortsmaske, NRT (686 Kernzellen)</td><td>1.454</td></tr>
+<tr><td>Duplikat zwischen Archiv und NRT</td><td>0</td></tr>
+<tr><td>ungültiger Wert</td><td>0</td></tr>
+</tbody></table></div>
+
+<h2>Prüfung gegen die Schwellen</h2>
+<p>Die Schwellen standen vor der ersten Messung in der Konfiguration. K1 bis K7 und K10 sind außerhalb der Trainingsdaten gemessen: Jedes Jahr 2012 bis 2021 wird mit Faktoren aus den übrigen Jahren umgerechnet. K1 bis K5 gelten für die 18 Regionen mit mindestens 2.000 VIIRS-Erkennungen.</p>
+<div class="scroll"><table class="num kpi"><thead><tr><th>#</th><th>Kennzahl</th><th>Schwelle</th><th>gemessen</th><th>Stand</th></tr></thead><tbody><tr><td>K1</td><td>Typischer Fehler je Region und Monat</td><td>höchstens × 1,55</td><td>× 1,46</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K2</td><td>90-%-Fehler je Region und Monat</td><td>höchstens × 4,50</td><td>× 4,00</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K3</td><td>Abweichung der Gesamtsumme</td><td>höchstens 3,0 %</td><td>0,1 %</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K4a</td><td>Klasse getroffen (unter, normal, über)</td><td>mindestens 60,0 %</td><td>63,7 %</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K4b</td><td>Kappa der Klassen</td><td>mindestens 0,40</td><td>0,44</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K5</td><td>Typischer Fehler je Region und Jahr</td><td>höchstens × 1,20</td><td>× 1,12</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K6a</td><td>Jahressummen Iberien 2013–2025: typischer Fehler</td><td>höchstens × 1,10</td><td>× 1,06</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K6b</td><td>Jahressummen Iberien 2013–2025: größter Fehler</td><td>höchstens × 1,30</td><td>× 1,22</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K7</td><td>Kein Trend im Verhältnis Umrechnung zu Messung (p-Wert)</td><td>mindestens 0,05</td><td>0,83</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K8</td><td>Hotspots mit Region</td><td>mindestens 99,900 %</td><td>99,998 %</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K9a</td><td>Ortsmaske: erkannte statische Quellen</td><td>mindestens 90,0 %</td><td>92,6 %</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K9b</td><td>Ortsmaske: fälschlich entfernte Feuer</td><td>höchstens 2,0 %</td><td>1,5 %</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K10a</td><td>FRP: Streuung des Jahresverhältnisses</td><td>höchstens 20,0 %</td><td>16,7 %</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K10b</td><td>FRP: Abweichung der Gesamtsumme</td><td>höchstens 20,0 %</td><td>1,9 %</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K11</td><td>Zeilenbilanz geht auf</td><td>ja</td><td>ja</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K11</td><td>Zwei Läufe ergeben dieselben Dateien</td><td>ja</td><td>ja</td><td><span class="ok">erfüllt</span></td></tr><tr><td>K11</td><td>Alle Tests bestanden</td><td>ja</td><td>ja</td><td><span class="ok">erfüllt</span></td></tr></tbody></table></div>
+<ul>
+<li><strong>Faktoren:</strong> gesamt 2,996 für Aqua + Terra, 6,001 nur für Terra, 0,641 für die FRP-Summe. Sie stimmen auf unter 1 % mit der Voranalyse überein (Regressionstest).</li>
+<li><strong>Knapp erfüllt, Kappa:</strong> 0,44 bei Schwelle 0,40. Über alle 23 Regionen wären es 0,40 und ein typischer Fehler von × 1,54.</li>
+<li><strong>Knapp erfüllt, Ortsmaske:</strong> gesamt 92,6 %. Bei VIIRS 94,5 %, bei MODIS wegen der größeren Pixel nur 71 %.</li>
+<li><strong>FRP:</strong> Die Streuung ist 17 %, einzelne Jahre liegen aber zwischen dem 0,74- und 1,30-Fachen der Messung.</li>
+<li><strong>Nur berichtet, Driftjahre 2022 bis 2026:</strong> typischer Fehler × 1,56. Diese Jahre gehen nicht in die Reihe ein, weil dort VIIRS gemessen vorliegt.</li>
+</ul>
+
+<h2>Iterationsprotokoll</h2>
+<div class="scroll"><table class="wide">
+<thead><tr><th>Schritt</th><th>Was</th><th>Ergebnis</th></tr></thead>
+<tbody>
+<tr><td>Aufbau</td><td>Fehler gefunden, bevor KPIs gemessen waren: Der angebrochene November 2026 galt als vollständig, weil das Ende eines Monats als letzter Tag mit Daten berechnet wurde.</td><td>Behoben (<code>period_end_of</code> nutzt das Kalenderende) und mit einem Test abgesichert.</td></tr>
+<tr><td>Iteration 1</td><td>Regionsfaktor mit Rückfall auf den Gesamtfaktor, Fenster 02/2012 bis 12/2021.</td><td>Alle Schwellen erfüllt. Stopp laut Regel.</td></tr>
+<tr><td>Nicht getestet</td><td>Shrinkage der Regionsfaktoren, Extrapolation der Größenverteilung, Faktoren je Tag/Nacht.</td><td>Nur vorgesehen, falls eine Schwelle verfehlt wird.</td></tr>
+</tbody></table></div>
+
+<details><summary>Faktoren je Region</summary><div><div class="scroll"><table class="num"><thead><tr><th>Region</th><th>Faktor (Aqua + Terra)</th><th>Faktor nur Terra</th><th>MODIS-Erkennungen im Fenster</th><th>Herkunft</th></tr></thead><tbody><tr><td>ES11</td><td>2,70</td><td>4,98</td><td>3.917</td><td>eigener Faktor</td></tr><tr><td>ES12</td><td>3,52</td><td>6,65</td><td>2.655</td><td>eigener Faktor</td></tr><tr><td>ES13</td><td>3,43</td><td>6,56</td><td>1.452</td><td>eigener Faktor</td></tr><tr><td>ES21</td><td>3,00</td><td>6,00</td><td>164</td><td>Gesamtfaktor</td></tr><tr><td>ES22</td><td>2,53</td><td>5,20</td><td>978</td><td>eigener Faktor</td></tr><tr><td>ES23</td><td>3,00</td><td>6,00</td><td>97</td><td>Gesamtfaktor</td></tr><tr><td>ES24</td><td>3,13</td><td>5,94</td><td>1.187</td><td>eigener Faktor</td></tr><tr><td>ES30</td><td>5,13</td><td>6,00</td><td>426</td><td>eigener Faktor</td></tr><tr><td>ES41</td><td>2,88</td><td>5,85</td><td>5.167</td><td>eigener Faktor</td></tr><tr><td>ES42</td><td>2,74</td><td>5,53</td><td>2.151</td><td>eigener Faktor</td></tr><tr><td>ES43</td><td>3,32</td><td>6,77</td><td>3.029</td><td>eigener Faktor</td></tr><tr><td>ES51</td><td>4,60</td><td>8,51</td><td>1.140</td><td>eigener Faktor</td></tr><tr><td>ES52</td><td>2,70</td><td>4,93</td><td>2.234</td><td>eigener Faktor</td></tr><tr><td>ES61</td><td>3,79</td><td>6,73</td><td>5.190</td><td>eigener Faktor</td></tr><tr><td>ES62</td><td>2,70</td><td>4,43</td><td>565</td><td>eigener Faktor</td></tr><tr><td>FRI1</td><td>3,09</td><td>9,73</td><td>2.373</td><td>eigener Faktor</td></tr><tr><td>FRJ1</td><td>3,00</td><td>6,00</td><td>163</td><td>Gesamtfaktor</td></tr><tr><td>FRJ2</td><td>2,98</td><td>6,00</td><td>728</td><td>eigener Faktor</td></tr><tr><td>PT11</td><td>2,66</td><td>5,75</td><td>13.188</td><td>eigener Faktor</td></tr><tr><td>PT15</td><td>2,63</td><td>4,82</td><td>1.337</td><td>eigener Faktor</td></tr><tr><td>PT16</td><td>2,78</td><td>5,33</td><td>9.684</td><td>eigener Faktor</td></tr><tr><td>PT17</td><td>3,00</td><td>6,00</td><td>205</td><td>Gesamtfaktor</td></tr><tr><td>PT18</td><td>2,77</td><td>5,74</td><td>1.858</td><td>eigener Faktor</td></tr></tbody></table></div></div></details>
+
+<h2>Bekannte Grenzen</h2>
+<ul>
+<li><strong>Nur Iberien.</strong> Die Faktoren gelten nicht für andere Regionen. Weltweit streut der Zählfaktor um mehr als das Doppelte.</li>
+<li><strong>Nur der Monat ist validiert.</strong> Woche und Tag sind einstellbar und laufen mit Warnung. Je Region und Tag stimmen die Sensoren nur schwach überein.</li>
+<li><strong>Vor 2012 gibt es keine Gegenprobe.</strong> Der Faktor unterstellt, dass das Verhältnis kleiner zu großer Feuer je Region gleich geblieben ist.</li>
+<li><strong>Ausfälle innerhalb des Produktfensters</strong> (ein Satellit liefert einige Tage nichts) erkennt die Pipeline nicht. Vollständigkeit wird nur am Dateifenster gemessen.</li>
+<li><strong>Die Ortsmaske kennt keine neuen Anlagen</strong> und trifft MODIS schlechter als VIIRS.</li>
+<li><strong><code>frp_class</code> und <code>confidence_class</code></strong> sind zwischen den Sensoren nicht vergleichbar und nur zusammen mit <code>sensor</code> auszuwerten.</li>
+</ul>
+
+<h2>Ausführen</h2>
+<pre>cd Daten_Satellit/harmonisation_pipeline
+.venv/bin/python run_pipeline.py            # alle Stufen
+.venv/bin/python run_pipeline.py --force    # alles neu, prüft den Determinismus
+.venv/bin/python run_pipeline.py --stage clean aggregate
+.venv/bin/python -m pytest -q tests
+.venv/bin/python docs/build_pipeline_overview.py</pre>
+</main>
+
+</body>
+</html>
