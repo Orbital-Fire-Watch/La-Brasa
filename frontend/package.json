@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "gen:types": "npx openapi-typescript@7.8.0 http://localhost:8000/openapi.json --default-non-nullable false -o services/api/schema.d.ts",
-    "build:mock-regions": "node scripts/build-mock-regions.mjs"
+    "build:mock-regions": "node scripts/build-mock-regions.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
     "d3-array": "^3.2.4",
@@ -18,11 +19,12 @@
     "d3-scale-chromatic": "^3.1.0",
     "d3-shape": "^3.2.0",
     "h3-js": "^4.2.1",
-    "maplibre-gl": "^5.6.2",
+    "maplibre-gl": "^6.18.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/d3-array": "^3.2.1",
     "@types/d3-scale": "^4.0.9",
     "@types/d3-scale-chromatic": "^3.1.0",
@@ -32,8 +34,18 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5",
-    "vitest": "^3.2.4"
+    "typescript-eslint": "^8.72.2",
+    "vite": "^6.4.6",
+    "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "overrides": {
+    "minimatch": "^11.0.8"
   }
 }

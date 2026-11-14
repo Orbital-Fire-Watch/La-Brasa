@@ -1,5 +1,9 @@
 """La Brasa Fire-API v3. Run from the backend folder:  uvicorn main:app --reload --port 8000
 Docs: http://localhost:8000/docs   Contract: dtos.py   Spec: docs/Fire-API_Spezifikation_v3.md"""
+import logging
+import threading
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -8,10 +12,21 @@ from fastapi.openapi.utils import get_openapi
 from core.config import CORS_ORIGINS
 from dtos import API_VERSION
 from errors import install_error_handlers
-from routes import data, pending
+from routes import data
+from services.events import warm_up
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # The event index takes a few seconds to build; do it in the background so the API starts at once.
+    threading.Thread(target=warm_up, name="event-index", daemon=True).start()
+    yield
+
 
 app = FastAPI(
-    title="Fire-API", version=API_VERSION,
+    title="Fire-API", version=API_VERSION, lifespan=lifespan,
     description="Harmonised fire data (MODIS + VIIRS) for Spain and Portugal. Specification v3.",
 )
 install_error_handlers(app)
@@ -21,7 +36,6 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(data.router)
-app.include_router(pending.router)
 
 
 def _openapi_without_422():

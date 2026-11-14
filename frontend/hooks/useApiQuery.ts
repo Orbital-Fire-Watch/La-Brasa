@@ -41,16 +41,16 @@ export function useApiQuery<T>(
     fetcherRef.current = fetcher;
   });
 
+  // A new key: switch to its state right away (idle, cached or loading with the previous data), so one render
+  // never shows data of another key as "success". This is React's pattern for state that follows a prop.
+  let current = entry;
+  if (entry.key !== key) {
+    current = { key, state: initialState<T>(key, entry.state.data) };
+    setEntry(current);
+  }
+
   useEffect(() => {
-    if (key === null) {
-      setEntry({ key, state: { status: "idle" } });
-      return;
-    }
-    if (cache.has(key)) {
-      setEntry({ key, state: { status: "success", data: cache.get(key) as T } });
-      return;
-    }
-    setEntry((prev) => ({ key, state: { status: "loading", data: prev.state.data } }));
+    if (key === null || cache.has(key)) return;
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
       fetcherRef
@@ -71,13 +71,13 @@ export function useApiQuery<T>(
   }, [key, attempt, debounceMs]);
 
   const reload = useCallback(() => {
-    if (key) cache.delete(key);
+    if (!key) return;
+    cache.delete(key);
+    setEntry((prev) => ({ key, state: { status: "loading", data: prev.state.data } }));
     setAttempt((a) => a + 1);
   }, [key]);
 
-  // Derive the state for a key the effect has not handled yet, so one render never shows data of another key as "success".
-  const state = entry.key === key ? entry.state : initialState<T>(key, entry.state.data);
-  return { ...state, reload } as QueryState<T> & { reload: () => void };
+  return { ...current.state, reload } as QueryState<T> & { reload: () => void };
 }
 
 function initialState<T>(key: string | null, previous: T | undefined): QueryState<T> {

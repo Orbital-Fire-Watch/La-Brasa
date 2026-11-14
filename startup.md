@@ -1,6 +1,6 @@
 # La Brasa lokal starten (Website + API + Datenbank)
 
-Voraussetzungen: Docker, Python 3, Node.js (npm), Git.
+Voraussetzungen: Docker, Python 3, Node.js 22 (z. B. `nvm install 22 && nvm use`, siehe `frontend/.nvmrc`), Git.
 
 ## 1. Stand holen
 
@@ -39,6 +39,12 @@ curl http://localhost:8000/api/meta
 
 Das muss JSON mit `first_date` und `last_date` liefern.
 
+Bestehende Datenbank, die älter ist als die Tabelle für gezeichnete Gebiete: einmal ausführen (legt nur die Tabelle `areas` an, Daten bleiben):
+
+```bash
+docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /docker-entrypoint-initdb.d/002_areas.sql'
+```
+
 Hat sich das Datenbankschema geändert (`db/init/001_schema.sql`), läuft es nur auf einem leeren Volume. Dann einmal:
 
 ```bash
@@ -61,6 +67,7 @@ Die Adresse steht im Terminal, meist `http://localhost:5173`. Das Terminal muss 
 - Ohne `VITE_API_MODE=live` läuft der Mock mit erfundenen Daten.
 - `.env.local` nicht committen (in `.gitignore` eintragen).
 - Der Vite-Proxy leitet `/api` an `localhost:8000` weiter, CORS ist im Dev-Betrieb nicht nötig.
+- Die Ereignisse berechnet das Backend beim Start (einige Sekunden, siehe `docker compose logs backend`: „Event index …“). Bis dahin warten die ersten Ereignis-Anfragen.
 
 ## Nützliche Adressen und Befehle
 
@@ -68,18 +75,16 @@ Die Adresse steht im Terminal, meist `http://localhost:5173`. Das Terminal muss 
 |---|---|
 | API-Dokumentation | `http://localhost:8000/docs` |
 | Backend-Logs | `docker compose logs --tail 30 backend` |
-| Backend-Tests | `cd backend && pip install -r requirements.txt && DATABASE_URL=postgresql://USER:PASS@localhost:5432/DB pytest tests -q` |
+| Backend-Tests | `cd backend && pip install -r requirements-dev.txt && DATABASE_URL=postgresql://USER:PASS@localhost:5432/DB pytest tests -q` (lesen `data/harmonised/*.parquet`) |
+| Frontend prüfen | `cd frontend && npm run lint && npm test && npm run build` (Node 22) |
 | Alles stoppen | `docker compose down` (Daten bleiben), Vite mit `Strg+C` |
 
 ## Was sich gegenüber dem Mock unterscheidet
 
-Diese Punkte muss das Frontend berücksichtigen:
-
-- Die API kennt **NUTS-2-Regionen** (`ES11`, `PT16`) und nur die Ebenen `country` und `region`, keine Provinzen. Stellen, die `level === "province"` filtern, bleiben leer (`components/map/FireMap.tsx` um Zeile 289, `components/selection/FrequentAreas.tsx` um Zeile 31). Beschriftungen mit „Provinz" entsprechend anpassen.
-- Die Balearen (`ES53`) sind noch nicht in den Daten. Der Text „Festland und Balearen" in `hooks/useSelection.ts` stimmt noch nicht.
-- Ereignisse, gezeichnete Gebiete und die Abweichungsansicht sind in der API noch nicht umgesetzt (`501`). `meta.features` zeigt das mit `events`, `areas` und `anomaly` = `false`.
-- Der CSV-Export bei einem gezeichneten Gebiet ignoriert das Gebiet und exportiert ganz Iberien.
-- „Gebiete, in denen es oft brennt" braucht bei Auflösung 5 über alle Jahre etwa 5 Sekunden.
+- Die API kennt **NUTS-2-Regionen** (`ES11`, `PT16`), keine Provinzen. Das Frontend nimmt automatisch die feinste vorhandene Ebene für Kartengrenzen und „Gebiete, in denen es oft brennt“.
+- Die **Balearen** sind nicht in den Daten. Die Gebietsangabe lautet deshalb „Festland“.
+- **Ereignisse** bündeln Hotspots, deren H3-Zellen (Auflösung 8) gleich oder benachbart sind und höchstens 2 Tage auseinanderliegen. Am Stichtag D zählen nur Punkte bis D. Wachsen zwei Brände später zusammen, verschwindet die ID des jüngeren danach (`EVENT_NOT_FOUND`), das Frontend lädt die Liste neu.
+- **Nur Regionen, keine Provinzen:** Ereignisse heißen „Feuer in Galicia“ statt „Feuer bei Ourense“, und `/api/by-region` kennt nur `level: "region"`.
 - `last_date` ist der letzte Tag mit Daten und kann ein unvollständiger Tag sein. Das Harmonisierungsteam klärt das noch.
 - `fires` ist die Hauptzahl. Ein Feuer kann seit 2018 bis zu dreimal als Hotspot erscheinen (Gewicht 0,333), `hotspots` ist deshalb größer als `fires`.
 
@@ -93,4 +98,5 @@ Diese Punkte muss das Frontend berücksichtigen:
 | Seite zeigt Daten, im Netzwerk-Reiter aber keine `/api`-Aufrufe | `.env.local` fehlt oder enthält nicht `VITE_API_MODE=live`, danach Vite neu starten |
 | `INTERNAL_ERROR` von der API | Datenbank leer oder altes Schema: Schritt 3 mit `down -v` wiederholen |
 | `ModuleNotFoundError: pandas` | venv nicht aktiv: `source .venv/bin/activate` und `pip install -r pipeline/requirements.txt` |
-| `501 NOT_IMPLEMENTED` | Funktion existiert in der API noch nicht, kein Fehler im Setup |
+| `501 NOT_IMPLEMENTED` | Funktion existiert in der API noch nicht (derzeit nur `grid` mit `group_by: "day"` und `by-region` mit Provinzen), kein Fehler im Setup |
+| Gezeichnetes Gebiet zeigt „Umriss nicht mehr verfügbar“ | Link mit `area=` in einem anderen Browser geöffnet: Den Umriss kennt nur der Browser, der ihn gezeichnet hat. Gebiet neu zeichnen |

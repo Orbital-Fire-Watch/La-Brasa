@@ -80,7 +80,7 @@ interface CellLike {
 
 export function cellPolygon(cell: string): AreaGeometry {
   const ring = cellToBoundary(cell, true) as Position[];
-  return { type: "Polygon", coordinates: [[...ring, ring[0]]] };
+  return { type: "Polygon", coordinates: [ring] };
 }
 
 /** Fallback adapter: grid cells (window [D − L + 1, D]) as fire units. */

@@ -1,0 +1,6 @@
+# Tests: pip install -r requirements-dev.txt, then DATABASE_URL=... pytest tests -q (see startup.md)
+-r requirements.txt
+pytest>=8
+httpx>=0.27
+pandas>=2.2          # the tests compute the expected values from data/harmonised/*.parquet
+pyarrow>=15

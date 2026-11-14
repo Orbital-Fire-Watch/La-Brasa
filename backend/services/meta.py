@@ -20,6 +20,13 @@ def data_range(conn) -> tuple[dt.date, dt.date]:
     return row["first"], row["last"]
 
 
+def data_version(conn, last: dt.date | None = None) -> str:
+    """Changes whenever the data is reloaded (new last day or a different number of hotspots)."""
+    last = last or data_range(conn)[1]
+    n = conn.execute("SELECT count(*) AS n FROM hotspots_harmonised").fetchone()["n"]
+    return f"{last.isoformat()}.{n}"
+
+
 def build_meta(conn) -> dict:
     first, last = data_range(conn)
     sensors = []
@@ -34,7 +41,6 @@ def build_meta(conn) -> dict:
             f"SELECT {flag} AS on FROM day_status ORDER BY date DESC LIMIT 1"
         ).fetchone()["on"]
         sensors.append({"id": sensor_id, "from": row["f"], "to": None if still_running else row["t"]})
-    n = conn.execute("SELECT count(*) AS n FROM hotspots_harmonised").fetchone()["n"]
     stamp = conn.execute(
         "SELECT greatest(last_analyze, last_autoanalyze) AS t FROM pg_stat_user_tables "
         "WHERE relname = 'hotspots_harmonised'"
@@ -42,7 +48,7 @@ def build_meta(conn) -> dict:
     updated = (stamp and stamp["t"]) or dt.datetime.now(dt.timezone.utc)
     return {
         "api_version": API_VERSION,
-        "data_version": f"{last.isoformat()}.{n}",           # changes whenever the data is reloaded
+        "data_version": data_version(conn, last),
         "weight_version": WEIGHT_VERSION,
         "first_date": first,
         "last_date": last,
@@ -51,8 +57,8 @@ def build_meta(conn) -> dict:
         "bbox": MAP_BBOX,
         "sensors": sensors,
         "confidence_levels": ["nominal", "high"],
-        "features": {"areas": False, "daily": True, "events": False, "anomaly": False,
-                     "anomaly_window": False, "grid_by_day": False, "landcover": False},
+        "features": {"areas": True, "daily": True, "events": True, "anomaly": True,
+                     "anomaly_window": True, "grid_by_day": False, "landcover": False},
         "limits": LIMITS,
         "attribution": ATTRIBUTION,
     }

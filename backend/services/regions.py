@@ -40,6 +40,18 @@ def _boundaries() -> dict:
     return {f["properties"]["NUTS_ID"]: shape(f["geometry"]) for f in data["features"]}
 
 
+@lru_cache(maxsize=4)
+def _union(region_ids: frozenset[str]):
+    shapes = _boundaries()
+    return unary_union([shapes[i] for i in region_ids if i in shapes])
+
+
+def coverage(conn):
+    """Spain + Portugal as one shape, from the same regions /api/regions lists (drawn areas are clipped to it)."""
+    rows = conn.execute("SELECT region_id FROM regions WHERE country = ANY(%s)", (list(API_COUNTRIES),)).fetchall()
+    return _union(frozenset(r["region_id"] for r in rows))
+
+
 def build_regions(conn) -> dict:
     rows = conn.execute(
         "SELECT region_id, region_name, country FROM regions WHERE country = ANY(%s) ORDER BY region_id",

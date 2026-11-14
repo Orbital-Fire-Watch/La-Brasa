@@ -1,4 +1,4 @@
-/** Left column of page 1: predefined areas – countries, regions and provinces from /api/regions. */
+/** Left column of page 1: predefined areas – countries, regions and (once the API has them) provinces from /api/regions. */
 import { useMemo, useState } from "react";
 import type { RegionFeature, RegionsResponse } from "../../services/api/types";
 
@@ -100,7 +100,7 @@ export function RegionPicker({ regions, selectedId, onSelect }: RegionPickerProp
       </button>
       <label className="field">
         <span className="visually-hidden">Gebiet suchen</span>
-        <input type="search" className="input" placeholder="Provinz oder Region suchen …" value={query}
+        <input type="search" className="input" placeholder="Gebiet suchen …" value={query}
           onChange={(e) => setQuery(e.target.value)} />
       </label>
       <div className="tree">

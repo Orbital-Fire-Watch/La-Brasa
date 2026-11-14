@@ -12,10 +12,10 @@ data/raw/                       FIRMS CSVs: MODIS + VIIRS SNPP archive 2000–20
 data/harmonised/*.parquet       ← the contract between harmonisation and everything after it
    │  pipeline/load_to_db.py    copy the Parquet tables into Postgres (no calculations)
    ▼
-Postgres (db/init/)             one table per Parquet file
-   │  backend/                  aggregation, API under /api/v1 (not built yet)
+Postgres (db/init/)             one table per Parquet file, plus `areas` (drawn areas of the API)
+   │  backend/                  Fire-API v3 under /api: aggregation, events, export (FastAPI)
    ▼
-frontend/                       (not built yet)
+frontend/                       web app: selection page and analysis page (React, MapLibre)
 ```
 
 Each part only reads the output of the part before it and does not import its code.
@@ -25,7 +25,8 @@ Each part only reads the output of the part before it and does not import its co
 | `pipeline/` | download FIRMS NRT data, load harmonised Parquet into Postgres, run the daily update | clean or compute data |
 | `harmonisation/` | turn raw CSVs into harmonised Parquet tables; method, analysis and docs | serve data to the product |
 | `db/init/` | create the tables (runs once on an empty database volume) | |
-| `backend/` | answer questions: aggregation, filtering, export | recompute harmonisation |
+| `backend/` | answer questions: aggregation, filtering, events, export | recompute harmonisation |
+| `frontend/` | the web app; talks only to the backend (or to its built-in mock) | compute data |
 | `data/` | local data, not in Git: `raw/`, `processed/`, `harmonised/` | |
 
 - Column meanings, units and "empty vs. 0": `harmonisation/docs/data_dictionary.md`.
@@ -52,6 +53,8 @@ docker compose up -d db
 docker compose run --rm pipeline python load_to_db.py --dry-run   # check only
 docker compose run --rm pipeline python load_to_db.py
 ```
+
+Then start the API and the website: see `startup.md`.
 
 After changing `db/init/001_schema.sql`, recreate the database: `docker compose down -v && docker compose up -d db`.
 

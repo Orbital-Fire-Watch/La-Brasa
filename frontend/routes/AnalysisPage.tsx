@@ -101,8 +101,11 @@ export function AnalysisPage() {
 
   const nameOf = (u: FireUnit) => {
     if (u.kind === "cell") return `Gebiet ${u.id.slice(0, 8)}… (ca. 36 km²)`;
-    const province = u.province_id ? regionById.get(u.province_id)?.properties.name ?? u.province_id : "";
-    return `Feuer bei ${province} · ${formatDate(u.first_seen).replace(/ \d{4}$/, "")}`;
+    const area = u.province_id ? regionById.get(u.province_id) : undefined;
+    const name = area?.properties.name ?? u.province_id ?? "";
+    // "bei Ourense" for a province, "in Galicia" for a whole region (the API has no provinces yet)
+    const preposition = area?.properties.level === "province" ? "bei" : "in";
+    return `Feuer ${preposition} ${name} · ${formatDate(u.first_seen).replace(/ \d{4}$/, "")}`;
   };
 
   // ---- selected event / cell

@@ -234,6 +234,7 @@ textarea.input { width: 100%; font-family: ui-monospace, monospace; }
 .map-toolbar__btn[aria-pressed="true"] { background: var(--color-focus); color: #fff; }
 .map-toolbar__btn--danger { color: var(--color-danger); }
 .map-toolbar__hint { flex-basis: 100%; padding: 2px 9px 4px; font-size: var(--font-small); color: var(--color-focus); }
+.map-toolbar__btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .map-legend {
   position: absolute; z-index: 2; left: var(--space-3); bottom: 36px; max-width: min(360px, calc(100% - 24px));
   display: flex; flex-direction: column; gap: 6px; padding: var(--space-2) var(--space-3);

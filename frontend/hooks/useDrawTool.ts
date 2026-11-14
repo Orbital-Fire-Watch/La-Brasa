@@ -2,6 +2,7 @@
  * Drawing on the map without an extra library: rectangle, circle and freehand by dragging,
  * polygon by clicking. Results follow spec §6.3 (circle with 64 steps, freehand simplified to ≤ 1000 points).
  */
+import type * as GeoJSON from "geojson";
 import type { GeoJSONSource, Map as MlMap, MapMouseEvent, MapTouchEvent } from "maplibre-gl";
 import { useEffect, useRef } from "react";
 import { formatOne } from "../lib/format";

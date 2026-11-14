@@ -3,8 +3,8 @@ import { cellToLatLng } from "h3-js";
 import { useMemo, useState } from "react";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useAppData } from "../../hooks/useAppData";
-import { formatCompact } from "../../lib/format";
-import { pointInGeometry } from "../../lib/geo";
+import { formatCompact, formatOne } from "../../lib/format";
+import { regionAt } from "../../lib/regions";
 import { fireApi } from "../../services/api/fireApi";
 import { isGridCount } from "../../services/api/types";
 import { ErrorBlock, LoadingBlock } from "../ui/Status";
@@ -15,11 +15,15 @@ const RESOLUTION = 5;
 interface FrequentAreasProps {
   metric: "fires" | "frp_sum";
   conf: "nominal" | "high";
+  /** selects the H3 cell as a drawn area */
   onPick: (cell: string) => void;
 }
 
+const position = (lat: number, lon: number) =>
+  `${formatOne(Math.abs(lat))}° ${lat >= 0 ? "N" : "S"}, ${formatOne(Math.abs(lon))}° ${lon >= 0 ? "O" : "W"}`;
+
 export function FrequentAreas({ metric, conf, onPick }: FrequentAreasProps) {
-  const { meta, regions } = useAppData();
+  const { meta, finestRegions } = useAppData();
   const [open, setOpen] = useState(false);
   const key = open ? `frequent|${meta.data_version}|${conf}` : null;
   const q = useApiQuery(key, (signal) =>
@@ -28,16 +32,16 @@ export function FrequentAreas({ metric, conf, onPick }: FrequentAreasProps) {
 
   const top = useMemo(() => {
     if (q.status !== "success" || !isGridCount(q.data)) return [];
-    const provinces = regions?.features.filter((f) => f.properties.level === "province") ?? [];
     return [...q.data.cells]
       .sort((a, b) => b[metric] - a[metric])
       .slice(0, TOP_N)
       .map((c) => {
         const [lat, lon] = cellToLatLng(c.cell);
-        const province = provinces.find((p) => pointInGeometry([lon, lat], p.geometry));
-        return { ...c, name: province?.properties.name ?? "Grenzgebiet" };
+        const region = regionAt([lon, lat], finestRegions);
+        // Several cells can lie in the same (large) region – the position tells them apart.
+        return { ...c, name: region?.properties.name ?? "Grenzgebiet", position: position(lat, lon) };
       });
-  }, [q, metric, regions]);
+  }, [q, metric, finestRegions]);
 
   return (
     <section className="panel" aria-labelledby="frequent-title">
@@ -54,7 +58,9 @@ export function FrequentAreas({ metric, conf, onPick }: FrequentAreasProps) {
           {top.map((c) => (
             <li key={c.cell}>
               <button type="button" className="frequent__item" onClick={() => onPick(c.cell)}>
-                <span>{c.name}</span>
+                <span>
+                  {c.name} <span className="muted">· {c.position}</span>
+                </span>
                 <span className="muted">
                   {formatCompact(c[metric])} {metric === "fires" ? "Hotspots" : "MW"} seit {meta.first_date.slice(0, 4)}
                 </span>

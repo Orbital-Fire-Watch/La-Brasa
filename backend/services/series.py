@@ -1,7 +1,8 @@
-"""Daily and monthly series (POST /api/daily and /api/calendar) from one query."""
+"""Daily and monthly series (POST /api/daily and /api/calendar) from one query, and POST /api/by-region."""
 import calendar as cal
 import datetime as dt
 
+from errors import ApiError
 from services.meta import SENSOR_FLAGS, data_range
 from services.scope import FIRES_SQL, FRP_SQL, HOTSPOTS_SQL, Scope
 
@@ -83,3 +84,21 @@ def build_calendar(conn, scope: Scope) -> dict:
             same.append({"year": year, "fires": round(f, 1), "frp_sum": round(p, 1)})
         running_month = {"month": f"{last.year}-{last.month:02d}", "through": last, "same_period": same}
     return {"data": data, "max": maximum, "running_month": running_month}
+
+
+def build_by_region(conn, scope: Scope, body) -> dict:
+    """Values per NUTS-2 region of the selection (spec 6.11, could-have). The data has no province level."""
+    if body.level == "province":
+        raise ApiError(501, "NOT_IMPLEMENTED", "The data has no province level yet, only regions (NUTS-2).")
+    rows = conn.execute(
+        f"SELECT h.region_id AS id, r.region_name AS name, {FIRES_SQL} AS fires, {HOTSPOTS_SQL} AS hotspots, "
+        f"{FRP_SQL} AS frp FROM hotspots_harmonised h JOIN regions r ON r.region_id = h.region_id "
+        f"WHERE {scope.where} AND h.obs_date BETWEEN %(start)s AND %(end)s "
+        f"GROUP BY h.region_id, r.region_name ORDER BY fires DESC, h.region_id",
+        {**scope.params, "start": body.start, "end": body.end},
+    ).fetchall()
+    total = sum(float(r["fires"]) for r in rows)
+    return {"level": "region", "total_fires": round(total, 1), "data": [
+        {"id": r["id"], "name": r["name"], "fires": round(float(r["fires"]), 1), "hotspots": int(r["hotspots"]),
+         "frp_sum": round(float(r["frp"]), 1), "share": round(float(r["fires"]) / total, 4) if total else 0.0}
+        for r in rows]}

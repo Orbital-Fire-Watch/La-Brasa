@@ -3,6 +3,7 @@ import { useCallback, useMemo } from "react";
 import { bboxOf, geometryAreaKm2, type BBox } from "../lib/geo";
 import { formatKm2 } from "../lib/format";
 import { shortHash } from "../lib/hash";
+import { coverageDetail } from "../lib/regions";
 import { ApiError } from "../services/api/errors";
 import { fireApi } from "../services/api/fireApi";
 import type { AreaSelector, Geometry, RegionLevel } from "../services/api/types";
@@ -40,7 +41,7 @@ export async function registerArea(geometry: Geometry, areasAvailable: boolean):
 }
 
 export function useSelection(state: AppState, setState: SetAppState) {
-  const { regionById, meta } = useAppData();
+  const { regionById, regions, meta } = useAppData();
 
   const selection = useMemo<Selection>(() => {
     if (state.region) {
@@ -75,14 +76,14 @@ export function useSelection(state: AppState, setState: SetAppState) {
     return {
       kind: "all",
       label: "Spanien + Portugal",
-      detail: "Festland und Balearen",
+      detail: coverageDetail(regions),
       selector: {},
       geometry: null,
       bbox: meta.bbox,
       key: "all",
       exportParams: {},
     };
-  }, [state.region, state.area, regionById, meta.bbox]);
+  }, [state.region, state.area, regionById, regions, meta.bbox]);
 
   /**
    * Runs a request with the current area. On AREA_NOT_FOUND the drawn area is registered again and the

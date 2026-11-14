@@ -1,4 +1,5 @@
 /** Converts API responses into GeoJSON for the map, with colours and popup texts already attached. */
+import type * as GeoJSON from "geojson";
 import { cellToBoundary } from "h3-js";
 import { AGE_COLOR, ageClass, divergingScale, sequentialScale, type AgeClass } from "./colors";
 import { daysBetween, formatDate } from "./dates";
@@ -37,10 +38,8 @@ interface HotspotLike {
   };
 }
 
-const hexagon = (cell: string): GeoJSON.Polygon => {
-  const ring = cellToBoundary(cell, true);
-  return { type: "Polygon", coordinates: [[...ring, ring[0]]] };
-};
+/** cellToBoundary in GeoJSON format already returns a closed ring. */
+const hexagon = (cell: string): GeoJSON.Polygon => ({ type: "Polygon", coordinates: [cellToBoundary(cell, true)] });
 
 const popup = (title: string, rows: [string, string][], eventId?: string | null) => JSON.stringify({ title, rows, eventId });
 
@@ -138,7 +137,7 @@ export function hotspotPoints(
               ["FRP", f.properties.frp === null ? "–" : `${formatOne(f.properties.frp)} MW`],
               ["Aufnahme", f.properties.daynight === "D" ? "Tag" : "Nacht"],
               ["Gewicht", f.properties.weight.toLocaleString("de-DE", { maximumFractionDigits: 3 })],
-              ["Provinz", provinceName(f.properties.province_id)],
+              ["Gebiet", provinceName(f.properties.province_id)],
             ],
             eventsAvailable ? f.properties.event_id : null,
           ),

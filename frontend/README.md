@@ -3,18 +3,22 @@
 React + TypeScript + Vite, map with MapLibre GL, H3 cells with `h3-js`, charts with d3 (SVG).
 Implements the Fire-API v3 specification (`/api/...`): page 1 "Auswahl" (`/`) and page 2 "Auswertung" (`/analysis`).
 
+Node 22 (`.nvmrc`; at least 20.19 for the dev tools vitest and ESLint).
+
 ```bash
 npm install
 npm run dev          # http://localhost:5173
 npm test             # unit tests (lib/, mock API)
+npm run lint         # ESLint: TypeScript + rules of hooks
 npm run build        # typecheck + production build into dist/
 ```
 
 ## Mock or real backend
 
-The backend is not finished yet, so by default (`VITE_API_MODE=mock`) all requests go to a **mock API that
-runs in a Web Worker** (`services/mock/`). It generates synthetic, deterministic fire data in exactly the
-format of the specification, including error codes, so every view can be developed and tested.
+By default (`VITE_API_MODE=mock`) all requests go to a **mock API that runs in a Web Worker**
+(`services/mock/`). It generates synthetic, deterministic fire data in exactly the format of the
+specification, including error codes, so every view works without backend and database.
+With `VITE_API_MODE=live` the app uses the real backend (see `startup.md` in the repository root).
 
 | Variable | Meaning |
 |---|---|
@@ -39,6 +43,10 @@ When the backend changes its DTOs, regenerate the types: `npm run gen:types` (ba
 | `services/mock/` | mock API (world generator, endpoint handlers, worker) |
 | `lib/` | pure helpers: dates, geometry, §7 calculations (`analysis.ts`), colours, formatting |
 | `public/mock/regions.json` | boundaries for the mock (`npm run build:mock-regions`, source: GISCO NUTS 2021) |
+
+Build notes: the pages are loaded on demand and MapLibre, h3, d3 and React get their own chunks.
+MapLibre 6 starts its web worker from a URL that Vite builds (`hooks/useMapLibre.ts`), and its CSS is
+imported in `main.tsx` before `styles/app.css`, so the app styles win.
 
 All view state lives in the URL (`?region=ES-OR&date=2025-08-14&lookback=7&metric=fires&conf=nominal`),
 so reload, "Bearbeiten" and sharing work.

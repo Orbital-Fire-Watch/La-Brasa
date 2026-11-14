@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 
 from core.config import API_COUNTRIES
 from errors import ApiError
+from services.areas import area_sql, inline_area, stored_area
 
 # Sensor id of the API from the two columns of the data. The data calls the NOAA satellites N20 / N21,
 # the API NOAA20 / NOAA21, so a plain sensor || '_' || upper(satellite) would give invalid ids.
@@ -40,15 +41,17 @@ def region_exists(conn, region_id: str) -> bool:
 def build_scope(conn, body) -> Scope:
     """body: any request with region_id / area_id / geometry (optional) and min_confidence."""
     region_id = getattr(body, "region_id", None)
-    if getattr(body, "area_id", None) or getattr(body, "geometry", None):
-        raise ApiError(501, "NOT_IMPLEMENTED", "Drawn areas (area_id, geometry) are not available yet.")
-    if getattr(body, "event_id", None):
-        raise ApiError(501, "NOT_IMPLEMENTED", "Events are not available yet.")
+    area_id = getattr(body, "area_id", None)
+    geometry = getattr(body, "geometry", None)
 
     params: dict = {}
     if region_id is None:
         parts = ["h.country = ANY(%(countries)s)"]
         params["countries"] = list(API_COUNTRIES)
+        if area_id is not None:
+            parts.append(area_sql(stored_area(conn, area_id), params))
+        elif geometry is not None:
+            parts.append(area_sql(inline_area(geometry.model_dump()), params))
     elif region_id in API_COUNTRIES:
         parts = ["h.country = %(country)s"]
         params["country"] = region_id

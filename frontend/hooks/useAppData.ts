@@ -6,6 +6,8 @@ export interface AppData {
   meta: MetaResponse;
   regions: RegionsResponse | null;
   regionById: Map<string, RegionFeature>;
+  /** most detailed predefined areas (provinces, or regions while the API has no provinces) */
+  finestRegions: RegionFeature[];
 }
 
 export const AppDataContext = createContext<AppData | null>(null);

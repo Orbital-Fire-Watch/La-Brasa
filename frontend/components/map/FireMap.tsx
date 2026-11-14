@@ -3,16 +3,17 @@
  * Features carry their colour in `properties.color` (computed with the same scales as the legends) and their
  * popup content in `properties.popup` (JSON with title + rows), so this component stays free of domain logic.
  */
-import maplibregl, { type Map as MlMap, type MapGeoJSONFeature } from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type * as GeoJSON from "geojson";
+import * as maplibregl from "maplibre-gl";
+import type { Map as MlMap, MapGeoJSONFeature } from "maplibre-gl";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { DRAW_SOURCE, useDrawTool, type DrawMode } from "../../hooks/useDrawTool";
 import { useAppData } from "../../hooks/useAppData";
 import { useBasemap, type Basemap } from "../../hooks/useBasemap";
 import { EMPTY_FC, mapBbox, useGeoJsonData, useMapLibre } from "../../hooks/useMapLibre";
 import { CONFIG } from "../../lib/config";
 import { worldWithout, type AreaGeometry, type BBox, type PolygonGeometry } from "../../lib/geo";
-import type { RegionsResponse } from "../../services/api/types";
+import type { RegionFeature } from "../../services/api/types";
 import { Segmented } from "../ui/Segmented";
 
 export interface MapView {
@@ -30,7 +31,8 @@ interface FireMapProps {
   initialBbox: BBox;
   attribution: string;
   ariaLabel: string;
-  regions?: RegionsResponse | null;
+  /** clickable area outlines (the most detailed predefined level) */
+  regions?: RegionFeature[] | null;
   onRegionClick?: (id: string) => void;
   selection?: AreaGeometry | null;
   fitTo?: { bbox: BBox; key: string } | null;
@@ -61,19 +63,9 @@ const BASEMAP_OPTIONS = [
 ] as const;
 
 /** Paint values that depend on the background: dark lines on the light map, light lines on imagery. */
-const BASEMAP_PAINT: Record<Basemap, [layer: string, property: string, value: unknown][]> = {
-  map: [
-    ["coverage-mask", "fill-opacity", 0.3],
-    ["coverage-line", "line-color", "#44403c"],
-    ["regions-line", "line-color", "#57534e"],
-    ["selection-line", "line-color", "#1c1917"],
-  ],
-  satellite: [
-    ["coverage-mask", "fill-opacity", 0.55],
-    ["coverage-line", "line-color", "#ffffff"],
-    ["regions-line", "line-color", "#ffffff"],
-    ["selection-line", "line-color", "#ffffff"],
-  ],
+const BASEMAP_PAINT: Record<Basemap, { maskOpacity: number; line: string; regionLine: string; selection: string }> = {
+  map: { maskOpacity: 0.3, line: "#44403c", regionLine: "#57534e", selection: "#1c1917" },
+  satellite: { maskOpacity: 0.55, line: "#ffffff", regionLine: "#ffffff", selection: "#ffffff" },
 };
 
 function addLayers(map: MlMap) {
@@ -212,8 +204,8 @@ export function FireMap(props: FireMapProps) {
   const container = useRef<HTMLDivElement>(null);
   const { regions: allRegions } = useAppData();
   const [basemap, setBasemap] = useBasemap();
-  const map = useMapLibre(container, props.initialBbox, props.attribution);
-  const [ready, setReady] = useState<MlMap | null>(null);
+  // addLayers runs on load, so `map` arrives with all sources and layers in place
+  const map = useMapLibre(container, props.initialBbox, props.attribution, addLayers);
   const latest = useRef(props);
   useEffect(() => {
     latest.current = props;
@@ -221,8 +213,6 @@ export function FireMap(props: FireMapProps) {
 
   useEffect(() => {
     if (!map) return;
-    addLayers(map);
-    setReady(map);
     let hoverId: string | number | undefined;
     const popup = new maplibregl.Popup({ closeButton: true, maxWidth: "280px" });
 
@@ -281,14 +271,9 @@ export function FireMap(props: FireMapProps) {
     };
   }, [map]);
 
-  const regionsData = useMemo(() => (props.regions ? (props.regions as unknown as GeoJSON.FeatureCollection) : null), [props.regions]);
-  const provinces = useMemo<GeoJSON.FeatureCollection | null>(
-    () =>
-      regionsData && {
-        type: "FeatureCollection",
-        features: regionsData.features.filter((f) => f.properties?.level === "province"),
-      },
-    [regionsData],
+  const outlines = useMemo<GeoJSON.FeatureCollection | null>(
+    () => (props.regions ? { type: "FeatureCollection", features: props.regions } : null),
+    [props.regions],
   );
   const selectionFc = useMemo<GeoJSON.FeatureCollection | null>(
     () => (props.selection ? { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: props.selection }] } : null),
@@ -303,38 +288,43 @@ export function FireMap(props: FireMapProps) {
     [allRegions],
   );
 
-  useGeoJsonData(ready, "regions", provinces);
-  useGeoJsonData(ready, "selection", selectionFc);
-  useGeoJsonData(ready, "mask", mask);
-  useGeoJsonData(ready, "coverage", coverage);
-  useGeoJsonData(ready, "cells", props.cells);
-  useGeoJsonData(ready, "events", props.events);
-  useGeoJsonData(ready, "event-points", props.eventPoints);
-  useGeoJsonData(ready, "hotspots", props.hotspots);
+  useGeoJsonData(map, "regions", outlines);
+  useGeoJsonData(map, "selection", selectionFc);
+  useGeoJsonData(map, "mask", mask);
+  useGeoJsonData(map, "coverage", coverage);
+  useGeoJsonData(map, "cells", props.cells);
+  useGeoJsonData(map, "events", props.events);
+  useGeoJsonData(map, "event-points", props.eventPoints);
+  useGeoJsonData(map, "hotspots", props.hotspots);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!map) return;
     const filter = ["==", ["get", "id"], props.selectedEventId ?? ""] as maplibregl.FilterSpecification;
-    ready.setFilter("events-selected", filter);
-    ready.setFilter("event-points-selected", filter);
-  }, [ready, props.selectedEventId]);
+    map.setFilter("events-selected", filter);
+    map.setFilter("event-points-selected", filter);
+  }, [map, props.selectedEventId]);
 
   useEffect(() => {
-    if (!ready) return;
-    ready.setLayoutProperty("satellite", "visibility", basemap === "satellite" ? "visible" : "none");
-    for (const [layer, property, value] of BASEMAP_PAINT[basemap]) ready.setPaintProperty(layer, property, value);
-  }, [ready, basemap]);
+    if (!map) return;
+    map.setLayoutProperty("satellite", "visibility", basemap === "satellite" ? "visible" : "none");
+    const paint = BASEMAP_PAINT[basemap];
+    map.setPaintProperty("coverage-mask", "fill-opacity", paint.maskOpacity);
+    map.setPaintProperty("coverage-line", "line-color", paint.line);
+    map.setPaintProperty("regions-line", "line-color", paint.regionLine);
+    map.setPaintProperty("selection-line", "line-color", paint.selection);
+  }, [map, basemap]);
 
+  // Zoom only when the key changes, not on every new bbox array (the latest props hold the bbox).
   const fitKey = props.fitTo?.key;
   useEffect(() => {
-    if (!ready || !props.fitTo) return;
-    const [x0, y0, x1, y1] = props.fitTo.bbox;
+    const fitTo = latest.current.fitTo;
+    if (!map || !fitTo) return;
+    const [x0, y0, x1, y1] = fitTo.bbox;
     if (![x0, y0, x1, y1].every(Number.isFinite)) return;
-    ready.fitBounds([[x0, y0], [x1, y1]], { padding: 40, maxZoom: 12, duration: 600 });
-    // Only when the key changes, not on every new bbox array.
-  }, [ready, fitKey]);
+    map.fitBounds([[x0, y0], [x1, y1]], { padding: 40, maxZoom: 12, duration: 600 });
+  }, [map, fitKey]);
 
-  useDrawTool(ready, props.drawMode ?? "none", props.maxVertices ?? 1000, {
+  useDrawTool(map, props.drawMode ?? "none", props.maxVertices ?? 1000, {
     onComplete: (g) => props.onDrawComplete?.(g),
     onCancel: () => props.onDrawCancel?.(),
     onHint: (t) => props.onDrawHint?.(t),

@@ -7,12 +7,15 @@ backend/
 ├── main.py                 App, Router, CORS, gzip
 ├── dtos.py, errors.py      Vertrag und Fehlerformat (aus fire-api-v3-dtos, errors.py nur um 504 erweitert)
 ├── core/                   config.py (Umgebung), db.py (Verbindung)
-├── services/               scope.py (Gebiet + Confidence → SQL), meta.py, regions.py, series.py, grid.py, hotspots.py
-├── routes/                 data.py (Muss-Endpunkte), pending.py (501 für alles Weitere)
-├── assets/                 nuts2_iberia.geojson  ← TESTDATEI mit Rechtecken, durch die echte ersetzen
+├── services/               scope.py (Gebiet + Confidence → SQL), meta.py, regions.py, series.py (daily, calendar,
+│                           by-region), grid.py (count + anomaly), hotspots.py (+ export), areas.py (gezeichnete
+│                           Gebiete, Tabelle areas), events.py (Ereignisse: Clustering + Index im Speicher)
+├── routes/                 data.py (alle Endpunkte)
+├── assets/                 nuts2_iberia.geojson (echte NUTS-2-Grenzen, GISCO 2021)
 ├── tools/                  make_regions_asset.py
-├── tests/test_api.py       20 Tests
-└── requirements.txt
+├── tests/test_api.py       Tests gegen die Datenbank, Erwartungswerte unabhängig per pandas aus den Parquet-Dateien
+├── requirements.txt        Laufzeit
+└── requirements-dev.txt    + Tests (pytest, pandas, pyarrow)
 ```
 
 `routes/data.py` ersetzt die bisherigen `routes/calendar.py`, `routes/export.py` und `routes/regions.py` des Teams. Passt die Namen an oder löscht die alten Dateien, wenn ihr dieses Gerüst übernehmt.
@@ -35,10 +38,10 @@ backend/
 docker compose up -d db
 python pipeline/load_to_db.py                      # Parquet → Postgres
 cd backend
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 DATABASE_URL=postgresql://USER:PASS@localhost:5432/DB uvicorn main:app --reload --port 8000
 # http://localhost:8000/docs
-DATABASE_URL=... pytest tests -q                   # 20 Tests
+DATABASE_URL=... pytest tests -q
 ```
 
 Ohne echte Daten: `python pipeline/make_fake_harmonised.py` erzeugt erfundene Parquet-Tabellen im echten Format (Zahlen sind Fantasie).

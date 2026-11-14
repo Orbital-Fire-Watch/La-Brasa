@@ -1,14 +1,32 @@
-import maplibregl, { type GeoJSONSource, type Map as MlMap } from "maplibre-gl";
-import { useEffect, useState, type RefObject } from "react";
+import type * as GeoJSON from "geojson";
+import * as maplibregl from "maplibre-gl";
+import type { GeoJSONSource, Map as MlMap } from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { CONFIG } from "../lib/config";
 import type { BBox } from "../lib/geo";
 
-/** Creates a MapLibre map in `container` and returns it once the style is loaded. */
-export function useMapLibre(container: RefObject<HTMLDivElement | null>, initialBbox: BBox, attribution: string): MlMap | null {
+// MapLibre 6 looks for its web worker next to its own file, which no longer exists once Vite bundles the
+// library. Vite builds the worker itself (?worker&url) and MapLibre gets its URL.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
+
+/**
+ * Creates a MapLibre map in `container` and returns it once the style is loaded and `setup` (sources, layers)
+ * has run. The map is created once per container: later bbox changes are handled with fitBounds by the caller,
+ * so only the first values of the other arguments count.
+ */
+export function useMapLibre(
+  container: RefObject<HTMLDivElement | null>,
+  initialBbox: BBox,
+  attribution: string,
+  setup?: (map: MlMap) => void,
+): MlMap | null {
   const [map, setMap] = useState<MlMap | null>(null);
+  const initial = useRef({ initialBbox, attribution, setup });
 
   useEffect(() => {
     if (!container.current) return;
+    const { initialBbox, attribution, setup } = initial.current;
     const m = new maplibregl.Map({
       container: container.current,
       style: CONFIG.basemapStyleUrl,
@@ -27,13 +45,13 @@ export function useMapLibre(container: RefObject<HTMLDivElement | null>, initial
       // Start with the attribution collapsed behind its (i) button – expanded it covers the map legend.
       // MapLibre does the same after the first drag anyway.
       m.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
+      setup?.(m);
       setMap(m);
     });
     return () => {
       setMap(null);
       m.remove();
     };
-    // Created once per container; later bbox changes are handled with fitBounds by the caller.
   }, [container]);
 
   return map;

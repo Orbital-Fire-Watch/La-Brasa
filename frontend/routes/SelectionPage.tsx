@@ -50,7 +50,7 @@ function calendarToCells(months: CalendarMonth[], metric: "fires" | "frp_sum"): 
 }
 
 export function SelectionPage() {
-  const { meta, regions, regionById } = useAppData();
+  const { meta, regions, regionById, finestRegions } = useAppData();
   const [state, setState] = useAppState();
   const { selection, withArea } = useSelection(state, setState);
   const date = clampDate(state.date ?? meta.last_date, meta.first_date, meta.last_date);
@@ -134,7 +134,7 @@ export function SelectionPage() {
 
   const pickCell = (cell: string) => {
     const ring = cellToBoundary(cell, true) as Position[];
-    void applyGeometry({ type: "Polygon", coordinates: [[...ring, ring[0]]] });
+    void applyGeometry({ type: "Polygon", coordinates: [ring] });
   };
 
   const fitTo = useMemo(
@@ -201,7 +201,7 @@ export function SelectionPage() {
           initialBbox={meta.bbox}
           attribution={meta.attribution}
           ariaLabel="Karte: Feueraktivität und Gebietsauswahl"
-          regions={regions}
+          regions={finestRegions}
           onRegionClick={(id) => setState({ region: id, area: null })}
           selection={selection.kind === "all" ? null : selection.geometry}
           fitTo={fitTo}
