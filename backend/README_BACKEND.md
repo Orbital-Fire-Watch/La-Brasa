@@ -20,7 +20,7 @@ backend/
 ## Einbauen
 
 1. Ordnerinhalt in `backend/` kopieren (`dtos.py`, `errors.py`, `main.py` ersetzen).
-2. `db/init/001_schema.sql`: Zeile `h3_r8 TEXT NOT NULL,` nach `cell_id` in `hotspots_harmonised` und `CREATE INDEX ON hotspots_harmonised (h3_r8);`. Das Harmonisierungsteam muss die Spalte ebenfalls schreiben.
+2. `db/init/001_schema.sql`: erledigt. Ab Schema-Version 2 hat `hotspots_harmonised` die Spalte `h3_cell` (H3, Auflösung 8), die das Backend für `/api/grid` nutzt.
 3. Echte Regionsgrenzen erzeugen und committen:
    ```bash
    python backend/tools/make_regions_asset.py --input data/raw/NUTS_RG_01M_2021_4326_LEVL_2.geojson

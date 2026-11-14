@@ -2,8 +2,10 @@
 from collections.abc import Iterator
 
 from errors import ApiError
+from services.meta import SENSOR_FLAGS
 from services.scope import SENSOR_SQL, Scope
 
+N_ACTIVE_SQL = " + ".join(f"d.{flag}::int" for flag in SENSOR_FLAGS)   # operating sensors on that day
 EXPORT_HEADER = "id,time,lat,lon,sensor,confidence,confidence_raw,frp,daynight,weight,n_active,province_id,event_id\n"
 
 
@@ -48,7 +50,7 @@ def export_rows(conn, scope: Scope, start, end) -> Iterator[str]:
     sql = (
         f"SELECT h.hotspot_id, h.acq_datetime_utc, h.latitude, h.longitude, {SENSOR_SQL} AS sensor, "
         f"h.confidence_class, h.confidence_raw, h.frp, h.daynight, h.weight_n, "
-        f"(d.snpp_operating::int + d.aqua_operating::int + d.terra_operating::int) AS n_active, h.region_id "
+        f"({N_ACTIVE_SQL}) AS n_active, h.region_id "
         f"FROM hotspots_harmonised h JOIN day_status d ON d.date = h.obs_date "
         f"WHERE {scope.where} AND h.in_series_n AND h.obs_date BETWEEN %(start)s AND %(end)s "
         f"ORDER BY h.acq_datetime_utc, h.hotspot_id"

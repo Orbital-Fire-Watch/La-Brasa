@@ -1,6 +1,6 @@
 """POST /api/grid, mode 'count': H3 cells with fires, hotspots and frp_sum.
 
-The data stores H3 cells of resolution 8 (h3_r8). Coarser cells are made here with
+The data stores H3 cells of resolution 8 (column h3_cell). Coarser cells are made here with
 h3.cell_to_parent after the SQL group by, so the database only needs one column.
 A point belongs to the request if it lies in the area and in the bbox (spec: cell centre).
 """
@@ -31,17 +31,17 @@ def build_grid_count(conn, scope: Scope, body) -> dict:
     try:
         rows = _query(conn, where, params)
     except psycopg.errors.UndefinedColumn:
-        raise ApiError(501, "NOT_IMPLEMENTED", "The grid needs the column h3_r8 in hotspots_harmonised.") from None
+        raise ApiError(501, "NOT_IMPLEMENTED", "The grid needs the column h3_cell in hotspots_harmonised.") from None
     return _assemble(rows, body)
 
 
 def _query(conn, where: str, params: dict):
     return conn.execute(
-        f"SELECT h.h3_r8 AS cell, {FIRES_SQL} AS fires, {HOTSPOTS_SQL} AS hotspots, {FRP_SQL} AS frp, "
+        f"SELECT h.h3_cell AS cell, {FIRES_SQL} AS fires, {HOTSPOTS_SQL} AS hotspots, {FRP_SQL} AS frp, "
         f"min(h.obs_date) FILTER (WHERE h.in_series_n) AS first_seen, "
         f"max(h.obs_date) FILTER (WHERE h.in_series_n) AS last_seen "
         f"FROM hotspots_harmonised h WHERE {where} AND h.obs_date BETWEEN %(start)s AND %(end)s "
-        f"GROUP BY h.h3_r8", params,
+        f"GROUP BY h.h3_cell", params,
     ).fetchall()
 
 

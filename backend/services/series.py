@@ -2,18 +2,17 @@
 import calendar as cal
 import datetime as dt
 
-from services.meta import data_range
+from services.meta import SENSOR_FLAGS, data_range
 from services.scope import FIRES_SQL, FRP_SQL, HOTSPOTS_SQL, Scope
 
 
 def day_status_map(conn) -> dict[dt.date, dict]:
     rows = conn.execute(
-        "SELECT date, is_complete_day, possible_gap, snpp_operating, aqua_operating, terra_operating "
-        "FROM day_status"
+        f"SELECT date, is_complete_day, possible_gap, {', '.join(SENSOR_FLAGS)} FROM day_status"
     ).fetchall()
     return {r["date"]: {
         "complete": r["is_complete_day"], "gap": r["possible_gap"],
-        "n_sensors": int(r["snpp_operating"]) + int(r["aqua_operating"]) + int(r["terra_operating"]),
+        "n_sensors": sum(int(r[flag]) for flag in SENSOR_FLAGS),
     } for r in rows}
 
 

@@ -4,9 +4,11 @@ import datetime as dt
 from core.config import ATTRIBUTION, MAP_BBOX, WEIGHT_VERSION
 from dtos import API_VERSION, LIMITS
 
-# day_status flag -> API sensor id. NOAA-20/21 are not in the data yet, so they are not listed.
+# day_status flag -> API sensor id (schema version 2: VIIRS = SNPP, NOAA-20, NOAA-21).
+# viirs_operating is not a sensor but "at least one VIIRS satellite", so it is not listed.
 SENSOR_FLAGS = {
     "terra_operating": "MODIS_TERRA", "aqua_operating": "MODIS_AQUA", "snpp_operating": "VIIRS_SNPP",
+    "noaa20_operating": "VIIRS_NOAA20", "noaa21_operating": "VIIRS_NOAA21",
 }
 
 

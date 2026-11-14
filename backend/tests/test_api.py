@@ -9,6 +9,8 @@ import os
 import sys
 from pathlib import Path
 
+from typing import get_args
+
 import h3
 import pandas as pd
 import pytest
@@ -18,7 +20,10 @@ pytestmark = pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATA
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from core.db import connect  # noqa: E402
+from dtos import Sensor  # noqa: E402
 from main import app  # noqa: E402
+from services.scope import SENSOR_SQL  # noqa: E402
 
 PARQUET = Path(__file__).resolve().parents[2] / "data" / "harmonised"
 client = TestClient(app)
@@ -32,9 +37,29 @@ def hot() -> pd.DataFrame:
     return df
 
 
+FLAG_TO_SENSOR = {
+    "terra_operating": "MODIS_TERRA", "aqua_operating": "MODIS_AQUA", "snpp_operating": "VIIRS_SNPP",
+    "noaa20_operating": "VIIRS_NOAA20", "noaa21_operating": "VIIRS_NOAA21",
+}
+SATELLITE_TO_SENSOR = {"Terra": "MODIS_TERRA", "Aqua": "MODIS_AQUA", "SNPP": "VIIRS_SNPP",
+                       "N20": "VIIRS_NOAA20", "N21": "VIIRS_NOAA21"}
+
+
+@pytest.fixture(scope="module")
+def status() -> pd.DataFrame:
+    """day_status from the Parquet file, indexed by date (independent of the backend SQL)."""
+    df = pd.read_parquet(PARQUET / "day_status.parquet")
+    df["date"] = pd.to_datetime(df["date"]).dt.date
+    return df.set_index("date").sort_index()
+
+
 @pytest.fixture(scope="module")
 def meta() -> dict:
     return client.get("/api/meta").json()
+
+
+def hot_satellites() -> set[str]:
+    return set(pd.read_parquet(PARQUET / "hotspots_harmonised.parquet", columns=["satellite"])["satellite"])
 
 
 def nominal(df):
@@ -48,13 +73,27 @@ def post(path, body, status=200):
 
 
 # ------------------------------------------------------------------ meta, regions
-def test_meta(meta):
-    assert meta["first_date"] == "2001-01-01"
-    assert meta["last_date"] == "2026-11-02"            # newest complete day, not the last day in the table
+def test_meta(meta, status):
+    complete = status[status["is_complete_day"]]
+    assert meta["first_date"] == status.index.min().isoformat()
+    assert meta["last_date"] == complete.index.max().isoformat()    # newest complete day
+    expected = {sensor for flag, sensor in FLAG_TO_SENSOR.items() if status[flag].any()}
     ids = {s["id"]: s for s in meta["sensors"]}
-    assert set(ids) == {"MODIS_TERRA", "MODIS_AQUA", "VIIRS_SNPP"}
-    assert ids["VIIRS_SNPP"]["to"] == "2026-11-02" and ids["MODIS_AQUA"]["to"] is None
+    assert set(ids) == expected
+    for flag, sensor in FLAG_TO_SENSOR.items():
+        on = status.index[status[flag]]
+        still_running = bool(status[flag].iloc[-1])
+        assert ids[sensor]["from"] == on.min().isoformat()
+        assert ids[sensor]["to"] == (None if still_running else on.max().isoformat())
     assert meta["features"]["daily"] is True and meta["features"]["events"] is False
+
+
+def test_sensor_ids_are_valid_dtos_values(hot):
+    """Every (sensor, satellite) pair of the data must map to a value of the Sensor literal."""
+    with connect() as conn:
+        rows = conn.execute(f"SELECT DISTINCT h.satellite, {SENSOR_SQL} AS sensor FROM hotspots_harmonised h").fetchall()
+    assert {r["sensor"] for r in rows} <= set(get_args(Sensor))
+    assert {r["satellite"]: r["sensor"] for r in rows} == {s: SATELLITE_TO_SENSOR[s] for s in hot_satellites()}
 
 
 def test_regions():
@@ -81,6 +120,14 @@ def test_daily_matches_pandas(hot, meta):
     assert r["frp_sum"][i] == pytest.approx(expected.loc[day, "frp"], abs=0.06)
 
 
+def test_daily_n_sensors_counts_all_operating_satellites(status):
+    r = post("/api/daily", {"region_id": "ES11"})
+    flags = list(FLAG_TO_SENSOR)
+    expected = status.loc[pd.Timestamp(r["start"]).date():pd.Timestamp(r["end"]).date(), flags].sum(axis=1)
+    assert r["n_sensors"] == expected.tolist()
+    assert max(r["n_sensors"]) == 5                                  # all five satellites overlap in 2023-2026
+
+
 def test_daily_zero_is_not_null():
     r = post("/api/daily", {"region_id": "ES23"})                  # small region: many days without fire
     assert 0 in r["hotspots"] and r["fires"][r["hotspots"].index(0)] == 0   # a day with data but no fire is 0
@@ -95,10 +142,11 @@ def test_confidence_high_is_subset(hot):
     assert sum(b["hotspots"]) == expected_high
 
 
-def test_calendar_consistent_with_daily(hot):
+def test_calendar_consistent_with_daily(hot, meta):
     daily = post("/api/daily", {"region_id": "ES41"})
     cal = post("/api/calendar", {"region_id": "ES41"})
-    assert len(cal["data"]) == 25 * 12 + 11                        # 2001-01 .. 2026-11
+    first, last = pd.Timestamp(meta["first_date"]), pd.Timestamp(meta["last_date"])
+    assert len(cal["data"]) == (last.year - first.year) * 12 + last.month - first.month + 1
     assert cal["data"][-1]["status"] == "running" and cal["data"][0]["status"] == "complete"
     assert sum(m["hotspots"] for m in cal["data"]) == sum(daily["hotspots"])
     # the calendar sums the unrounded values; the daily array is rounded per day, so only compare to the exact value
@@ -106,8 +154,8 @@ def test_calendar_consistent_with_daily(hot):
     assert sum(m["fires"] for m in cal["data"]) == pytest.approx(exact, abs=0.05 * len(cal["data"]))
     assert cal["max"]["fires"] == max(m["fires"] for m in cal["data"] if m["status"] == "complete")
     run = cal["running_month"]
-    assert run["month"] == "2026-11" and run["through"] == "2026-11-02"
-    assert [y["year"] for y in run["same_period"]] == list(range(2001, 2026))
+    assert run["month"] == last.strftime("%Y-%m") and run["through"] == meta["last_date"]
+    assert [y["year"] for y in run["same_period"]] == list(range(first.year, last.year))
 
 
 def test_country_is_sum_of_regions():
@@ -151,10 +199,13 @@ def test_hotspots_truncate_by_frp(hot):
     assert frps == sorted(frps, reverse=True)
     f = r["features"][0]
     assert isinstance(f["id"], int) and f["properties"]["time"].endswith("Z") and f["properties"]["event_id"] is None
-    assert f["properties"]["sensor"] == "VIIRS_SNPP" and f["properties"]["province_id"] == "PT11"
+    top = exp[exp["frp"] == exp["frp"].max()]                      # several satellites may tie on the top FRP
+    assert f["properties"]["sensor"] in {SATELLITE_TO_SENSOR[s] for s in top["satellite"]}
+    assert f["properties"]["province_id"] == "PT11"
+    assert {x["properties"]["sensor"] for x in r["features"]} <= set(get_args(Sensor))
 
 
-def test_export_matches_hotspots():
+def test_export_matches_hotspots(status):
     q = {**WINDOW, "region_id": "ES41"}
     total = post("/api/hotspots", {**q, "limit": 20000})["total"]
     r = client.get("/api/export.csv", params=q)
@@ -163,7 +214,10 @@ def test_export_matches_hotspots():
     assert lines[0] == "id,time,lat,lon,sensor,confidence,confidence_raw,frp,daynight,weight,n_active,province_id,event_id"
     assert len(lines) - 1 == total and 'filename="hotspots_ES41_2025-08-01_2025-08-14.csv"' in r.headers["content-disposition"]
     assert r.headers["x-weight-version"] == "w1"
-    assert lines[1].split(",")[10] == "3"                          # n_active: three sensors operating on that day
+    first_row = lines[1].split(",")
+    day = pd.Timestamp(first_row[1]).date()                        # n_active = sensors operating on that day
+    assert first_row[10] == str(int(status.loc[day, list(FLAG_TO_SENSOR)].sum()))
+    assert {line.split(",")[4] for line in lines[1:]} <= set(get_args(Sensor))
 
 
 # ------------------------------------------------------------------ errors

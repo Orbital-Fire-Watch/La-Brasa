@@ -10,8 +10,12 @@ from dataclasses import dataclass, field
 from core.config import API_COUNTRIES
 from errors import ApiError
 
-# Sensor id of the API, built from the two columns of the data (SNPP -> VIIRS_SNPP, Aqua -> MODIS_AQUA)
-SENSOR_SQL = "(h.sensor || '_' || upper(h.satellite))"
+# Sensor id of the API from the two columns of the data. The data calls the NOAA satellites N20 / N21,
+# the API NOAA20 / NOAA21, so a plain sensor || '_' || upper(satellite) would give invalid ids.
+SENSOR_SQL = (
+    "(h.sensor || '_' || CASE h.satellite WHEN 'N20' THEN 'NOAA20' WHEN 'N21' THEN 'NOAA21' "
+    "ELSE upper(h.satellite) END)"
+)
 
 FIRES_SQL = "COALESCE(SUM(h.weight_n), 0)"
 HOTSPOTS_SQL = "COUNT(*) FILTER (WHERE h.in_series_n)"
