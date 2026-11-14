@@ -110,3 +110,10 @@ kpi:
   E1_share_years: 0.80
   F5_train_minutes: 10
   F5_predict_minutes: 1
+
+# Daily job (daily.py, started by cron on the server)
+daily:
+  meteomatics_valid_until: "2026-11-22"   # hackathon account; afterwards no API calls, no-weather tier only
+  max_forecast_age_days: 1                # an older weather forecast is not used
+  keep_forecast_files: 14                 # newest weather forecast files kept per group
+  max_issue_date_age_days: 2              # warn if data/harmonised/ ends earlier (FIRMS update missing)
