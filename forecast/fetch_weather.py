@@ -3,8 +3,11 @@
 Run from La-Brasa/forecast:
     .venv/bin/python fetch_weather.py points                     # select points (no API call)
     .venv/bin/python fetch_weather.py check                      # account limits + test each parameter
-    .venv/bin/python fetch_weather.py history --start 2012-01-20 --end 2026-11-13 [--group core]
+    .venv/bin/python fetch_weather.py history --start 2012-01-20 --end 2026-11-08 [--group core]
+    .venv/bin/python fetch_weather.py recent --start 2026-11-09 --end 2026-11-13   # after the end of ERA5
     .venv/bin/python fetch_weather.py forecast [--group core]    # from today, forecast_days ahead
+
+The source model per use and group is meteomatics.models in config.yaml (history: ERA5 for core).
 
 Reads only data/harmonised/. Writes data/forecast/ and caches raw responses in
 data/raw/weather/meteomatics/ (re-running reuses the cache, so interrupted downloads resume).
@@ -52,11 +55,16 @@ def load_points(cfg: dict) -> pd.DataFrame:
     return pd.read_parquet(path) if path.exists() else make_points(cfg)
 
 
-def make_client(cfg: dict) -> MeteomaticsClient:
+def source_model(cfg: dict, kind: str, group: str) -> str:
+    m = cfg["meteomatics"]
+    return m.get("models", {}).get(kind, {}).get(group, m["model"])
+
+
+def make_client(cfg: dict, model: str | None = None) -> MeteomaticsClient:
     m = cfg["meteomatics"]
     user, password = credentials(REPO / cfg["paths"]["env_file"])
     return MeteomaticsClient(user, password, cache_dir=REPO / cfg["paths"]["weather_cache_dir"],
-                             base_url=m["base_url"], model=m["model"],
+                             base_url=m["base_url"], model=model or m["model"],
                              max_points_per_request=m["max_points_per_request"], chunk_days=m["chunk_days"],
                              timeout_s=m["timeout_s"], max_retries=m["max_retries"],
                              pause_between_requests_s=m["pause_between_requests_s"],
@@ -71,16 +79,17 @@ def n_requests(n_points: int, start: date, end: date, max_points: int, chunk_day
     return -(-n_points // max_points) * len(day_chunks(start, end, chunk_days))
 
 
-def fetch(cfg: dict, client: MeteomaticsClient, start: date, end: date, groups: list[str],
-          kind: str, use_cache: bool) -> int:
+def fetch(cfg: dict, start: date, end: date, groups: list[str], kind: str, use_cache: bool) -> int:
     m = cfg["meteomatics"]
     points = load_points(cfg)
     pts = unique_points(points)
     failures = 0
     for group in groups:
         params = m["parameter_groups"][group]
+        model = source_model(cfg, kind, group)
+        client = make_client(cfg, model)
         n = n_requests(len(pts), start, end, client.max_points_per_request, client.chunk_days)
-        print(f"[{kind}/{group}] {len(pts)} points, {start}..{end}, {n} requests (cached ones are skipped)")
+        print(f"[{kind}/{group}] model {model}, {len(pts)} points, {start}..{end}, {n} requests (cached ones are skipped)")
         try:
             point_df = client.daily_series(start, end, params, pts, valid_hour_utc=m["valid_hour_utc"],
                                            use_cache=use_cache)
@@ -92,7 +101,7 @@ def fetch(cfg: dict, client: MeteomaticsClient, start: date, end: date, groups: 
             continue
         region_df = aggregate_to_regions(point_df, points, params)
         region_df.insert(2, "date", region_df["validdate"].dt.date)
-        suffix = f"{kind}_{group}" if kind == "history" else f"{kind}_{group}_{start.isoformat()}"
+        suffix = f"{kind}_{group}" if kind in ("history", "recent") else f"{kind}_{group}_{start.isoformat()}"
         point_df.to_parquet(out_dir(cfg) / f"weather_points_{suffix}.parquet", index=False)
         region_df.to_parquet(out_dir(cfg) / f"weather_region_{suffix}.parquet", index=False)
         print(f"  wrote data/forecast/weather_region_{suffix}.parquet ({len(region_df)} rows)")
@@ -138,6 +147,10 @@ def main() -> int:
     h.add_argument("--start", required=True, type=date.fromisoformat)
     h.add_argument("--end", required=True, type=date.fromisoformat)
     h.add_argument("--group", action="append")
+    r = sub.add_parser("recent")
+    r.add_argument("--start", required=True, type=date.fromisoformat)
+    r.add_argument("--end", required=True, type=date.fromisoformat)
+    r.add_argument("--group", action="append")
     f = sub.add_parser("forecast")
     f.add_argument("--group", action="append")
     args = parser.parse_args()
@@ -151,12 +164,11 @@ def main() -> int:
         if args.cmd == "check":
             return cmd_check(cfg)
         groups = args.group or list(cfg["meteomatics"]["parameter_groups"])
-        client = make_client(cfg)
-        if args.cmd == "history":
-            return 1 if fetch(cfg, client, args.start, args.end, groups, "history", use_cache=True) else 0
+        if args.cmd in ("history", "recent"):
+            return 1 if fetch(cfg, args.start, args.end, groups, args.cmd, use_cache=args.cmd == "history") else 0
         today = datetime.now(timezone.utc).date()
         end = today + timedelta(days=cfg["meteomatics"]["forecast_days"])
-        return 1 if fetch(cfg, client, today, end, groups, "forecast", use_cache=False) else 0
+        return 1 if fetch(cfg, today, end, groups, "forecast", use_cache=False) else 0
     except MeteomaticsAuthError as exc:
         print(f"Authentication problem: {exc}", file=sys.stderr)
         return 2

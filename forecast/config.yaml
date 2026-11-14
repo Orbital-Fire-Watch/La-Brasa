@@ -15,7 +15,14 @@ points:
 
 meteomatics:
   base_url: https://api.meteomatics.com
-  model: mix                  # Meteomatics picks the best source per time and place
+  model: mix                  # default source (Meteomatics picks one per time and place)
+  # Source per use and group. Checked 14.11.2026: the history of `mix` has broken precipitation (e.g. 6 mm in
+  # 2016 at a point in Aragon, 42 mm in 2023 in Galicia) and gust jumps in 2014 and 2020; ERA5 is homogeneous and
+  # plausible (Galicia ~1350 mm/year). ERA5 ends ~5 days before today, `recent` fills the gap with ECMWF IFS.
+  models:
+    history: {core: ecmwf-era5, fire: mix}
+    recent: {core: ecmwf-ifs, fire: mix}
+    forecast: {core: ecmwf-ifs, fire: mix}
   format: csv
   max_points_per_request: 50  # more than 10 points needs the "area requests" option (the hackathon account has it)
   chunk_days: 366             # one request covers at most this many days
@@ -44,9 +51,10 @@ meteomatics:
       - drought_index:idx
   forecast_days: 10
 
-# Forecast models (step 1: no weather)
+# Forecast models: no-weather tier (step 1) and weather tier (step 4)
 model:
-  version: "0.1-noweather"
+  version: "0.2-weather"            # with weather (step 4); the no-weather tier writes version_noweather
+  version_noweather: "0.1-noweather"
   seed: 20261114
   viirs_start: "2012-01-20"
   train_end: "2021-12-31"
@@ -66,6 +74,10 @@ model:
   bootstrap_models: 20        # refits on resampled years for p_big_fire_day_lo / _hi
   band_quantiles: [0.05, 0.95]
   min_region_events: 30       # per-region fallback only where the test has at least this many events
+  weather:
+    # weather feature set of the daily models chosen on validation (fit 2012-2019, validate 2020-2021, mean gain
+    # of big_fire_day over these leads); candidates in features/weather.py WEATHER_SETS
+    selection_leads: [1, 3, 5, 7, 10]
   weekly:
     weeks_ahead: [2, 3, 4]
     window_weeks: 1
