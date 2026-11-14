@@ -1,0 +1,152 @@
+# Zentrale Konfiguration der taeglichen Harmonisierungs-Pipeline.
+# Alle Parameter, Schwellen und Pfade stehen hier. Im Code gibt es keine festen Zahlen.
+# Relative Pfade gelten ab dem Ordner dieser Datei.
+
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  harmonised_dir: data/harmonised
+  nuts_geojson: geo/NUTS_RG_10M_2021_4326_LEVL_2.geojson
+  reference_results_dir: data_analysis/results                        # nur fuer Regressionstests
+  reference_v1_harmonised: ../harmonisation_pipeline/data/harmonised/activity_harmonised.parquet
+
+nuts:
+  version: "NUTS 2021, Eurostat GISCO, 1:10 Mio, EPSG:4326"
+  id_property: NUTS_ID
+  name_property: NAME_LATN
+  coast_tolerance_deg: 0.05        # Kuestenpunkte bis zu diesem Abstand bekommen die naechste Region
+
+sources:
+  - {name: modis_archive, sensor: MODIS, source: archive, csv: data/raw/fire_archive_M-C61_845369.csv}
+  - {name: modis_nrt,     sensor: MODIS, source: nrt,     csv: data/raw/fire_nrt_M-C61_845369.csv}
+  - {name: viirs_archive, sensor: VIIRS, source: archive, csv: data/raw/fire_archive_SV-C2_845370.csv}
+  - {name: viirs_nrt,     sensor: VIIRS, source: nrt,     csv: data/raw/fire_nrt_SV-C2_845370.csv}
+
+satellites:
+  sensor_of: {Terra: MODIS, Aqua: MODIS, SNPP: VIIRS}
+  reference: SNPP                  # VIIRS-Referenz
+  modis_pair: [Aqua, Terra]        # Anzahl vor 2012: Summe aus beiden
+  modis_afternoon: Aqua            # fliegt wie SNPP am fruehen Nachmittag
+  modis_single: Terra              # einziger MODIS-Satellit vor dem Start von Aqua
+
+validation_ranges:
+  latitude: [-90.0, 90.0]
+  longitude: [-180.0, 180.0]
+  frp_min: 0.0
+  date_min: "2000-01-01"
+  date_max: "2030-12-31"
+
+deduplication:
+  key: [satellite, latitude, longitude, acq_date, acq_time]
+  source_priority: [archive, nrt]
+
+static_sources:
+  vegetation_fire_type: 0
+  mask_cell_deg: 0.005
+  mask_min_static_detections: 3
+  mask_min_static_share: 0.5
+  mask_neighbour_cells: 1
+  holdout_first_year: 2023
+
+export:
+  csv: true                        # CSV-Kopien aller Ausgabetabellen fuer das Frontend
+  csv_dir: csv                     # Unterordner von data/harmonised
+
+classification:
+  frp_class_bounds_mw: [10.0, 50.0]          # je Pixel: low < 10 <= mid < 50 <= high
+  frp_class_labels: [low, mid, high]
+  modis_confidence_bounds: [30, 80]
+  viirs_confidence_map: {l: low, n: nominal, h: high}
+  confidence_labels: [low, nominal, high]
+
+grid:
+  cell_deg: 0.25                   # Zellraster fuer die Karte
+
+columns:
+  drop_not_comparable: [brightness, bright_t31]
+  drop_redundant: [instrument, version]
+  drop_after_filter: [type]
+
+daily:
+  series_start: "2001-01-01"
+  date_assignment: utc             # utc | solar (Hypothese H2)
+  solar_day_shift_hours: 6         # solar: Tageswechsel um 6 Uhr Sonnenzeit, damit eine Nacht auf einem Datum liegt
+  coverage_gap_tolerance_days: 7
+  modis_last_valid_date: "2021-12-31"   # danach driften Terra und Aqua
+  allow_drift_modis: false
+  gap_neighbour_days: 3            # possible_gap: Vergleich mit +-3 Nachbartagen
+  gap_min_neighbour_median: 20     # ... deren Median mindestens so viele Erkennungen hat
+
+strength:
+  frp_daynight: all                # all | day (Hypothese H5)
+  frp_modis_source: aqua           # aqua | pair (Hypothese H1)
+  class_bounds_mw: [10.0, 100.0, 500.0]
+  class_labels: [minor, moderate, strong, extreme]
+  big_fire_threshold_mw: 100.0
+  big_fire_threshold_scaled_mw: 80.0    # Schwelle fuer umgerechnete Zeilen (H3: gleicht Recall und Precision aus)
+
+calibration:
+  window_start: "2012-02-01"
+  window_end: "2021-12-31"
+  min_modis_detections: 300
+
+uncertainty:
+  count_class_bounds: [0, 5, 20, 100, 500]      # Klassen der umgerechneten Anzahl: 0, 1-5, 6-20, ...
+  frp_class_bounds_mw: [0, 100, 500]            # Iteration 2: 0-10 und 10-100 zusammengelegt (stabiler)
+  count_offset: 1.0                # +1 vor dem Logarithmus, damit 0 bewertbar bleibt
+  frp_offset_mw: 1.0
+  area_scales: [cell, nuts2, country, all]
+  grains: [day, week, month, quarter, year]
+  min_units_per_class: 30          # darunter gilt der Wert ueber alle Klassen der Skala
+  measured_min_factor_50: 1.2      # Mindestfaktor fuer gemessene VIIRS-Werte (Instrumentenvergleich, 1-Grad-Zelle)
+  measured_min_factor_90: 1.8
+  normal_quantile_50: 0.6745       # halbe Breite des 50-%-Bands in Standardabweichungen
+  normal_quantile_90: 1.645
+  reliability_solid_min_count: 100
+  area_scale_max_km2: {cell: 2000, nuts2: 60000, country: 300000}   # frei gewaehlte Flaeche -> Skala des Fehlermodells
+  split_years: [[2012, 2016], [2017, 2021]]     # U1-U3: auf einer Haelfte bestimmen, auf der anderen pruefen
+
+climatology:
+  window_days: 7
+  all_years: [2001, 2025]
+  viirs_years: [2013, 2025]
+
+drift_monitor:
+  daynight: D
+  baseline_years: [2012, 2013, 2014]
+  max_deviation_minutes: 15
+  min_detections_per_year: 50
+
+kpi:                               # VOR der ersten Messung festgelegt, nicht nachtraeglich senken
+  eval_min_viirs_detections_region: 2000
+  trend_check_years: [2013, 2021]
+  climatology_check_years: [2013, 2021]
+  uncertainty_check_scales: [[nuts2, day], [nuts2, month]]
+  uncertainty_min_units: 100
+  rollup_tolerance: 1.0e-9
+  climatology_offset: 0.1          # Versatz beim Fehler des Klimaprofils (kleine Mittelwerte je Tag)
+  thresholds:
+    d1_day_median_factor_error_max: 2.25
+    d1_day_p90_factor_error_max: 6.5
+    d2_total_bias_max: 0.03
+    d3_month_median_factor_error_max: 1.55
+    d3_month_class_accuracy_min: 0.60
+    d3_month_kappa_min: 0.40
+    d4_frp_day_r2_min: 0.50
+    d4_frp_day_median_ratio_range: [0.8, 1.25]
+    d5_big_fire_kappa_min: 0.55
+    d5_big_fire_recall_min: 0.55
+    d5_big_fire_precision_min: 0.60
+    d6_big_fire_cell_kappa_min: 0.50
+    d7_extreme_class_exact_min: 0.65
+    d8_climatology_r2_min: 0.90
+    d8_climatology_median_factor_error_max: 1.30
+    d8_climatology_region_corr_median_min: 0.90
+    d8_climatology_region_corr_min_min: 0.80
+    d9_trend_p_value_min: 0.05
+    u1_coverage50_range: [0.42, 0.58]
+    u2_coverage90_range: [0.84, 0.96]
+    u3_factor_stability_max: 0.15
+    m1_mask_recall_min: 0.90
+    m1_mask_false_removal_max: 0.02
+    m2_region_coverage_min: 0.999

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spalten fürs Frontend</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --ink:#10161d; --ink2:#46505c; --muted:#77818d;
+  --line:#dde1e6; --accent:#1d5a66; --wash:#e7eff1;
+  --keep:#e4ece8; --keep-ink:#1c6b3c; --new:#e3ecf7; --new-ink:#1f4e8c;
+  --chg:#f6eedc; --chg-ink:#8a5a00; --drop:#f6e3e1; --drop-ink:#a1271d;
+  --modis:#c98a2b; --viirs:#2f7d8c; --none:#b7bec6;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:"Space Grotesk","Inter",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1114; --surface:#171b20; --ink:#eef1f4; --ink2:#b9c1ca; --muted:#8a939e;
+    --line:#2a3038; --accent:#7fc4d1; --wash:#16262b;
+    --keep:#16291f; --keep-ink:#6fcf97; --new:#15223a; --new-ink:#8fb8f0;
+    --chg:#2c2414; --chg-ink:#e8b85c; --drop:#2e1715; --drop-ink:#ff8a80;
+    --modis:#e0a54a; --viirs:#5fb6c6; --none:#4a525c; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1114; --surface:#171b20; --ink:#eef1f4; --ink2:#b9c1ca; --muted:#8a939e;
+  --line:#2a3038; --accent:#7fc4d1; --wash:#16262b;
+  --keep:#16291f; --keep-ink:#6fcf97; --new:#15223a; --new-ink:#8fb8f0;
+  --chg:#2c2414; --chg-ink:#e8b85c; --drop:#2e1715; --drop-ink:#ff8a80;
+  --modis:#e0a54a; --viirs:#5fb6c6; --none:#4a525c; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:40px 80px;-webkit-text-size-adjust:100%}
+main{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:18px;min-width:0}
+main>*{margin:0;min-width:0}
+p,li{max-width:72ch}
+h1,h2,h3{font-family:var(--display);font-weight:600;text-wrap:balance;line-height:1.2;letter-spacing:-0.01em}
+h1{font-size:clamp(1.8rem,5vw,2.5rem)}
+h2{font-size:1.45rem;margin-top:30px;padding-top:26px;border-top:1px solid var(--line)}
+h3{font-size:1.05rem;margin-top:10px}
+.eyebrow{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.lede{font-size:1.1rem;color:var(--ink2);max-width:64ch}
+code{font-family:var(--mono);font-size:.88em;background:var(--wash);padding:.06em .3em;border-radius:3px;overflow-wrap:anywhere}
+pre{font-family:var(--mono);font-size:.85rem;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px 14px;overflow-x:auto;line-height:1.5}
+ul,ol{padding-left:1.25em;display:flex;flex-direction:column;gap:7px}
+.status{background:var(--wash);border-radius:8px;padding:16px 20px;font-family:var(--display);font-size:1.15rem;font-weight:500;line-height:1.4}
+.gaps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.gap{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.gap b{display:block;font-family:var(--display);font-size:1rem;margin-bottom:4px}
+.gap p{margin:0;color:var(--ink2);font-size:.93rem}
+.gap .need{display:block;margin-top:8px;font-size:.85rem;color:var(--muted)}
+figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px}
+figcaption{font-size:.88rem;color:var(--muted);margin-top:10px}
+svg{display:block;width:100%;height:auto}
+svg text{font-family:var(--body);fill:var(--ink)}
+svg .sm{font-size:12px;fill:var(--ink2)}
+svg .mono{font-family:var(--mono);font-size:11.5px;fill:var(--ink2)}
+.box{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.box-src{fill:var(--wash);stroke:var(--line)}
+.box-new{fill:var(--new);stroke:var(--new-ink);stroke-width:1.2}
+.box-chg{fill:var(--chg);stroke:var(--chg-ink);stroke-width:1.2}
+.arrow{stroke:var(--muted);stroke-width:1.4;fill:none;marker-end:url(#ah)}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+tr:last-child td{border-bottom:none}
+td:first-child{white-space:nowrap}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.t-keep{background:var(--keep);color:var(--keep-ink)}
+.t-new{background:var(--new);color:var(--new-ink)}
+.t-chg{background:var(--chg);color:var(--chg-ink)}
+.t-drop{background:var(--drop);color:var(--drop-ink)}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:.88rem;color:var(--ink2);align-items:center}
+.calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.calc>div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.calc h3{margin:0 0 6px}
+.calc p{margin:0 0 8px;font-size:.93rem;color:var(--ink2)}
+.num{font-family:var(--display);font-size:1.5rem;font-weight:600;font-variant-numeric:tabular-nums}
+.warn{border-left:4px solid var(--chg-ink);background:var(--chg);border-radius:0 8px 8px 0;padding:14px 18px}
+.warn p{margin:0;color:var(--ink)}
+.todo li::marker{color:var(--accent);font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<p class="eyebrow">NASA Space Apps 2026 · MODIS- und VIIRS-Hotspots · Iberien</p>
+<h1>Welche Spalten das Frontend braucht</h1>
+<p class="lede">Ein Vorschlag, wie die Ausgabe der Harmonisierung aussehen muss, damit eine Web-App daraus Brennkalender, Anomalien und CSV-Downloads für eine frei gewählte Fläche erzeugen kann.</p>
+
+<p class="status">Die Pipeline liefert heute nur Region × Monat. Für die Aufgabe braucht es zusätzlich die einzelnen Hotspots mit einem Gewicht in VIIRS-Äquivalenten sowie eine Tabelle, die angibt, welche Monate vollständig sind.</p>
+
+<h2>Was mit der heutigen Ausgabe nicht geht</h2>
+<p>Die Datei <code>activity_harmonised</code> enthält 23 NUTS-2-Regionen × Monate von 2001 bis 2026, insgesamt 7.153 Zeilen. Daraus folgen drei Lücken gegenüber der Aufgabenstellung:</p>
+<div class="gaps">
+  <div class="gap"><b>Eigene Fläche zeichnen</b><p>Nutzer sollen ein Polygon zeichnen oder lat/lon eingeben. Aus NUTS-Summen lässt sich keine beliebige Fläche herausschneiden.</p><span class="need">→ braucht Daten auf Punktebene</span></div>
+  <div class="gap"><b>CSV der Hotspots</b><p>Gewünscht ist ein Download der Hotspots einer Suche. Die Monatstabelle enthält aber keine einzelnen Hotspots.</p><span class="need">→ braucht Daten auf Punktebene</span></div>
+  <div class="gap"><b>Aktueller Monat gegen Median</b><p>11/2026 steht auf <code>basis = none</code> und hat <code>n_harm</code> leer, weil der Monat noch läuft. Der wichtigste Vergleich für Einsatzkräfte fällt damit weg.</p><span class="need">→ braucht einen Teilwert und die Zahl der abgedeckten Tage</span></div>
+</div>
+
+<h2>Die Idee: ein Gewicht pro Hotspot</h2>
+<p>Die Umrechnung ist linear. Ein MODIS-Monat wird zu <code>(n_aqua + n_terra) × k_count</code> der Region. Das ist dasselbe, als bekäme jeder einzelne MODIS-Hotspot das Gewicht <code>k_count</code>. Welcher Sensor gilt (<code>basis</code>), hängt nur vom Monat ab, nicht von der Region, weil die Abdeckung je Satellit überall gleich ist. Also gilt:</p>
+<pre>harmonisierte Anzahl einer beliebigen Fläche = SUM(weight_n)  über alle Punkte darin
+harmonisierte FRP einer beliebigen Fläche     = SUM(frp × weight_frp)</pre>
+<p>Für eine NUTS-Region ergibt die Summe exakt das heutige <code>n_harm</code>. Für jede andere Fläche ergibt sie eine Zahl auf derselben Skala.</p>
+
+<figure>
+<svg viewBox="0 0 860 210" role="img" aria-label="Zeitleiste: 2001 bis 07/2002 nur Terra, Gewicht k_count_terra_only; 08/2002 bis 01/2012 Aqua plus Terra, Gewicht k_count; ab 02/2012 VIIRS, Gewicht 1, MODIS-Punkte Gewicht 0; laufender Monat vorläufig">
+  <text x="0" y="18" style="font-weight:600;font-size:13px">Welche Punkte zählen in welchem Monat</text>
+  <!-- axis: 2001 -> x=40, 2027 -> x=840 ; 800px / 26 yr ≈ 30.77/yr -->
+  <g>
+    <rect x="40" y="46" width="49" height="34" rx="3" fill="var(--modis)" opacity=".55"/>
+    <rect x="89" y="46" width="290" height="34" rx="3" fill="var(--modis)"/>
+    <rect x="379" y="46" width="441" height="34" rx="3" fill="var(--viirs)"/>
+    <rect x="820" y="46" width="10" height="34" rx="2" fill="var(--none)"/>
+    <text x="64" y="102" class="sm" text-anchor="middle">nur Terra</text>
+    <text x="234" y="68" text-anchor="middle" style="font-size:12.5px;font-weight:600;fill:#fff">MODIS: Aqua + Terra</text>
+    <text x="600" y="68" text-anchor="middle" style="font-size:12.5px;font-weight:600;fill:#fff">VIIRS (SNPP) gemessen</text>
+    <line x1="379" y1="40" x2="379" y2="150" stroke="var(--ink2)" stroke-dasharray="3 3"/>
+    <text x="379" y="164" class="sm" text-anchor="middle">02/2012</text>
+    <text x="40" y="164" class="sm" text-anchor="middle">2001</text>
+    <text x="89" y="164" class="sm" text-anchor="middle">08/2002</text>
+    <text x="826" y="164" class="sm" text-anchor="end">heute</text>
+    <text x="64" y="124" class="mono" text-anchor="middle">× 6,0</text>
+    <text x="234" y="124" class="mono" text-anchor="middle">MODIS-Punkt: weight_n = k_count (≈ 3,0)</text>
+    <text x="600" y="110" class="mono" text-anchor="middle">VIIRS-Punkt: weight_n = 1</text>
+    <text x="600" y="128" class="mono" text-anchor="middle">MODIS-Punkt: weight_n = 0, in_series = false</text>
+    <text x="840" y="102" class="sm" text-anchor="end">vorläufig</text>
+    <text x="0" y="196" class="sm">Faktoren sind Mittelwerte über alle Regionen. Je Region gilt der eigene Faktor aus calib_factors.</text>
+  </g>
+</svg>
+<figcaption>Ab 2012 liegen MODIS- und VIIRS-Punkte zum selben Feuer übereinander. Das Flag <code>in_series</code> verhindert, dass die Karte und die Summen sie doppelt zeigen.</figcaption>
+</figure>
+
+<div class="calc">
+  <div><h3>Beispiel MODIS-Monat</h3><p>PT16, August 2005. 1.148 Aqua- und 1.286 Terra-Punkte, Regionsfaktor 2,778.</p><div class="num">2.434 × 2,778 = 6.762</div><p>Das ist genau das heutige <code>n_harm</code>. Jeder der 2.434 Punkte trägt 2,778 bei.</p></div>
+  <div><h3>Beispiel VIIRS-Monat</h3><p>Ab 02/2012 zählt jeder SNPP-Punkt mit 1. Die MODIS-Punkte desselben Monats bleiben in der Tabelle, zum Beispiel für den CSV-Download, zählen aber mit 0.</p><div class="num">SUM(weight_n) = n_snpp</div></div>
+</div>
+
+<h2>Drei Produkte statt einem</h2>
+<figure>
+<svg viewBox="0 0 860 250" role="img" aria-label="Datenfluss: hotspots_clean und calib_factors ergeben hotspots_harmonised; Abdeckung ergibt periods; activity_harmonised bleibt als Abkürzung; alle drei gehen in die Aggregationsschicht und dann ins Frontend">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+  <rect class="box-src" x="10" y="20" width="170" height="44" rx="6"/><text x="95" y="47" text-anchor="middle" class="mono" style="fill:var(--ink)">hotspots_clean</text>
+  <rect class="box-src" x="10" y="100" width="170" height="44" rx="6"/><text x="95" y="127" text-anchor="middle" class="mono" style="fill:var(--ink)">calib_factors</text>
+  <rect class="box-src" x="10" y="180" width="170" height="44" rx="6"/><text x="95" y="207" text-anchor="middle" class="mono" style="fill:var(--ink)">satellite_coverage</text>
+
+  <rect class="box-new" x="250" y="14" width="220" height="56" rx="6"/><text x="360" y="38" text-anchor="middle" style="font-weight:600;font-size:13px">A · hotspots_harmonised</text><text x="360" y="57" text-anchor="middle" class="sm">neu · Punkt mit Gewicht</text>
+  <rect class="box-new" x="250" y="174" width="220" height="56" rx="6"/><text x="360" y="198" text-anchor="middle" style="font-weight:600;font-size:13px">B · periods</text><text x="360" y="217" text-anchor="middle" class="sm">neu · Monat vollständig?</text>
+  <rect class="box-chg" x="250" y="94" width="220" height="56" rx="6"/><text x="360" y="118" text-anchor="middle" style="font-weight:600;font-size:13px">C · activity_harmonised</text><text x="360" y="137" text-anchor="middle" class="sm">vorhanden · erweitern</text>
+
+  <path class="arrow" d="M180 42 H248"/><path class="arrow" d="M180 122 C215 122 215 50 248 50"/><path class="arrow" d="M180 202 H248"/>
+  <path class="arrow" d="M180 122 H248"/>
+
+  <rect class="box" x="545" y="74" width="140" height="96" rx="6"/><text x="615" y="112" text-anchor="middle" style="font-weight:600;font-size:13px">Aggregation</text><text x="615" y="131" text-anchor="middle" class="sm">Fläche, Zeitraum,</text><text x="615" y="147" text-anchor="middle" class="sm">Median, Anomalie</text>
+  <path class="arrow" d="M470 42 C510 42 510 100 543 100"/><path class="arrow" d="M470 122 H543"/><path class="arrow" d="M470 202 C510 202 510 145 543 145"/>
+
+  <rect class="box" x="740" y="74" width="110" height="96" rx="6"/><text x="795" y="112" text-anchor="middle" style="font-weight:600;font-size:13px">Frontend</text><text x="795" y="131" text-anchor="middle" class="sm">Karte, Kalender,</text><text x="795" y="147" text-anchor="middle" class="sm">CSV</text>
+  <path class="arrow" d="M685 122 H738"/>
+</svg>
+<figcaption>A ist für die Karte, eigene Flächen und den Download. B sagt, ob ein leerer Monat 0 Feuer bedeutet oder fehlende Daten. C bleibt als vorberechnete Abkürzung, wenn eine NUTS-Region gewählt wird.</figcaption>
+</figure>
+
+<div class="legend"><span class="tag t-keep">bleibt</span><span class="tag t-new">neu</span><span class="tag t-chg">ändern</span><span class="tag t-drop">raus</span></div>
+
+<h3>A · hotspots_harmonised (Punktebene, aus hotspots_clean)</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Spalte</th><th></th><th>Wozu</th></tr></thead>
+<tbody>
+<tr><td><code>hotspot_id</code></td><td><span class="tag t-new">neu</span></td><td>Stabile ID, z. B. Hash aus dem Dedup-Schlüssel. Für Auswahl auf der Karte, Download und Deduplizierung.</td></tr>
+<tr><td><code>latitude</code>, <code>longitude</code></td><td><span class="tag t-keep">bleibt</span></td><td>Karte, räumlicher Filter</td></tr>
+<tr><td><code>acq_date</code></td><td><span class="tag t-chg">ändern</span></td><td>Zeitfilter. Als echtes Datum speichern, heute ist es <code>object</code>.</td></tr>
+<tr><td><code>acq_datetime_utc</code></td><td><span class="tag t-new">neu</span></td><td>Ersetzt <code>acq_time</code> (String wie <code>"0114"</code>)</td></tr>
+<tr><td><code>region_id</code>, <code>country</code></td><td><span class="tag t-keep">bleibt</span></td><td>Schneller Filter für NUTS, Zuordnung des Faktors</td></tr>
+<tr><td><code>sensor</code>, <code>satellite</code></td><td><span class="tag t-keep">bleibt</span></td><td>Herkunft im CSV. Im Kalender nicht nötig.</td></tr>
+<tr><td><code>source</code></td><td><span class="tag t-keep">bleibt</span></td><td>archive = endgültig, nrt = vorläufig. Im UI kennzeichnen.</td></tr>
+<tr><td><code>daynight</code></td><td><span class="tag t-keep">bleibt</span></td><td>Filter und Info</td></tr>
+<tr><td><code>frp</code>, <code>frp_class</code></td><td><span class="tag t-keep">bleibt</span></td><td>Größe und Farbe des Punkts, Filter auf der Karte</td></tr>
+<tr><td><code>confidence_class</code></td><td><span class="tag t-keep">bleibt</span></td><td>Filter, nur zusammen mit <code>sensor</code> sinnvoll</td></tr>
+<tr><td><code>confidence_raw</code>, <code>scan</code>, <code>track</code></td><td><span class="tag t-keep">bleibt</span></td><td>Nur im CSV für Fachleute. Optional <code>pixel_area_km2 = scan × track</code> für den Fußabdruck auf der Karte.</td></tr>
+<tr><td><code>in_series</code></td><td><span class="tag t-new">neu</span></td><td>Sensor des Punkts ist in diesem Monat die Basis. Verhindert die Doppelanzeige ab 2012.</td></tr>
+<tr><td><code>weight_n</code></td><td><span class="tag t-new">neu</span></td><td>VIIRS-Äquivalent des Punkts: 1, <code>k_count</code>, <code>k_count_terra_only</code> oder 0</td></tr>
+<tr><td><code>weight_frp</code></td><td><span class="tag t-new">neu</span></td><td>Gleiches Prinzip mit <code>k_frp</code> bzw. <code>k_frp_terra_only</code></td></tr>
+<tr><td><code>basis</code></td><td><span class="tag t-new">neu</span></td><td>Gleicher Wert wie in C, damit jede Zahl nachvollziehbar bleibt</td></tr>
+<tr><td><code>local_solar_hour</code></td><td><span class="tag t-drop">raus</span></td><td>Nur für den Drift-Monitor, bleibt intern</td></tr>
+<tr><td><code>static_filter_basis</code></td><td><span class="tag t-drop">raus</span></td><td>Entspricht <code>source</code> (type → archive, mask → nrt)</td></tr>
+</tbody></table></div>
+<p>Die 10 Punkte ohne Region (knapp außerhalb aller NUTS-Flächen) bekommen den Gesamtfaktor <code>k_count_overall</code>.</p>
+
+<h3>B · periods (neu, ein Eintrag pro Monat)</h3>
+<p>Die Punkttabelle enthält keine Nullzeilen. Ohne diese Tabelle kann das Frontend einen ruhigen Monat nicht von einem Monat ohne Daten unterscheiden.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Spalte</th><th></th><th>Wozu</th></tr></thead>
+<tbody>
+<tr><td><code>period_start</code>, <code>year</code>, <code>month</code></td><td><span class="tag t-new">neu</span></td><td>Zeitachse des Kalenders, auf die Punkte mit 0 aufgefüllt werden</td></tr>
+<tr><td><code>basis</code></td><td><span class="tag t-new">neu</span></td><td>Welcher Sensor in diesem Monat gilt</td></tr>
+<tr><td><code>is_complete_month</code></td><td><span class="tag t-new">neu</span></td><td>Geht der Monat in Median und Rangfolge ein?</td></tr>
+<tr><td><code>days_covered</code>, <code>days_in_period</code></td><td><span class="tag t-new">neu</span></td><td>Vergleich „bisher in diesem Monat“, Hochrechnung des laufenden Monats</td></tr>
+<tr><td><code>is_provisional</code></td><td><span class="tag t-new">neu</span></td><td>Monat enthält NRT-Daten</td></tr>
+</tbody></table></div>
+
+<h3>C · activity_harmonised (vorhanden, Region × Monat)</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Spalte</th><th></th><th>Wozu</th></tr></thead>
+<tbody>
+<tr><td><code>region_id</code>, <code>country</code>, <code>year</code>, <code>month</code>, <code>basis</code>, <code>n_harm</code>, <code>frp_harm</code>, <code>factor_used</code>, <code>is_complete_month</code></td><td><span class="tag t-keep">bleibt</span></td><td>Kern des Kalenders</td></tr>
+<tr><td><code>period_start</code></td><td><span class="tag t-chg">ändern</span></td><td>Im CSV steht <code>2001-01-01 00:00:00</code>. Als reines ISO-Datum ausgeben.</td></tr>
+<tr><td><code>region_name</code></td><td><span class="tag t-new">neu</span></td><td><code>NUTS_NAME</code> aus dem GeoJSON, für die Beschriftung im UI</td></tr>
+<tr><td><code>n_harm_low</code>, <code>n_harm_high</code></td><td><span class="tag t-new">neu</span></td><td><code>n_harm ÷ u</code> und <code>n_harm × u</code>. Fertiges Fehlerband statt eines Faktors, mit dem das Frontend erst rechnen müsste.</td></tr>
+<tr><td><code>rel_uncertainty</code></td><td><span class="tag t-keep">bleibt</span></td><td>Grundlage für die Grenzen oben</td></tr>
+<tr><td><code>n_partial</code>, <code>frp_partial</code></td><td><span class="tag t-new">neu</span></td><td>VIIRS-Werte des laufenden Monats bis heute. <code>n_harm</code> bleibt leer, damit Median und Rang sauber bleiben.</td></tr>
+<tr><td><code>n_aqua</code>, <code>n_terra</code>, <code>n_snpp</code></td><td><span class="tag t-keep">bleibt</span></td><td>Nur für Tooltips und Debugging. Im Kalender werden sie nicht gezeigt, laut Aufgabe soll der Sensor keine Rolle mehr spielen.</td></tr>
+</tbody></table></div>
+
+<h2>Was nicht in die Pipeline gehört</h2>
+<p>Die folgenden Werte hängen von der gewählten Fläche und dem Zeitraum ab. Die Aggregationsschicht berechnet sie bei jeder Anfrage:</p>
+<ul>
+<li>Historischer Median und Mittel je Kalendermonat, Anomalie <code>n / median</code>, Rang des Monats und des Jahres, Perzentil</li>
+<li>Summen pro Jahr × Monat für die Farbskala des Kalenders</li>
+<li>Unsicherheit für eine eigene Fläche: bei MODIS-Monaten der CV-Faktor aus <code>calib_summary.json</code> (×1,46, nur Terra ×1,74), bei VIIRS-Monaten das Poisson-Rauschen <code>1 + 1/√(n+1)</code> aus <code>SUM(weight_n)</code></li>
+</ul>
+
+<div class="warn"><p><b>Filter im Kalender nur mit Vorsicht.</b> Die Faktoren sind pro Region kalibriert und geprüft, nicht pro <code>frp_class</code>, <code>confidence_class</code> oder <code>daynight</code>. VIIRS findet viel mehr schwache Feuer als MODIS. Ein Kalender „nur high-FRP“ wäre vor 2012 falsch skaliert. Solche Filter gehören auf die Karte und in den CSV-Download. Im Kalender gehen sie höchstens als ausdrücklich gekennzeichnete Ansicht „ab 2012, nur VIIRS“.</p></div>
+
+<h2>Aufgaben für die Pipeline</h2>
+<ol class="todo">
+<li>Neue Stufe <code>hotspots_harmonised</code> mit <code>hotspot_id</code>, <code>acq_datetime_utc</code>, <code>in_series</code>, <code>weight_n</code>, <code>weight_frp</code> und <code>basis</code></li>
+<li>Neue Tabelle <code>periods</code> mit <code>days_covered</code>, <code>days_in_period</code> und <code>is_provisional</code></li>
+<li><code>activity_harmonised</code> um <code>region_name</code>, <code>n_harm_low</code>/<code>n_harm_high</code> und <code>n_partial</code>/<code>frp_partial</code> erweitern, <code>period_start</code> als Datum ausgeben</li>
+<li>Test: <code>SUM(weight_n)</code> je Region und Monat ergibt <code>n_harm</code></li>
+</ol>
+</main>
+</body>
+</html>

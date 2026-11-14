@@ -1,0 +1,182 @@
+{
+ "n_total": 573462,
+ "n_within": 571613,
+ "n_nearest": 1810,
+ "n_null": 39,
+ "by_country": {
+  "ES": 352470,
+  "FR": 21470,
+  "PT": 199483,
+  "NULL": 39
+ },
+ "regions": [
+  {
+   "region_id": "PT11",
+   "name": "Norte",
+   "Terra": 18623,
+   "Aqua": 21022,
+   "SNPP": 53743
+  },
+  {
+   "region_id": "PT16",
+   "name": "Centro (PT)",
+   "Terra": 14216,
+   "Aqua": 13787,
+   "SNPP": 44507
+  },
+  {
+   "region_id": "ES61",
+   "name": "Andaluc\u00eda",
+   "Terra": 11541,
+   "Aqua": 7223,
+   "SNPP": 37697
+  },
+  {
+   "region_id": "ES41",
+   "name": "Castilla y Le\u00f3n",
+   "Terra": 11094,
+   "Aqua": 9948,
+   "SNPP": 34573
+  },
+  {
+   "region_id": "ES11",
+   "name": "Galicia",
+   "Terra": 11946,
+   "Aqua": 10666,
+   "SNPP": 24964
+  },
+  {
+   "region_id": "ES12",
+   "name": "Principado de Asturias",
+   "Terra": 5384,
+   "Aqua": 4715,
+   "SNPP": 33471
+  },
+  {
+   "region_id": "ES43",
+   "name": "Extremadura",
+   "Terra": 4972,
+   "Aqua": 4888,
+   "SNPP": 17791
+  },
+  {
+   "region_id": "ES52",
+   "name": "Comunitat Valenciana",
+   "Terra": 3744,
+   "Aqua": 2744,
+   "SNPP": 14704
+  },
+  {
+   "region_id": "ES42",
+   "name": "Castilla-La Mancha",
+   "Terra": 4558,
+   "Aqua": 3895,
+   "SNPP": 12380
+  },
+  {
+   "region_id": "ES51",
+   "name": "Catalu\u00f1a",
+   "Terra": 2084,
+   "Aqua": 1776,
+   "SNPP": 15994
+  },
+  {
+   "region_id": "FRI1",
+   "name": "Aquitaine",
+   "Terra": 1496,
+   "Aqua": 3450,
+   "SNPP": 11073
+  },
+  {
+   "region_id": "ES24",
+   "name": "Arag\u00f3n",
+   "Terra": 2302,
+   "Aqua": 1898,
+   "SNPP": 10981
+  },
+  {
+   "region_id": "PT18",
+   "name": "Alentejo",
+   "Terra": 3135,
+   "Aqua": 3305,
+   "SNPP": 8203
+  },
+  {
+   "region_id": "ES30",
+   "name": "Comunidad de Madrid",
+   "Terra": 1350,
+   "Aqua": 1058,
+   "SNPP": 10096
+  },
+  {
+   "region_id": "ES13",
+   "name": "Cantabria",
+   "Terra": 1613,
+   "Aqua": 1342,
+   "SNPP": 9430
+  },
+  {
+   "region_id": "PT17",
+   "name": "\u00c1rea Metropolitana de Lisboa",
+   "Terra": 367,
+   "Aqua": 452,
+   "SNPP": 10351
+  },
+  {
+   "region_id": "ES22",
+   "name": "Comunidad Foral de Navarra",
+   "Terra": 1391,
+   "Aqua": 1323,
+   "SNPP": 5162
+  },
+  {
+   "region_id": "PT15",
+   "name": "Algarve",
+   "Terra": 1871,
+   "Aqua": 1650,
+   "SNPP": 4251
+  },
+  {
+   "region_id": "ES62",
+   "name": "Regi\u00f3n de Murcia",
+   "Terra": 1211,
+   "Aqua": 697,
+   "SNPP": 4808
+  },
+  {
+   "region_id": "FRJ2",
+   "name": "Midi-Pyr\u00e9n\u00e9es",
+   "Terra": 621,
+   "Aqua": 1035,
+   "SNPP": 2972
+  },
+  {
+   "region_id": "ES21",
+   "name": "Pa\u00eds Vasco",
+   "Terra": 653,
+   "Aqua": 389,
+   "SNPP": 3222
+  },
+  {
+   "region_id": "FRJ1",
+   "name": "Languedoc-Roussillon",
+   "Terra": 173,
+   "Aqua": 235,
+   "SNPP": 415
+  },
+  {
+   "region_id": "ES23",
+   "name": "La Rioja",
+   "Terra": 172,
+   "Aqua": 130,
+   "SNPP": 490
+  },
+  {
+   "region_id": null,
+   "name": "ohne Region",
+   "Terra": 15,
+   "Aqua": 7,
+   "SNPP": 17
+  }
+ ]
+}
