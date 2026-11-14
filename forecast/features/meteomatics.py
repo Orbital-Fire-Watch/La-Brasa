@@ -29,7 +29,9 @@ MISSING_VALUES = (-999.0, -666.0)
 
 
 class MeteomaticsError(RuntimeError):
-    pass
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 class MeteomaticsAuthError(MeteomaticsError):
@@ -138,9 +140,10 @@ class MeteomaticsClient:
                 raise MeteomaticsAuthError(
                     f"HTTP {resp.status_code}: credentials rejected or request not covered by the account. "
                     f"{resp.text[:300]}")
-            if resp.status_code == 429 or resp.status_code >= 500:
+            if resp.status_code in (408, 429) or resp.status_code >= 500:   # 408 = server-side query timeout
                 if attempt == self.max_retries:
-                    raise MeteomaticsError(f"HTTP {resp.status_code} for {path}: {resp.text[:300]}")
+                    raise MeteomaticsError(f"HTTP {resp.status_code} for {path}: {resp.text[:300]}",
+                                           status=resp.status_code)
                 time.sleep(2 ** attempt * 2)
                 continue
             if resp.status_code != 200:
@@ -189,7 +192,14 @@ class MeteomaticsClient:
 
         def run(task):
             t0, t1, pts = task
-            return self.fetch_once(t0, t1, "P1D", parameters, pts, use_cache=use_cache, **optionals)
+            try:
+                return self.fetch_once(t0, t1, "P1D", parameters, pts, use_cache=use_cache, **optionals)
+            except MeteomaticsError as exc:
+                # a request that keeps timing out on the server is split into two halves of the points
+                if exc.status == 408 and len(pts) > 1:
+                    half = len(pts) // 2
+                    return pd.concat([run((t0, t1, pts[:half])), run((t0, t1, pts[half:]))], ignore_index=True)
+                raise
 
         frames = []
         with ThreadPoolExecutor(max_workers=max(1, self.parallel_requests)) as pool:

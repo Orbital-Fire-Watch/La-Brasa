@@ -114,6 +114,23 @@ def test_daily_series_splits_points(tmp_path):
     assert len(s.calls) == 2 and len(df) == 3
 
 
+def test_timeout_408_is_retried_then_split(tmp_path):
+    def csv(lat):
+        return f"lat;lon;validdate;t_2m:C\n{lat};-7.0;2020-07-01T12:00:00Z;30\n"
+    # max_retries=1: first request 408 twice -> split into two single-point requests
+    c, s = _client(tmp_path, [FakeResponse(408, "query timeout"), FakeResponse(408, "query timeout"),
+                              FakeResponse(200, "validdate;t_2m:C\n2020-07-01T12:00:00Z;30\n"),
+                              FakeResponse(200, "validdate;t_2m:C\n2020-07-01T12:00:00Z;31\n")])
+    import features.meteomatics as mm
+    orig_sleep = mm.time.sleep
+    mm.time.sleep = lambda _s: None
+    try:
+        df = c.daily_series(date(2020, 7, 1), date(2020, 7, 1), ["t_2m:C"], [(40.0, -7.0), (41.0, -7.0)])
+    finally:
+        mm.time.sleep = orig_sleep
+    assert len(s.calls) == 4 and len(df) == 2
+
+
 def test_auth_error_is_raised_without_retry(tmp_path):
     c, s = _client(tmp_path, [FakeResponse(401, "unauthorized")])
     t = datetime(2020, 7, 1, 12, tzinfo=timezone.utc)
