@@ -1,0 +1,622 @@
+{
+ "calibration_window": {
+  "min_modis_detections": 300,
+  "reference_satellites": [
+   "SNPP"
+  ],
+  "window_end": "2021-12-31",
+  "window_start": "2012-02-01"
+ },
+ "code_fingerprint": "191e7f3d58d98003",
+ "config_fingerprint": "ab8ce4bfe1ad26a8",
+ "determinism": {
+  "checked": true,
+  "identical": true
+ },
+ "git_commit": "d0a6bbc54ef8714b1d3dc160b8a94a86e7717fbf",
+ "input_files": {
+  "modis_archive": "9389fbdafb8364a0d69f16910cff354d9fb51998b39583474b572e5e69ac802a",
+  "modis_nrt": "3952543f700eb4dbeac612bec6bddded50f1ae3c22b99091fb71d22442afa619",
+  "noaa20_archive": "43e5b41cad9d4b0dc86f293d9d9aef4611eb4a7a232faa40b7d9d3f08c7f82b7",
+  "noaa20_nrt": "500a69c2a8ef12498b1cabbcefce6af5fd20f677bea508ff42b27de23be81772",
+  "noaa21_archive": "21b51bfdfd9b730e6b7d69912b657c067ac9ccef4e067dd08501515557722d74",
+  "noaa21_nrt": "617c63cb3717893a25eb52344f417191649fd9a9bd98557c43229929e211951a",
+  "snpp_archive": "fcf96294e8c3aaa8c64e58b0351fae37bde0a12db3946a41e7ba830f5c14c4c0",
+  "snpp_nrt": "50114a0ac2832c3e5b9ca7eeb5635ab5fe19356c0efce555f407e3abf9e4f77e"
+ },
+ "nuts_version": "NUTS 2021, Eurostat GISCO, 1:10 Mio, EPSG:4326",
+ "output_hashes": {
+  "harmonised/activity_daily_harmonised.parquet": "e5c0afdbba5861bcf4a034b47fe32647c0f1ef6723e53973d783c7b218805124",
+  "harmonised/big_fire_day_quality.parquet": "64c5de2dc08fc2d7a6b12ebe75caa39a59ca0f621c24a37585424cdfc1e153e6",
+  "harmonised/calib_factors.parquet": "99e110e3ca2ba8e067f319efda34ae426dcfa404685be3e7a74b1faaa1a5501d",
+  "harmonised/calib_summary.json": "91d721c1b9b03d31c3b284ec025b3b9d90ddc41a7406d27ba3d3ef372f33023f",
+  "harmonised/day_status.parquet": "58635fe0bc47820b5b61a03cde336bb2c36f157a6bae8348309e463695233523",
+  "harmonised/hotspots_harmonised.parquet": "3466ed05bef0b4d3f53c8f63d42c4959b130f6eb4a688d9f3118af530169c4f1",
+  "harmonised/quality_by_scale.parquet": "d74933492b58070f8078f0c2c46a27dfabaace138fd05ff96e5be554c45005fc",
+  "harmonised/strength_confusion.parquet": "570b9cdcdeaa661efd4609849ed204bd8b30e12b63ce6fc276a10060981c3781",
+  "processed/activity_daily_raw.parquet": "5901228d484357671c74716227cacf2ff0ab74e0f760cc2b7e519fd94e3863be",
+  "processed/cv_units_nuts2.parquet": "3ca2550f404d800f9727b83cfbea61ce71f3c69d7b9db4d8b1a6c9880d172137",
+  "processed/daily_grid.parquet": "1cca4f8270c7ce9574aa6dd64f665c545df9e2e06a3090884400c8f66b562684",
+  "processed/drift_monitor.parquet": "df66a2929f815ed5b6da67c65baaca154d5a9fa47b407a2ca5cb22649124901d",
+  "processed/hotspots_clean.parquet": "4cf3a69265d447051cc0deaa3bfb81143176268807df2949a474bd94d81b4ada",
+  "processed/rejected_hotspots.parquet": "455ad7aa26a22b9467de01b31ebf91354b67f2f2ac5bc68c0a8e897bc77402ad",
+  "processed/satellite_coverage.parquet": "84803c22360115c6678266ee2cc98f242fd85edd110b0dec5e6c260ba6a588d0",
+  "processed/static_mask.parquet": "7ef2d0009d833f38f23037f1dfff5aded70d7393414b1ef2df8ba1116d2dd01e"
+ },
+ "parameters": {
+  "calibration": {
+   "min_modis_detections": 300,
+   "reference_satellites": [
+    "SNPP"
+   ],
+   "window_end": "2021-12-31",
+   "window_start": "2012-02-01"
+  },
+  "classification": {
+   "confidence_labels": [
+    "low",
+    "nominal",
+    "high"
+   ],
+   "frp_class_bounds_mw": [
+    10.0,
+    50.0
+   ],
+   "frp_class_labels": [
+    "low",
+    "mid",
+    "high"
+   ],
+   "modis_confidence_bounds": [
+    30,
+    80
+   ],
+   "viirs_confidence_map": {
+    "h": "high",
+    "l": "low",
+    "n": "nominal"
+   }
+  },
+  "climatology": {
+   "all_years": [
+    2001,
+    2025
+   ],
+   "viirs_years": [
+    2013,
+    2025
+   ],
+   "window_days": 7
+  },
+  "columns": {
+   "drop_after_filter": [
+    "type"
+   ],
+   "drop_not_comparable": [
+    "brightness",
+    "bright_t31"
+   ],
+   "drop_redundant": [
+    "instrument",
+    "version"
+   ]
+  },
+  "common_area": {
+   "cell_deg": 0.25,
+   "reference_satellites": [
+    "Terra",
+    "Aqua",
+    "SNPP"
+   ]
+  },
+  "daily": {
+   "allow_drift_modis": false,
+   "coverage_gap_tolerance_days": 7,
+   "date_assignment": "utc",
+   "gap_min_neighbour_median": 20,
+   "gap_neighbour_days": 3,
+   "modis_last_valid_date": "2021-12-31",
+   "series_start": "2001-01-01",
+   "solar_day_shift_hours": 6
+  },
+  "deduplication": {
+   "key": [
+    "satellite",
+    "latitude",
+    "longitude",
+    "acq_date",
+    "acq_time"
+   ],
+   "source_priority": [
+    "archive",
+    "nrt"
+   ]
+  },
+  "drift_monitor": {
+   "baseline_fallback_years": 2,
+   "baseline_years": [
+    2012,
+    2013,
+    2014
+   ],
+   "daynight": "D",
+   "max_deviation_minutes": 15,
+   "min_detections_per_year": 50
+  },
+  "export": {
+   "csv": true,
+   "csv_dir": "csv"
+  },
+  "grid": {
+   "cell_deg": 0.25,
+   "h3_resolution": 8
+  },
+  "kpi": {
+   "climatology_check_years": [
+    2013,
+    2021
+   ],
+   "climatology_offset": 0.1,
+   "eval_min_viirs_detections_region": 2000,
+   "rollup_tolerance": 1e-09,
+   "thresholds": {
+    "d1_day_median_factor_error_max": 2.25,
+    "d1_day_p90_factor_error_max": 6.5,
+    "d2_total_bias_max": 0.03,
+    "d3_month_class_accuracy_min": 0.6,
+    "d3_month_kappa_min": 0.4,
+    "d3_month_median_factor_error_max": 1.55,
+    "d4_frp_day_median_ratio_range": [
+     0.8,
+     1.25
+    ],
+    "d4_frp_day_r2_min": 0.5,
+    "d5_big_fire_kappa_min": 0.55,
+    "d5_big_fire_precision_min": 0.6,
+    "d5_big_fire_recall_min": 0.55,
+    "d6_big_fire_cell_kappa_min": 0.5,
+    "d7_extreme_class_exact_min": 0.65,
+    "d8_climatology_median_factor_error_max": 1.3,
+    "d8_climatology_r2_min": 0.9,
+    "d8_climatology_region_corr_median_min": 0.9,
+    "d8_climatology_region_corr_min_min": 0.8,
+    "d9_trend_p_value_min": 0.05,
+    "m1_mask_false_removal_max": 0.02,
+    "m1_mask_recall_min": 0.9,
+    "m2_region_coverage_min": 0.999,
+    "n1_viirs_over_snpp_median_range": [
+     0.95,
+     1.05
+    ],
+    "n1c_viirs_over_snpp_region_min": 0.85,
+    "n2_weight_identity_max": 1e-09,
+    "n3_mean_beats_single_rotations_min": 3,
+    "n4_mask_false_removal_max": 0.02,
+    "n4_mask_recall_min": 0.9,
+    "u1_coverage50_range": [
+     0.42,
+     0.58
+    ],
+    "u2_coverage90_range": [
+     0.84,
+     0.96
+    ],
+    "u3_factor_stability_max": 0.15
+   },
+   "trend_check_years": [
+    2013,
+    2021
+   ],
+   "uncertainty_check_scales": [
+    [
+     "nuts2",
+     "day"
+    ],
+    [
+     "nuts2",
+     "month"
+    ]
+   ],
+   "uncertainty_min_units": 100,
+   "viirs_level_min_snpp_per_region_year": 50
+  },
+  "nuts": {
+   "coast_tolerance_deg": 0.05,
+   "id_property": "NUTS_ID",
+   "name_property": "NAME_LATN",
+   "version": "NUTS 2021, Eurostat GISCO, 1:10 Mio, EPSG:4326"
+  },
+  "paths": {
+   "harmonised_dir": "/home/leni/Projekte/La-Brasa/data/harmonised",
+   "nuts_geojson": "/home/leni/Projekte/La-Brasa/harmonisation/geo/NUTS_RG_10M_2021_4326_LEVL_2.geojson",
+   "processed_dir": "/home/leni/Projekte/La-Brasa/data/processed",
+   "raw_dir": "/home/leni/Projekte/La-Brasa/data/raw",
+   "reference_results_dir": "/home/leni/Projekte/La-Brasa/harmonisation/data_analysis/results",
+   "reference_v1_harmonised": "/home/leni/Projekte/La-Brasa/harmonisation_pipeline/data/harmonised/activity_harmonised.parquet"
+  },
+  "satellites": {
+   "column_key": {
+    "Aqua": "aqua",
+    "N20": "noaa20",
+    "N21": "noaa21",
+    "SNPP": "snpp",
+    "Terra": "terra"
+   },
+   "modis_afternoon": "Aqua",
+   "modis_pair": [
+    "Aqua",
+    "Terra"
+   ],
+   "modis_single": "Terra",
+   "sensor_of": {
+    "Aqua": "MODIS",
+    "N20": "VIIRS",
+    "N21": "VIIRS",
+    "SNPP": "VIIRS",
+    "Terra": "MODIS"
+   },
+   "viirs": [
+    "SNPP",
+    "N20",
+    "N21"
+   ]
+  },
+  "schema_version": 2,
+  "sources": [
+   {
+    "csv": "/home/leni/Projekte/La-Brasa/data/raw/modis/fire_archive_M-C61_845369.csv",
+    "name": "modis_archive",
+    "sensor": "MODIS",
+    "source": "archive"
+   },
+   {
+    "csv": "/home/leni/Projekte/La-Brasa/data/raw/modis/fire_nrt_M-C61_845369.csv",
+    "name": "modis_nrt",
+    "sensor": "MODIS",
+    "source": "nrt"
+   },
+   {
+    "csv": "/home/leni/Projekte/La-Brasa/data/raw/viirs_snpp/fire_archive_SV-C2_845370.csv",
+    "name": "snpp_archive",
+    "sensor": "VIIRS",
+    "source": "archive"
+   },
+   {
+    "csv": "/home/leni/Projekte/La-Brasa/data/raw/viirs_snpp/fire_nrt_SV-C2_845370.csv",
+    "name": "snpp_nrt",
+    "sensor": "VIIRS",
+    "source": "nrt"
+   },
+   {
+    "csv": "/home/leni/Projekte/La-Brasa/data/raw/viirs_noaa20/fire_archive_J1V-C2_848091.csv",
+    "name": "noaa20_archive",
+    "sensor": "VIIRS",
+    "source": "archive"
+   },
+   {
+    "csv": "/home/leni/Projekte/La-Brasa/data/raw/viirs_noaa20/fire_nrt_J1V-C2_848091.csv",
+    "name": "noaa20_nrt",
+    "sensor": "VIIRS",
+    "source": "nrt"
+   },
+   {
+    "csv": "/home/leni/Projekte/La-Brasa/data/raw/viirs_noaa21/fire_archive_J2V-C2_848092.csv",
+    "name": "noaa21_archive",
+    "sensor": "VIIRS",
+    "source": "archive"
+   },
+   {
+    "csv": "/home/leni/Projekte/La-Brasa/data/raw/viirs_noaa21/fire_nrt_J2V-C2_848092.csv",
+    "name": "noaa21_nrt",
+    "sensor": "VIIRS",
+    "source": "nrt"
+   }
+  ],
+  "static_sources": {
+   "holdout_first_year": 2023,
+   "mask_cell_deg": 0.005,
+   "mask_min_static_detections": 3,
+   "mask_min_static_share": 0.5,
+   "mask_neighbour_cells": 1,
+   "mask_training_sensors": {
+    "MODIS": [
+     "MODIS",
+     "VIIRS"
+    ],
+    "VIIRS": [
+     "VIIRS"
+    ]
+   },
+   "vegetation_fire_type": 0
+  },
+  "strength": {
+   "big_fire_threshold_mw": 100.0,
+   "big_fire_threshold_scaled_mw": 80.0,
+   "class_bounds_mw": [
+    10.0,
+    100.0,
+    500.0
+   ],
+   "class_labels": [
+    "minor",
+    "moderate",
+    "strong",
+    "extreme"
+   ],
+   "frp_daynight": "all",
+   "frp_modis_source": "aqua"
+  },
+  "uncertainty": {
+   "area_scale_max_km2": {
+    "cell": 2000,
+    "country": 300000,
+    "nuts2": 60000
+   },
+   "area_scales": [
+    "cell",
+    "nuts2",
+    "country",
+    "all"
+   ],
+   "count_class_bounds": [
+    0,
+    5,
+    20,
+    100,
+    500
+   ],
+   "count_offset": 1.0,
+   "frp_class_bounds_mw": [
+    0,
+    100,
+    500
+   ],
+   "frp_offset_mw": 1.0,
+   "grains": [
+    "day",
+    "week",
+    "month",
+    "quarter",
+    "year"
+   ],
+   "measured_min_factor_50": 1.2,
+   "measured_min_factor_90": 1.8,
+   "min_units_per_class": 30,
+   "normal_quantile_50": 0.6745,
+   "normal_quantile_90": 1.645,
+   "reliability_solid_min_count": 100,
+   "split_years": [
+    [
+     2012,
+     2016
+    ],
+    [
+     2017,
+     2021
+    ]
+   ]
+  },
+  "validation_ranges": {
+   "date_max": "2030-12-31",
+   "date_min": "2000-01-01",
+   "frp_min": 0.0,
+   "latitude": [
+    -90.0,
+    90.0
+   ],
+   "longitude": [
+    -180.0,
+    180.0
+   ]
+  }
+ },
+ "run_signature": "8443453c5037c4c4",
+ "schema_version": 2,
+ "stages": {
+  "calibrate": {
+   "done": true,
+   "report": {
+    "drift": {
+     "calibration_years_exceeding_limit": [],
+     "latest_deviation_minutes": {
+      "Aqua": 107.8,
+      "N20": 11.8,
+      "N21": -5.8,
+      "SNPP": 8.2,
+      "Terra": -101.1
+     },
+     "max_abs_deviation_minutes_in_window": 5.340000000000025
+    },
+    "overall_factors": {
+     "k_count_aqua": 5.9810301716952825,
+     "k_count_pair": 2.995608469142399,
+     "k_count_terra": 6.001438463854414,
+     "k_frp_aqua": 1.1775097693473304,
+     "k_frp_pair": 0.6406097618654236,
+     "k_frp_terra": 1.4049622693686095
+    },
+    "regions_with_fallback": 4
+   },
+   "seconds": 0.18
+  },
+  "clean": {
+   "done": true,
+   "report": {
+    "balanced": true,
+    "common_area_cells": 1106,
+    "mask_core_cells": 1004,
+    "rejected_by_reason": {
+     "outside_common_area": 52941,
+     "static_mask": 4306,
+     "type_2": 134022,
+     "type_3": 2466
+    },
+    "rows_kept": 746558,
+    "rows_read": 940293,
+    "rows_rejected": 193735
+   },
+   "seconds": 11.38
+  },
+  "daily_grid": {
+   "done": true,
+   "report": {
+    "days": 9448,
+    "days_by_basis_count": {
+     "modis_pair_scaled": 3487,
+     "terra_scaled": 549,
+     "viirs_measured": 5412
+    },
+    "days_by_basis_frp": {
+     "aqua_scaled": 3487,
+     "terra_scaled": 549,
+     "viirs_measured": 5412
+    },
+    "possible_gap_days": 21,
+    "provisional_days": 105,
+    "regions": 23
+   },
+   "seconds": 0.92
+  },
+  "export_csv": {
+   "done": true,
+   "report": {
+    "exported": true,
+    "tables": {
+     "activity_daily_harmonised": {
+      "megabytes": 52.4,
+      "rows": 217304
+     },
+     "big_fire_day_quality": {
+      "megabytes": 0.0,
+      "rows": 6
+     },
+     "calib_factors": {
+      "megabytes": 0.0,
+      "rows": 23
+     },
+     "day_status": {
+      "megabytes": 0.9,
+      "rows": 9448
+     },
+     "hotspots_harmonised": {
+      "megabytes": 176.8,
+      "rows": 746558
+     },
+     "quality_by_scale": {
+      "megabytes": 0.1,
+      "rows": 625
+     },
+     "strength_confusion": {
+      "megabytes": 0.0,
+      "rows": 48
+     }
+    }
+   },
+   "seconds": 3.36
+  },
+  "harmonise_daily": {
+   "done": true,
+   "report": {
+    "big_fire_days": 7188,
+    "first_date": "2001-01-01",
+    "last_date": "2026-11-13",
+    "rows": 217304,
+    "rows_by_reliability": {
+     "converted_rough": 92376,
+     "converted_solid": 452,
+     "measured": 124476
+    }
+   },
+   "seconds": 0.75
+  },
+  "ingest": {
+   "done": true,
+   "report": {
+    "modis_archive": {
+     "csv": "fire_archive_M-C61_845369.csv",
+     "csv_sha256": "9389fbdafb8364a0d69f16910cff354d9fb51998b39583474b572e5e69ac802a",
+     "rows": 200966,
+     "unreadable_rows": 0
+    },
+    "modis_nrt": {
+     "csv": "fire_nrt_M-C61_845369.csv",
+     "csv_sha256": "3952543f700eb4dbeac612bec6bddded50f1ae3c22b99091fb71d22442afa619",
+     "rows": 1201,
+     "unreadable_rows": 0
+    },
+    "noaa20_archive": {
+     "csv": "fire_archive_J1V-C2_848091.csv",
+     "csv_sha256": "43e5b41cad9d4b0dc86f293d9d9aef4611eb4a7a232faa40b7d9d3f08c7f82b7",
+     "rows": 238511,
+     "unreadable_rows": 0
+    },
+    "noaa20_nrt": {
+     "csv": "fire_nrt_J1V-C2_848091.csv",
+     "csv_sha256": "500a69c2a8ef12498b1cabbcefce6af5fd20f677bea508ff42b27de23be81772",
+     "rows": 10938,
+     "unreadable_rows": 0
+    },
+    "noaa21_archive": {
+     "csv": "fire_archive_J2V-C2_848092.csv",
+     "csv_sha256": "21b51bfdfd9b730e6b7d69912b657c067ac9ccef4e067dd08501515557722d74",
+     "rows": 107197,
+     "unreadable_rows": 0
+    },
+    "noaa21_nrt": {
+     "csv": "fire_nrt_J2V-C2_848092.csv",
+     "csv_sha256": "617c63cb3717893a25eb52344f417191649fd9a9bd98557c43229929e211951a",
+     "rows": 10185,
+     "unreadable_rows": 0
+    },
+    "snpp_archive": {
+     "csv": "fire_archive_SV-C2_845370.csv",
+     "csv_sha256": "fcf96294e8c3aaa8c64e58b0351fae37bde0a12db3946a41e7ba830f5c14c4c0",
+     "rows": 362619,
+     "unreadable_rows": 0
+    },
+    "snpp_nrt": {
+     "csv": "fire_nrt_SV-C2_845370.csv",
+     "csv_sha256": "50114a0ac2832c3e5b9ca7eeb5635ab5fe19356c0efce555f407e3abf9e4f77e",
+     "rows": 8676,
+     "unreadable_rows": 0
+    }
+   },
+   "seconds": 2.98
+  },
+  "quantify_uncertainty": {
+   "done": true,
+   "report": {
+    "cells": 1092,
+    "cv_days": 3622,
+    "quality_rows": 625
+   },
+   "seconds": 13.44
+  },
+  "test": {
+   "done": true,
+   "report": {
+    "passed": true,
+    "summary": "54 passed, 1 skipped in 49.59s"
+   },
+   "seconds": 51.56
+  },
+  "validate": {
+   "done": true,
+   "report": {
+    "all_passed": true,
+    "failed": []
+   },
+   "seconds": 4.26
+  },
+  "weight_hotspots": {
+   "done": true,
+   "report": {
+    "rows": 746558,
+    "rows_in_series": 647715,
+    "sum_weight_n": 587800.1136365294
+   },
+   "seconds": 2.4
+  }
+ },
+ "written_at_utc": "2026-11-14T13:05:02+00:00"
+}

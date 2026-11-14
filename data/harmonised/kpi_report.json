@@ -5,12 +5,14 @@
    "calibration_years_exceeding_limit": [],
    "latest_deviation_minutes": {
     "Aqua": 107.8,
+    "N20": 11.8,
+    "N21": -5.8,
     "SNPP": 8.2,
-    "Terra": -101.2
+    "Terra": -101.1
    },
    "max_abs_deviation_minutes_in_window": 5.340000000000025
   },
-  "possible_gap_days": 15
+  "possible_gap_days": 21
  },
  "kpis": [
   {
@@ -67,7 +69,7 @@
    "passed": true,
    "rule": ">=",
    "threshold": 0.5,
-   "value": 0.5900620074341827
+   "value": 0.5900620074341839
   },
   {
    "id": "D4b",
@@ -115,7 +117,7 @@
    "passed": true,
    "rule": ">=",
    "threshold": 0.5,
-   "value": 0.6281938541505361
+   "value": 0.6281941134750094
   },
   {
    "id": "D7",
@@ -147,7 +149,7 @@
    "passed": true,
    "rule": ">=",
    "threshold": 0.9,
-   "value": 0.9275477923667177
+   "value": 0.9275477923667179
   },
   {
    "id": "D8d",
@@ -155,7 +157,7 @@
    "passed": true,
    "rule": ">=",
    "threshold": 0.8,
-   "value": 0.830592992234643
+   "value": 0.8305929922346429
   },
   {
    "id": "D9",
@@ -179,7 +181,7 @@
    "passed": true,
    "rule": "<=",
    "threshold": 1e-09,
-   "value": 3.4091995185591606e-16
+   "value": 3.749346049390772e-16
   },
   {
    "id": "U1a",
@@ -227,7 +229,7 @@
    "passed": true,
    "rule": ">=",
    "threshold": 0.9,
-   "value": 0.9256640812684467
+   "value": 0.9725831417983958
   },
   {
    "id": "M1b",
@@ -235,7 +237,7 @@
    "passed": true,
    "rule": "<=",
    "threshold": 0.02,
-   "value": 0.014934258645030701
+   "value": 0.01571483856700575
   },
   {
    "id": "M2",
@@ -243,7 +245,63 @@
    "passed": true,
    "rule": ">=",
    "threshold": 0.999,
-   "value": 0.9999795333606222
+   "value": 0.999978568309495
+  },
+  {
+   "id": "N1a",
+   "name": "VIIRS-Mittel / SNPP je Region x Jahr: Median (untere Grenze)",
+   "passed": true,
+   "rule": ">=",
+   "threshold": 0.95,
+   "value": 1.005542392813779
+  },
+  {
+   "id": "N1b",
+   "name": "VIIRS-Mittel / SNPP je Region x Jahr: Median (obere Grenze)",
+   "passed": true,
+   "rule": "<=",
+   "threshold": 1.05,
+   "value": 1.005542392813779
+  },
+  {
+   "id": "N1c",
+   "name": "VIIRS-Mittel / SNPP: kleinstes Verhaeltnis je Region",
+   "passed": true,
+   "rule": ">=",
+   "threshold": 0.85,
+   "value": 0.9524491745122117
+  },
+  {
+   "id": "N2",
+   "name": "Gewichte 1/k: Abweichung zu n_viirs / frp_viirs",
+   "passed": true,
+   "rule": "<=",
+   "threshold": 1e-09,
+   "value": 3.749346049390772e-16
+  },
+  {
+   "id": "N3",
+   "name": "Mittel genauer als ein Satellit (gewonnene Rotationen)",
+   "passed": true,
+   "rule": ">=",
+   "threshold": 3.0,
+   "value": 3.0
+  },
+  {
+   "id": "N4a",
+   "name": "Ortsmaske je VIIRS-Satellit: kleinster Recall",
+   "passed": true,
+   "rule": ">=",
+   "threshold": 0.9,
+   "value": 0.9767340726244835
+  },
+  {
+   "id": "N4b",
+   "name": "Ortsmaske je VIIRS-Satellit: hoechste Fehlentfernung",
+   "passed": true,
+   "rule": "<=",
+   "threshold": 0.02,
+   "value": 0.019001849247566635
   },
   {
    "id": "S1",
@@ -284,6 +342,14 @@
    "rule": "==",
    "threshold": true,
    "value": true
+  },
+  {
+   "id": "N5",
+   "name": "Schema gleich in Parquet, CSV, Katalog und data_dictionary.md",
+   "passed": true,
+   "rule": "==",
+   "threshold": true,
+   "value": true
   }
  ],
  "measured": {
@@ -309,7 +375,7 @@
    "d4_daily_frp": {
     "median_ratio": 0.974985181800584,
     "n_days": 5948,
-    "r2_log": 0.5900620074341827,
+    "r2_log": 0.5900620074341839,
     "ratio_p10": 0.19782197752037164,
     "ratio_p90": 3.2645662485577884
    },
@@ -322,10 +388,10 @@
     "recall": 0.6742489270386266
    },
    "d6_big_fire_cell": {
-    "kappa": 0.6281938541505361,
+    "kappa": 0.6281941134750094,
     "n_events_converted": 3215,
     "n_events_measured": 2825,
-    "n_units": 3951602,
+    "n_units": 3955224,
     "precision": 0.5903576982892691,
     "recall": 0.6718584070796461
    },
@@ -337,14 +403,14 @@
     "median_factor_error": 1.2259266704259233,
     "n_regions": 18,
     "r2_log": 0.9451089953465284,
-    "region_corr_median": 0.9275477923667177,
-    "region_corr_min": 0.830592992234643
+    "region_corr_median": 0.9275477923667179,
+    "region_corr_min": 0.8305929922346429
    },
    "d9_trend": {
     "p_value_count": 0.8292819791647126,
     "p_value_frp": 0.21345068830783648,
     "p_value_min": 0.21345068830783648,
-    "slope_count": 0.0015944692612223754,
+    "slope_count": 0.001594469261222375,
     "slope_frp": 0.02113119689643128
    },
    "evaluation_regions": [
@@ -372,6 +438,7 @@
   "integrity": {
    "deterministic": true,
    "row_balance": true,
+   "schema_everywhere": true,
    "schema_matches_documentation": true,
    "tests_passed": true
   },
@@ -380,25 +447,57 @@
     "false_removal": 0.0033867307887696005,
     "n_fire": 29527,
     "n_static": 1217,
-    "recall": 0.7115858668857847
+    "recall": 0.7058340180772391
    },
    "VIIRS": {
-    "false_removal": 0.018806427800806314,
-    "n_fire": 88055,
-    "n_static": 13352,
-    "recall": 0.945176752546435
+    "false_removal": 0.017115525952262768,
+    "n_fire": 259881,
+    "n_static": 41421,
+    "recall": 0.9804205596195167
    },
    "all": {
-    "false_removal": 0.014934258645030701,
-    "n_fire": 117582,
-    "n_static": 14569,
-    "recall": 0.9256640812684467
+    "false_removal": 0.01571483856700575,
+    "n_fire": 289408,
+    "n_static": 42638,
+    "recall": 0.9725831417983958
+   },
+   "by_satellite": {
+    "Aqua": {
+     "false_removal": 0.002129500232914088,
+     "n_fire": 15027,
+     "n_static": 489,
+     "recall": 0.6850715746421268
+    },
+    "N20": {
+     "false_removal": 0.019001849247566635,
+     "n_fire": 90307,
+     "n_static": 14272,
+     "recall": 0.9818525784753364
+    },
+    "N21": {
+     "false_removal": 0.01594720249267042,
+     "n_fire": 81519,
+     "n_static": 13797,
+     "recall": 0.9767340726244835
+    },
+    "SNPP": {
+     "false_removal": 0.016262563170745557,
+     "n_fire": 88055,
+     "n_static": 13352,
+     "recall": 0.9826992210904734
+    },
+    "Terra": {
+     "false_removal": 0.004689655172413793,
+     "n_fire": 14500,
+     "n_static": 728,
+     "recall": 0.7197802197802198
+    }
    }
   },
-  "region_coverage": 0.9999795333606222,
+  "region_coverage": 0.999978568309495,
   "roll_up": {
    "max_relative_deviation": 1.903966786296649e-15,
-   "n_periods_compared": 41078
+   "n_periods_compared": 41101
   },
   "status_checks": true,
   "uncertainty": {
@@ -827,8 +926,83 @@
    "factor_shift_max": 0.08781585765004007,
    "n_classes_judged": 14
   },
+  "viirs": {
+   "level": {
+    "by_region": {
+     "ES11": 1.0022,
+     "ES12": 1.023,
+     "ES13": 1.0075,
+     "ES22": 0.975,
+     "ES24": 1.0892,
+     "ES30": 0.9524,
+     "ES41": 0.9939,
+     "ES42": 1.0495,
+     "ES43": 0.9966,
+     "ES51": 0.9769,
+     "ES52": 1.0203,
+     "ES61": 1.0183,
+     "FRI1": 0.9908,
+     "FRJ2": 1.0789,
+     "PT11": 0.9865,
+     "PT15": 1.1081,
+     "PT16": 0.9616,
+     "PT18": 1.0118
+    },
+    "median": 1.005542392813779,
+    "n_region_years": 160,
+    "p10": 0.9271808162248918,
+    "p90": 1.1241024878580632,
+    "region_min": 0.9524491745122117,
+    "region_min_id": "ES30"
+   },
+   "noise": {
+    "n_region_days": 24174,
+    "rotations": [
+     {
+      "error_mean": 1.5,
+      "error_single": {
+       "noaa20": 2.0,
+       "noaa21": 2.0
+      },
+      "held_out": "snpp",
+      "mean_better": true,
+      "n_units": 10936
+     },
+     {
+      "error_mean": 1.5,
+      "error_single": {
+       "noaa21": 2.0,
+       "snpp": 2.0
+      },
+      "held_out": "noaa20",
+      "mean_better": true,
+      "n_units": 10936
+     },
+     {
+      "error_mean": 1.5,
+      "error_single": {
+       "noaa20": 2.0,
+       "snpp": 2.0
+      },
+      "held_out": "noaa21",
+      "mean_better": true,
+      "n_units": 10936
+     }
+    ],
+    "rotations_won": 3
+   },
+   "satellites": [
+    "snpp",
+    "noaa20",
+    "noaa21"
+   ],
+   "weights": {
+    "max_relative_deviation": 3.749346049390772e-16,
+    "n_region_days": 124476
+   }
+  },
   "weights": {
-   "max_relative_deviation": 3.4091995185591606e-16,
+   "max_relative_deviation": 3.749346049390772e-16,
    "weight_on_days_without_value": 0.0
   }
  }
