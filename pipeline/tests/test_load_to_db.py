@@ -18,6 +18,7 @@ import pytest
 import load_to_db
 
 SCHEMA_SQL = Path(__file__).resolve().parents[2] / "db" / "init" / "001_schema.sql"
+DATA_DICTIONARY = Path(__file__).resolve().parents[2] / "harmonisation" / "docs" / "data_dictionary.md"
 TEST_SCHEMA = "loader_test"
 
 # One value per database type, used to build a valid row for every table
@@ -57,6 +58,35 @@ def test_regions_from_rejects_region_with_two_names() -> None:
 def test_read_tables_reports_missing_file(tmp_path: Path) -> None:
     with pytest.raises(load_to_db.LoadError, match="run_pipeline.py"):
         load_to_db.read_tables(tmp_path)
+
+
+def test_check_schema_version_rejects_old_harmonisation(tmp_path: Path) -> None:
+    (tmp_path / "manifest.json").write_text('{"schema_version": 1}', encoding="utf-8")
+
+    with pytest.raises(load_to_db.LoadError, match="schema version 1"):
+        load_to_db.check_schema_version(tmp_path)
+
+
+def test_check_schema_version_accepts_current(tmp_path: Path) -> None:
+    (tmp_path / "manifest.json").write_text(f'{{"schema_version": {load_to_db.SCHEMA_VERSION}}}', encoding="utf-8")
+
+    load_to_db.check_schema_version(tmp_path)
+
+
+def sql_columns(table: str) -> list[str]:
+    """Column names of one CREATE TABLE statement in db/init/001_schema.sql, in order."""
+    body = SCHEMA_SQL.read_text(encoding="utf-8").split(f"CREATE TABLE {table} (")[1].split("\n);")[0]
+    lines = [line.split("--")[0].strip() for line in body.splitlines()]
+    return [line.split()[0].strip('"') for line in lines if line and not line.startswith("PRIMARY KEY")]
+
+
+def test_schema_sql_matches_data_dictionary() -> None:
+    """Every table has the same columns in the same order as harmonisation/docs/data_dictionary.md."""
+    text = DATA_DICTIONARY.read_text(encoding="utf-8")
+    for name in load_to_db.TABLES:
+        section = text.split(f"## {name}\n")[1].split("\n## ")[0]
+        documented = [line.split("`")[1] for line in section.splitlines() if line.startswith("| `")]
+        assert sql_columns(name) == documented, name
 
 
 # --------------------------------------------------------------------------- with database

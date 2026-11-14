@@ -6,6 +6,10 @@
 -- Column names and types mirror the Parquet files; their meaning is documented
 -- in harmonisation/docs/data_dictionary.md. NOT NULL = "nie leer" there.
 -- NULL means "no value" and is never the same as 0.
+--
+-- Schema version 2 (harmonisation schema_version in data/harmonised/manifest.json):
+-- the VIIRS reference is the mean of the operating VIIRS satellites (SNPP, NOAA-20, NOAA-21),
+-- stored as n_viirs / frp_viirs; raw values per satellite stay available.
 
 -- Regions that occur in the harmonised data (NUTS-2 2021; ES, PT and 3 FR regions)
 CREATE TABLE regions (
@@ -23,9 +27,15 @@ CREATE TABLE activity_daily_harmonised (
   n_aqua          DOUBLE PRECISION,
   n_terra         DOUBLE PRECISION,
   n_snpp          DOUBLE PRECISION,
+  n_noaa20        DOUBLE PRECISION,
+  n_noaa21        DOUBLE PRECISION,
+  n_viirs         DOUBLE PRECISION,            -- VIIRS reference: mean of the operating VIIRS satellites
   frp_aqua        DOUBLE PRECISION,
   frp_terra       DOUBLE PRECISION,
   frp_snpp        DOUBLE PRECISION,
+  frp_noaa20      DOUBLE PRECISION,
+  frp_noaa21      DOUBLE PRECISION,
+  frp_viirs       DOUBLE PRECISION,
   basis_count     TEXT,
   basis_frp       TEXT,
   n_harm          DOUBLE PRECISION,
@@ -55,12 +65,13 @@ CREATE TABLE hotspots_harmonised (
   latitude         DOUBLE PRECISION NOT NULL,
   longitude        DOUBLE PRECISION NOT NULL,
   cell_id          TEXT NOT NULL,
+  h3_cell          TEXT NOT NULL,                -- H3 cell of the pixel centre, resolution 8
   acq_date         DATE NOT NULL,
   acq_time         TEXT NOT NULL,                -- HHMM, UTC
   acq_datetime_utc TIMESTAMPTZ NOT NULL,
   obs_date         DATE NOT NULL,
   local_solar_hour DOUBLE PRECISION NOT NULL,
-  satellite        TEXT NOT NULL,
+  satellite        TEXT NOT NULL,                -- Terra, Aqua, SNPP, N20 (NOAA-20), N21 (NOAA-21)
   sensor           TEXT NOT NULL,
   source           TEXT NOT NULL,
   daynight         TEXT NOT NULL,
@@ -75,7 +86,7 @@ CREATE TABLE hotspots_harmonised (
   country          TEXT,
   in_series_n      BOOLEAN NOT NULL,
   in_series_frp    BOOLEAN NOT NULL,
-  weight_n         DOUBLE PRECISION,
+  weight_n         DOUBLE PRECISION,             -- 1/k for VIIRS (k operating VIIRS satellites), factor for MODIS
   weight_frp       DOUBLE PRECISION,
   basis_count      TEXT,
   basis_frp        TEXT
@@ -85,15 +96,18 @@ CREATE INDEX ON hotspots_harmonised (region_id, obs_date);
 
 -- One row per day: which satellites operated, basis of the series, provisional (NRT)
 CREATE TABLE day_status (
-  date            DATE PRIMARY KEY,
-  snpp_operating  BOOLEAN NOT NULL,
-  aqua_operating  BOOLEAN NOT NULL,
-  terra_operating BOOLEAN NOT NULL,
-  basis_count     TEXT,
-  basis_frp       TEXT,
-  is_complete_day BOOLEAN NOT NULL,
-  is_provisional  BOOLEAN NOT NULL,
-  possible_gap    BOOLEAN NOT NULL
+  date             DATE PRIMARY KEY,
+  viirs_operating  BOOLEAN NOT NULL,            -- at least one VIIRS satellite: the day is measured
+  snpp_operating   BOOLEAN NOT NULL,
+  noaa20_operating BOOLEAN NOT NULL,
+  noaa21_operating BOOLEAN NOT NULL,
+  aqua_operating   BOOLEAN NOT NULL,
+  terra_operating  BOOLEAN NOT NULL,
+  basis_count      TEXT,
+  basis_frp        TEXT,
+  is_complete_day  BOOLEAN NOT NULL,
+  is_provisional   BOOLEAN NOT NULL,
+  possible_gap     BOOLEAN NOT NULL
 );
 
 -- Error model from cross-validation, per area scale, time step, quantity, basis and size class
