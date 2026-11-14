@@ -59,18 +59,47 @@ def flag_hotspots_in_mask(hotspots: pd.DataFrame, mask: pd.DataFrame, cell_deg: 
     return pd.MultiIndex.from_frame(cells[CELL_COLUMNS]).isin(masked)
 
 
+def learn_static_masks(typed_hotspots: pd.DataFrame, config: dict[str, Any]) -> dict[str, pd.DataFrame]:
+    """Lernt je Sensor eine eigene Maske aus den Archivzeilen der Sensoren laut `mask_training_sensors`.
+
+    Warum je Sensor (Iteration 1): Ein MODIS-Pixel ist 1 km gross, seine statischen Erkennungen
+    streuen um die Quelle und vergroessern die Maske. Fuer VIIRS (375 m) entfernte eine aus allen
+    Satelliten gelernte Maske zu viele echte Feuer neben Industrieanlagen (NOAA-20: 2,2 %). Darum lernt
+    die VIIRS-Maske nur aus VIIRS. MODIS behaelt die Maske aus allen Satelliten, sonst sinkt sein
+    Recall von 0,69 auf 0,50.
+    """
+    training = config["static_sources"]["mask_training_sensors"]
+    return {sensor: learn_static_mask(typed_hotspots[typed_hotspots["sensor"].isin(sources)], config) for sensor, sources in training.items()}
+
+
+def flag_hotspots_in_masks(hotspots: pd.DataFrame, masks: dict[str, pd.DataFrame], cell_deg: float) -> np.ndarray:
+    """Wie flag_hotspots_in_mask, aber jeder Hotspot wird gegen die Maske seines Sensors geprueft."""
+    hit = np.zeros(len(hotspots), dtype=bool)
+    for sensor, mask in masks.items():
+        rows = (hotspots["sensor"] == sensor).to_numpy()
+        if rows.any():
+            hit[rows] = flag_hotspots_in_mask(hotspots[rows], mask, cell_deg)
+    return hit
+
+
+def masks_as_table(masks: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Alle Masken in einer Tabelle, Spalte `sensor` sagt, fuer welchen Sensor die Zelle gilt."""
+    return pd.concat([mask.assign(sensor=sensor) for sensor, mask in sorted(masks.items())], ignore_index=True)
+
+
 def evaluate_mask_on_holdout(typed_hotspots: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any]:
     """Prueft die Maske ehrlich: lernen bis zum Jahr vor `holdout_first_year`, pruefen danach.
 
     Recall = Anteil der statischen Erkennungen (type != 0) im Pruefzeitraum, die die Maske trifft.
     Fehlentfernung = Anteil der echten Feuer (type = 0), die die Maske faelschlich entfernt.
-    Beides wird gesamt und je Sensor berichtet (MODIS trifft die Maske wegen der groesseren
-    Pixel seltener).
+    Beides wird gesamt, je Sensor (MODIS trifft die Maske wegen der groesseren Pixel seltener)
+    und je Satellit berichtet (Pruefung N4: die Maske muss auch NOAA-20 und NOAA-21 treffen).
+    Gelernt wird wie in der Bereinigung: eine Maske je Sensor (learn_static_masks).
     """
     params = config["static_sources"]
     years = pd.to_datetime(typed_hotspots["acq_date"]).dt.year
     train, test = typed_hotspots[years < params["holdout_first_year"]], typed_hotspots[years >= params["holdout_first_year"]]
-    hit = flag_hotspots_in_mask(test, learn_static_mask(train, config), params["mask_cell_deg"])
+    hit = flag_hotspots_in_masks(test, learn_static_masks(train, config), params["mask_cell_deg"])
     is_static = (test["type"] != params["vegetation_fire_type"]).to_numpy()
 
     def rates(selection: np.ndarray) -> dict[str, float]:
@@ -82,4 +111,5 @@ def evaluate_mask_on_holdout(typed_hotspots: pd.DataFrame, config: dict[str, Any
     result = {"all": rates(np.ones(len(test), dtype=bool))}
     for sensor in sorted(test["sensor"].unique()):
         result[sensor] = rates((test["sensor"] == sensor).to_numpy())
+    result["by_satellite"] = {satellite: rates((test["satellite"] == satellite).to_numpy()) for satellite in sorted(test["satellite"].unique())}
     return result

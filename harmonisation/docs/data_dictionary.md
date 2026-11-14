@@ -17,12 +17,18 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | `n_aqua` | double | Erkennungen | Rohzahl Aqua (MODIS) an diesem Tag. | 0 = kein Feuer, leer = Aqua nicht in Betrieb | Nur Tooltip „Rohdaten“ und Nachrechnen. |
 | `n_terra` | double | Erkennungen | Rohzahl Terra (MODIS) an diesem Tag. | 0 = kein Feuer, leer = Terra nicht in Betrieb | Nur Tooltip „Rohdaten“ und Nachrechnen. |
 | `n_snpp` | double | Erkennungen | Rohzahl SNPP (VIIRS) an diesem Tag. | 0 = kein Feuer, leer = SNPP nicht in Betrieb (vor 20.01.2012) | Nur Tooltip „Rohdaten“ und Nachrechnen. |
+| `n_noaa20` | double | Erkennungen | Rohzahl NOAA-20 (VIIRS) an diesem Tag. | 0 = kein Feuer, leer = NOAA-20 nicht in Betrieb (vor 01.04.2018) | Nur Tooltip „Rohdaten“ und Nachrechnen. |
+| `n_noaa21` | double | Erkennungen | Rohzahl NOAA-21 (VIIRS) an diesem Tag. | 0 = kein Feuer, leer = NOAA-21 nicht in Betrieb (vor 01.03.2023) | Nur Tooltip „Rohdaten“ und Nachrechnen. |
+| `n_viirs` | double | Erkennungen | VIIRS-Referenz: Mittel der Rohzahlen der an diesem Tag aktiven VIIRS-Satelliten (SNPP, NOAA-20, NOAA-21). An gemessenen Tagen gleich n_harm. | 0 = kein Feuer, leer = kein VIIRS-Satellit in Betrieb (vor 20.01.2012) | Nur Tooltip „gemessen, Mittel aus k Satelliten“. |
 | `frp_aqua` | double | MW | FRP-Summe Aqua an diesem Tag. | wie n_aqua | Nur Tooltip und Nachrechnen. |
 | `frp_terra` | double | MW | FRP-Summe Terra an diesem Tag. | wie n_terra | Nur Tooltip und Nachrechnen. |
 | `frp_snpp` | double | MW | FRP-Summe SNPP an diesem Tag. | wie n_snpp | Nur Tooltip und Nachrechnen. |
-| `basis_count` | string | – | Quelle von n_harm: viirs_measured (VIIRS gemessen), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = kein Wert | Kennzeichnung „gemessen“ gegen „umgerechnet“, z. B. als Schraffur. |
-| `basis_frp` | string | – | Quelle von frp_harm: viirs_measured (VIIRS gemessen), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = kein Wert | Wie basis_count, für die Stärke. |
-| `n_harm` | double | VIIRS-Äquivalente | Harmonisierte Anzahl der Erkennungen: gemessen oder MODIS × Regionsfaktor. | 0 = keine Erkennung (vor 2012 oft nur „MODIS sah nichts“), leer = Tag ohne Basis | Hauptwert für Verlauf und Kalender. Vor 2012 immer mit Band zeigen. |
+| `frp_noaa20` | double | MW | FRP-Summe NOAA-20 an diesem Tag. | wie n_noaa20 | Nur Tooltip und Nachrechnen. |
+| `frp_noaa21` | double | MW | FRP-Summe NOAA-21 an diesem Tag. | wie n_noaa21 | Nur Tooltip und Nachrechnen. |
+| `frp_viirs` | double | MW | VIIRS-Referenz der Stärke: Mittel der FRP-Summen der aktiven VIIRS-Satelliten. An gemessenen Tagen gleich frp_harm. | wie n_viirs | Nur Tooltip und Nachrechnen. |
+| `basis_count` | string | – | Quelle von n_harm: viirs_measured (VIIRS gemessen, Mittel der aktiven VIIRS-Satelliten), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = kein Wert | Kennzeichnung „gemessen“ gegen „umgerechnet“, z. B. als Schraffur. |
+| `basis_frp` | string | – | Quelle von frp_harm: viirs_measured (VIIRS gemessen, Mittel der aktiven VIIRS-Satelliten), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = kein Wert | Wie basis_count, für die Stärke. |
+| `n_harm` | double | VIIRS-Äquivalente | Harmonisierte Anzahl der Erkennungen: gemessen (n_viirs) oder MODIS × Regionsfaktor. | 0 = keine Erkennung (vor 2012 oft nur „MODIS sah nichts“), leer = Tag ohne Basis | Hauptwert für Verlauf und Kalender. Vor 2012 immer mit Band zeigen. |
 | `frp_harm` | double | MW (VIIRS-Äquivalente) | Harmonisierte FRP-Summe des Tages, das Maß für die Stärke. | wie n_harm | Stärke eines Tages als Zahl, Höhe eines Balkens, Farbintensität im Kalender. |
 | `factor_count` | double | Faktor | Auf die Anzahl angewandter Faktor (1 bei Messung). | leer, wenn kein Wert | Tooltip „umgerechnet mit × 2,7“. |
 | `factor_frp` | double | Faktor | Auf die FRP angewandter Faktor (1 bei Messung). | leer, wenn kein Wert | Tooltip zur Stärke. |
@@ -52,13 +58,14 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | `latitude` | double | Grad | Geografische Breite der Pixelmitte (WGS84). | nie leer | Position des Punkts auf der Karte, räumliche Filter. |
 | `longitude` | double | Grad | Geografische Länge der Pixelmitte (WGS84). | nie leer | Position des Punkts auf der Karte, räumliche Filter. |
 | `cell_id` | string | – | Rasterzelle von 0,25° als „Breitenindex_Längenindex“ (Index = floor(Koordinate / 0,25)). | nie leer | Kacheln auf der Karte einfärben, schnelle Vorfilterung großer Flächen. |
+| `h3_cell` | string | – | H3-Zelle der Pixelmitte (Sechseck-Raster, Auflösung 8, etwa 0,74 km²), z. B. „88390ca343fffff“. | nie leer | Sechseck-Heatmap, Nachbarschaftsabfragen. Gröbere Zellen per h3.cell_to_parent (z. B. Auflösung 5 oder 6 für ganz Iberien). |
 | `acq_date` | date | UTC | Datum der Messung in UTC, wie von FIRMS geliefert. | nie leer | Anzeige im Popup und im CSV. Für Zeitfilter und Summen besser obs_date nehmen. |
 | `acq_time` | string | UTC, HHMM | Uhrzeit der Messung als vierstelliger Text, z. B. „0114“. | nie leer | Nur fürs CSV (Originalformat). Zum Rechnen acq_datetime_utc verwenden. |
 | `acq_datetime_utc` | timestamp | UTC | Datum und Uhrzeit der Messung als echter Zeitstempel. | nie leer | Zeitachse, Sortierung, Animation des Tagesverlaufs, Anzeige der Überflugzeit. |
 | `obs_date` | date | – | Tag, zu dem der Punkt in allen Summen zählt (Zuordnung laut Konfiguration: UTC-Datum oder Sonnendatum). | nie leer | Der Zeitfilter der Karte und der Schlüssel zu day_status und zur Tagestabelle. |
 | `local_solar_hour` | double | Stunden 0–24 | Lokale Sonnenzeit des Überflugs: UTC-Stunde + Länge / 15. | nie leer | Tageszeit im Popup („erkannt um 13:20 Ortszeit“), Auswertung nach Tageszeit. |
-| `satellite` | string | – | Satellit: Terra, Aqua oder SNPP. | nie leer | Herkunft im Popup und im CSV. Nicht zum Vergleichen von Zahlen zwischen Satelliten. |
-| `sensor` | string | – | Instrument: MODIS (Terra, Aqua, 1-km-Pixel) oder VIIRS (SNPP, 375-m-Pixel). | nie leer | Symbol oder Legende auf der Karte. Pflichtbegleiter für frp_class und confidence_class. |
+| `satellite` | string | – | Satellit: Terra, Aqua (MODIS), SNPP, N20 (NOAA-20) oder N21 (NOAA-21) (VIIRS). | nie leer | Herkunft im Popup und im CSV. Nicht zum Vergleichen von Zahlen zwischen Satelliten. |
+| `sensor` | string | – | Instrument: MODIS (Terra, Aqua, 1-km-Pixel) oder VIIRS (SNPP, NOAA-20, NOAA-21, 375-m-Pixel). | nie leer | Symbol oder Legende auf der Karte. Pflichtbegleiter für frp_class und confidence_class. |
 | `source` | string | – | archive (endgültig, geprüft) oder nrt (vorläufig, wird später durch Archivdaten ersetzt). | nie leer | Vorläufige Punkte kennzeichnen, z. B. gestrichelt oder mit Hinweis „vorläufig“. |
 | `daynight` | string | – | D (Tag-Überflug) oder N (Nacht-Überflug). | nie leer | Filter Tag/Nacht, Symbol im Popup. |
 | `frp` | double | MW | Strahlungsleistung des Feuers in diesem Pixel (Fire Radiative Power). | 0 möglich, nie leer | Größe oder Farbe des Punkts. Nur innerhalb eines Sensors vergleichen: ein VIIRS-Pixel ist kleiner und zeigt weniger MW für dasselbe Feuer. |
@@ -70,12 +77,12 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | `pixel_area_km2` | double | km² | Fläche des Pixels am Boden: scan × track. | nie leer | Punkt in echter Größe darstellen. Große Werte heißen Bildrand und damit gröbere Ortsangabe. |
 | `region_id` | string | – | NUTS-2-Region des Punkts (Stand 2021), z. B. ES30. | leer bei Punkten im offenen Meer | Schneller Filter „Region wählen“, Verknüpfung zur Tagestabelle. |
 | `country` | string | – | Land: die ersten zwei Zeichen von region_id (ES, PT, FR). | leer wie region_id | Filter nach Land. |
-| `in_series_n` | boolean | – | Wahr, wenn der Satellit des Punkts an diesem Tag die Basis der Anzahl ist. | nie leer | Karte ohne Doppelte: nur Punkte mit in_series_n = wahr zeigen (ab 2012 nur VIIRS, davor MODIS). |
+| `in_series_n` | boolean | – | Wahr, wenn der Satellit des Punkts an diesem Tag zur Basis der Anzahl gehört und in Betrieb ist. | nie leer | Karte ohne Sensor-Doppelte: nur Punkte mit in_series_n = wahr zeigen (ab 2012 nur VIIRS, davor MODIS). Ab 2018 kann dasselbe Feuer als Punkt von SNPP und von NOAA-20/21 erscheinen (andere Überflugzeit), Filter nach satellite möglich. |
 | `in_series_frp` | boolean | – | Wahr, wenn der Punkt in die harmonisierte FRP-Summe eingeht. | nie leer | Wie in_series_n, für Darstellungen der Stärke. |
-| `weight_n` | double | VIIRS-Äquivalente | Beitrag des Punkts zur harmonisierten Anzahl: 1 bei VIIRS, Regionsfaktor bei MODIS, 0 außerhalb der Reihe. | 0 = zählt nicht mit | Harmonisierte Anzahl einer beliebigen Fläche: SUM(weight_n). Nicht als Eigenschaft des Punkts anzeigen. |
+| `weight_n` | double | VIIRS-Äquivalente | Beitrag des Punkts zur harmonisierten Anzahl: 1/k bei VIIRS (k = an dem Tag aktive VIIRS-Satelliten, 1 bis 3), Regionsfaktor bei MODIS, 0 außerhalb der Reihe. | 0 = zählt nicht mit | Harmonisierte Anzahl einer beliebigen Fläche: SUM(weight_n). Nicht als Eigenschaft des Punkts anzeigen. |
 | `weight_frp` | double | Faktor | Faktor, mit dem die FRP des Punkts in die harmonisierte Summe eingeht. | 0 = zählt nicht mit | Harmonisierte Stärke einer beliebigen Fläche: SUM(frp × weight_frp). |
-| `basis_count` | string | – | Quelle der Anzahl an diesem Tag: viirs_measured (VIIRS gemessen), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = Tag ohne Wert | Nachvollziehen im CSV, Hinweis „gemessen“ oder „umgerechnet“. |
-| `basis_frp` | string | – | Quelle der FRP-Summe an diesem Tag: viirs_measured (VIIRS gemessen), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = Tag ohne Wert | Wie basis_count, für die Stärke. |
+| `basis_count` | string | – | Quelle der Anzahl an diesem Tag: viirs_measured (VIIRS gemessen, Mittel der aktiven VIIRS-Satelliten), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = Tag ohne Wert | Nachvollziehen im CSV, Hinweis „gemessen“ oder „umgerechnet“. |
+| `basis_frp` | string | – | Quelle der FRP-Summe an diesem Tag: viirs_measured (VIIRS gemessen, Mittel der aktiven VIIRS-Satelliten), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = Tag ohne Wert | Wie basis_count, für die Stärke. |
 
 ## day_status
 
@@ -86,11 +93,14 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | Spalte | Typ | Einheit | Bedeutung | 0 und leer | Nutzung im Frontend |
 |---|---|---|---|---|---|
 | `date` | date | – | Tag. | nie leer, lückenlos | Zeitachse. Jeder Tag kommt genau einmal vor. |
-| `snpp_operating` | boolean | – | SNPP (VIIRS) liefert an diesem Tag Daten. | nie leer | Erklärung, warum ein Tag gemessen oder umgerechnet ist. |
+| `viirs_operating` | boolean | – | Mindestens ein VIIRS-Satellit (SNPP, NOAA-20, NOAA-21) liefert an diesem Tag Daten. Dann ist der Tag gemessen. | nie leer | Erklärung, warum ein Tag gemessen oder umgerechnet ist. |
+| `snpp_operating` | boolean | – | SNPP (VIIRS) liefert an diesem Tag Daten. | nie leer | Tooltip „gemessen mit …“ (welche Satelliten im Mittel stecken). |
+| `noaa20_operating` | boolean | – | NOAA-20 (VIIRS) liefert an diesem Tag Daten. | nie leer | Wie snpp_operating. |
+| `noaa21_operating` | boolean | – | NOAA-21 (VIIRS) liefert an diesem Tag Daten. | nie leer | Wie snpp_operating. |
 | `aqua_operating` | boolean | – | Aqua (MODIS) liefert an diesem Tag Daten. | nie leer | Wie snpp_operating. |
 | `terra_operating` | boolean | – | Terra (MODIS) liefert an diesem Tag Daten. | nie leer | Wie snpp_operating. |
-| `basis_count` | string | – | Quelle der Anzahl an diesem Tag: viirs_measured (VIIRS gemessen), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = Tag ohne Wert | Abschnitte der Zeitachse einfärben (gemessen, umgerechnet, keine Daten). |
-| `basis_frp` | string | – | Quelle der FRP-Summe an diesem Tag: viirs_measured (VIIRS gemessen), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = Tag ohne Wert | Wie basis_count. |
+| `basis_count` | string | – | Quelle der Anzahl an diesem Tag: viirs_measured (VIIRS gemessen, Mittel der aktiven VIIRS-Satelliten), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = Tag ohne Wert | Abschnitte der Zeitachse einfärben (gemessen, umgerechnet, keine Daten). |
+| `basis_frp` | string | – | Quelle der FRP-Summe an diesem Tag: viirs_measured (VIIRS gemessen, Mittel der aktiven VIIRS-Satelliten), modis_pair_scaled (Aqua + Terra umgerechnet), aqua_scaled, terra_scaled oder none (keine zulässige Quelle). | none = Tag ohne Wert | Wie basis_count. |
 | `is_complete_day` | boolean | – | Wahr, wenn der Tag einen harmonisierten Wert hat. | nie leer | Die Kernfrage der Punktkarte: keine Punkte an einem vollständigen Tag = kein Feuer, an einem unvollständigen = keine Daten. |
 | `is_provisional` | boolean | – | Wahr, wenn der Tag auf vorläufigen NRT-Daten beruht. | nie leer | Hinweis „vorläufig, kann sich ändern“. |
 | `possible_gap` | boolean | – | Verdacht auf Datenausfall an diesem Tag. | nie leer | Warnsymbol auf der Zeitachse. |
@@ -139,7 +149,7 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | `used_fallback_pair` | boolean | – | Wahr, wenn die Region zu wenige Daten hat und den Gesamtfaktor bekommt. | nie leer | Hinweis „Region mit wenig Daten“. |
 | `used_fallback_aqua` | boolean | – | Wie used_fallback_pair, für den Aqua-Faktor. | nie leer | Hinweis. |
 | `used_fallback_terra` | boolean | – | Wie used_fallback_pair, für den Terra-Faktor. | nie leer | Hinweis. |
-| `n_viirs_calib` | double | Erkennungen | VIIRS-Erkennungen der Region im Kalibrierfenster. | nie leer | Nicht nötig (Diagnose). |
+| `n_viirs_calib` | double | Erkennungen | VIIRS-Referenz (Mittel der aktiven VIIRS-Satelliten) der Region im Kalibrierfenster, summiert. | nie leer | Nicht nötig (Diagnose). |
 | `n_pair_calib` | double | Erkennungen | Aqua + Terra-Erkennungen im Kalibrierfenster. | nie leer | Nicht nötig (Diagnose). |
 | `n_aqua_calib` | double | Erkennungen | Aqua-Erkennungen im Kalibrierfenster. | nie leer | Nicht nötig (Diagnose). |
 | `n_terra_calib` | double | Erkennungen | Terra-Erkennungen im Kalibrierfenster. | nie leer | Nicht nötig (Diagnose). |
@@ -197,7 +207,7 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | `n_days` | double | Tage | Zahl der Tage im Datensatz für diesen Zeitschritt. | nie leer | Nicht nötig. |
 | `n_days_complete` | double | Tage | Zahl der Tage mit Wert. | nie leer | Fortschritt „bisher 12 von 30 Tagen“. |
 | `is_complete_period` | boolean | – | Wahr, wenn jeder Kalendertag des Zeitschritts einen Wert hat. | nie leer | Unvollständige Zeiträume grau zeigen und nicht in Median oder Rang nehmen. |
-| `share_measured_days` | double | Anteil | Anteil der Tage mit gemessenem VIIRS. | nie leer | Feinere Kennzeichnung gemischter Zeiträume. |
+| `share_measured_days` | double | Anteil | Anteil der Tage mit gemessenem VIIRS (mindestens ein VIIRS-Satellit). | nie leer | Feinere Kennzeichnung gemischter Zeiträume. |
 | `basis_mix` | string | – | measured, converted oder mixed. | nie leer | Kennzeichnung „gemessen“, „umgerechnet“, „gemischt“. |
 | `basis_count_converted` | string | – | Basis der umgerechneten Tage des Zeitschritts (Anzahl). | leer, wenn alle Tage gemessen sind | Nachschlagen der Unsicherheit, Tooltip. |
 | `basis_frp_converted` | string | – | Basis der umgerechneten Tage des Zeitschritts (FRP). | leer, wenn alle Tage gemessen sind | Nachschlagen der Unsicherheit, Tooltip. |
@@ -210,9 +220,15 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | `n_aqua` | double | Erkennungen | Summe der Rohzahl Aqua. | leer, wenn nie in Betrieb | Tooltip. |
 | `n_terra` | double | Erkennungen | Summe der Rohzahl Terra. | leer, wenn nie in Betrieb | Tooltip. |
 | `n_snpp` | double | Erkennungen | Summe der Rohzahl SNPP. | leer, wenn nie in Betrieb | Tooltip. |
+| `n_noaa20` | double | Erkennungen | Summe der Rohzahl NOAA-20. | leer, wenn nie in Betrieb | Tooltip. |
+| `n_noaa21` | double | Erkennungen | Summe der Rohzahl NOAA-21. | leer, wenn nie in Betrieb | Tooltip. |
+| `n_viirs` | double | Erkennungen | Summe der VIIRS-Referenz (Mittel der aktiven VIIRS-Satelliten je Tag). | leer, wenn nie in Betrieb | Tooltip. |
 | `frp_aqua` | double | MW | Summe der FRP Aqua. | leer, wenn nie in Betrieb | Tooltip. |
 | `frp_terra` | double | MW | Summe der FRP Terra. | leer, wenn nie in Betrieb | Tooltip. |
 | `frp_snpp` | double | MW | Summe der FRP SNPP. | leer, wenn nie in Betrieb | Tooltip. |
+| `frp_noaa20` | double | MW | Summe der FRP NOAA-20. | leer, wenn nie in Betrieb | Tooltip. |
+| `frp_noaa21` | double | MW | Summe der FRP NOAA-21. | leer, wenn nie in Betrieb | Tooltip. |
+| `frp_viirs` | double | MW | Summe der VIIRS-Referenz der FRP. | leer, wenn nie in Betrieb | Tooltip. |
 
 ## Ergebnis von build_day_of_year_climatology
 
@@ -272,13 +288,14 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | `latitude` | double | Grad | Geografische Breite der Pixelmitte (WGS84). | nie leer | Position des Punkts auf der Karte, räumliche Filter. |
 | `longitude` | double | Grad | Geografische Länge der Pixelmitte (WGS84). | nie leer | Position des Punkts auf der Karte, räumliche Filter. |
 | `cell_id` | string | – | Rasterzelle von 0,25° als „Breitenindex_Längenindex“ (Index = floor(Koordinate / 0,25)). | nie leer | Kacheln auf der Karte einfärben, schnelle Vorfilterung großer Flächen. |
+| `h3_cell` | string | – | H3-Zelle der Pixelmitte (Sechseck-Raster, Auflösung 8, etwa 0,74 km²), z. B. „88390ca343fffff“. | nie leer | Sechseck-Heatmap, Nachbarschaftsabfragen. Gröbere Zellen per h3.cell_to_parent (z. B. Auflösung 5 oder 6 für ganz Iberien). |
 | `acq_date` | date | UTC | Datum der Messung in UTC, wie von FIRMS geliefert. | nie leer | Anzeige im Popup und im CSV. Für Zeitfilter und Summen besser obs_date nehmen. |
 | `acq_time` | string | UTC, HHMM | Uhrzeit der Messung als vierstelliger Text, z. B. „0114“. | nie leer | Nur fürs CSV (Originalformat). Zum Rechnen acq_datetime_utc verwenden. |
 | `acq_datetime_utc` | timestamp | UTC | Datum und Uhrzeit der Messung als echter Zeitstempel. | nie leer | Zeitachse, Sortierung, Animation des Tagesverlaufs, Anzeige der Überflugzeit. |
 | `obs_date` | date | – | Tag, zu dem der Punkt in allen Summen zählt (Zuordnung laut Konfiguration: UTC-Datum oder Sonnendatum). | nie leer | Der Zeitfilter der Karte und der Schlüssel zu day_status und zur Tagestabelle. |
 | `local_solar_hour` | double | Stunden 0–24 | Lokale Sonnenzeit des Überflugs: UTC-Stunde + Länge / 15. | nie leer | Tageszeit im Popup („erkannt um 13:20 Ortszeit“), Auswertung nach Tageszeit. |
-| `satellite` | string | – | Satellit: Terra, Aqua oder SNPP. | nie leer | Herkunft im Popup und im CSV. Nicht zum Vergleichen von Zahlen zwischen Satelliten. |
-| `sensor` | string | – | Instrument: MODIS (Terra, Aqua, 1-km-Pixel) oder VIIRS (SNPP, 375-m-Pixel). | nie leer | Symbol oder Legende auf der Karte. Pflichtbegleiter für frp_class und confidence_class. |
+| `satellite` | string | – | Satellit: Terra, Aqua (MODIS), SNPP, N20 (NOAA-20) oder N21 (NOAA-21) (VIIRS). | nie leer | Herkunft im Popup und im CSV. Nicht zum Vergleichen von Zahlen zwischen Satelliten. |
+| `sensor` | string | – | Instrument: MODIS (Terra, Aqua, 1-km-Pixel) oder VIIRS (SNPP, NOAA-20, NOAA-21, 375-m-Pixel). | nie leer | Symbol oder Legende auf der Karte. Pflichtbegleiter für frp_class und confidence_class. |
 | `source` | string | – | archive (endgültig, geprüft) oder nrt (vorläufig, wird später durch Archivdaten ersetzt). | nie leer | Vorläufige Punkte kennzeichnen, z. B. gestrichelt oder mit Hinweis „vorläufig“. |
 | `daynight` | string | – | D (Tag-Überflug) oder N (Nacht-Überflug). | nie leer | Filter Tag/Nacht, Symbol im Popup. |
 | `frp` | double | MW | Strahlungsleistung des Feuers in diesem Pixel (Fire Radiative Power). | 0 möglich, nie leer | Größe oder Farbe des Punkts. Nur innerhalb eines Sensors vergleichen: ein VIIRS-Pixel ist kleiner und zeigt weniger MW für dasselbe Feuer. |
