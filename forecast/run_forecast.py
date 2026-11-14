@@ -1,9 +1,15 @@
 """Forecast pipeline: check the weather, evaluate the models, fit the production models and write today's forecast.
 
 Run from La-Brasa/forecast:
-    .venv/bin/python run_forecast.py all                    # with weather (falls back per lead where it is missing)
-    .venv/bin/python run_forecast.py all --no-weather       # no-weather tier only (fallback, KPI F7)
+    .venv/bin/python run_forecast.py train                  # evaluate + fit, save models/bundle.pkl, write forecast + KPIs
+    .venv/bin/python run_forecast.py predict                # daily: load the bundle, no fitting (seconds, 1 core)
+    .venv/bin/python run_forecast.py all                    # same as train
+    .venv/bin/python run_forecast.py train --no-weather     # no-weather tier only (fallback, KPI F7)
     .venv/bin/python run_forecast.py weather-qc             # step 2 only: weather checks A5/A6 -> weather_qc.json
+
+`train` is the heavy part (minutes): run it on a workstation when data or config change (e.g. weekly) and copy
+data/forecast/models/bundle.pkl to the server. `predict` is light and is the daily job on the server.
+Linear algebra uses FORECAST_THREADS threads (default 1): one thread is faster here than many, see README.
 
 Two model tiers per target and lead:
     noweather  climatology + fire history (step 1)
@@ -18,9 +24,17 @@ models/*.json. Exit code 1 if a mandatory KPI fails.
 """
 from __future__ import annotations
 
+import os
+
+# Before numpy is imported: one BLAS thread by default. The matrices are small (~100k x 60); with many threads
+# OpenBLAS spends its time synchronising (24 threads: 1.2 s per fit, 1 thread: 0.5 s) and occupies every core.
+for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_var, os.environ.get("FORECAST_THREADS", "1"))
+
 import argparse
 import hashlib
 import json
+import pickle
 import subprocess
 import sys
 import time
@@ -45,6 +59,8 @@ HARM = REPO / "data" / "harmonised"
 OUT = REPO / "data" / "forecast"
 FWI_REFERENCE = HERE / "tests" / "data" / "fwi_reference_vanwagner1985.csv"
 TIERS = ("noweather", "weather")
+BUNDLE = OUT / "models" / "bundle.pkl"
+BUNDLE_FORMAT = 1
 
 
 def sha256(path: Path) -> str:
@@ -99,7 +115,7 @@ def fwi_reference_check() -> float:
 
 # =============================================================================================
 class Pipeline:
-    def __init__(self, cfg: dict, use_weather: bool):
+    def __init__(self, cfg: dict, use_weather: bool, neighbours: dict | None = None, weather_qc: bool = True):
         self.cfg = cfg
         self.mc = cfg["model"]
         self.train_end = pd.Timestamp(self.mc["train_end"])
@@ -108,7 +124,8 @@ class Pipeline:
         self.last_archive = self.d.loc[~self.d["is_provisional"], "date"].max()
         self.issue_date = self.d["date"].max()
         self.regions = sorted(self.d["region_id"].unique())
-        self.nn = region_neighbours(HARM, self.mc["train_end"], self.mc["neighbours"])
+        # neighbours come from the training data (hotspots up to train_end); predict reuses them from the bundle
+        self.nn = neighbours or region_neighbours(HARM, self.mc["train_end"], self.mc["neighbours"])
         self.feats = issue_features(self.d, self.nn)
         self.ev: dict = {"daily": {t: {} for t in TIERS}, "weekly": {t: {} for t in TIERS}, "loyo": {},
                          "risk_class_test": {}, "weather_selection": {}, "shipped_tier": {}}
@@ -122,6 +139,7 @@ class Pipeline:
         self.weekly_weather_cols: list[str] = []
         if use_weather and (OUT / "weather_points_history_core.parquet").exists():
             self.weather, self.weather_info = wx.build_region_weather(OUT, self.mc["train_end"])
+        if self.weather is not None and weather_qc:
             hist_end = max(pd.Timestamp(gi["recent_end"] or gi["history_end"]) for gi in self.weather_info.values())
             pts, _ = wx.load_point_weather(OUT, with_forecast=False)
             self.weather_qc = wx.quality_report(pts, self.weather[self.weather["date"] <= hist_end], self.regions,
@@ -315,101 +333,141 @@ class Pipeline:
             return "noweather"
         return "weather" if self.ev["weekly"]["weather"][k]["rpss"] > self.ev["weekly"]["noweather"][k]["rpss"] else "noweather"
 
-    # --- production fit on all archive data, forecast for the latest day -------------------------
-    def predict_daily(self) -> pd.DataFrame:
-        mc = self.mc
-        d = self.d
+    # --- production: fit on all archive data (train) and apply the fitted models (predict) ---------------
+    def fit_production(self) -> dict:
+        """All production models and lookup tables in one bundle, so `predict` does not fit anything.
+
+        For every target and lead the no-weather tier is always fitted (fallback when the weather forecast is
+        missing), the weather tier where it is preferred. big_fire_day also gets bootstrap refits for lo / hi."""
+        mc, wc, d = self.mc, self.mc["weekly"], self.d
         archive = (~d["is_provisional"]).to_numpy()
         rng = np.random.default_rng(mc["seed"])
-        out = {}
+        b = {"format": BUNDLE_FORMAT, "model_version": {"weather": mc["version"], "noweather": mc["version_noweather"]},
+             "config_fingerprint": fingerprint({k: self.cfg[k] for k in ("model", "risk_class")}),
+             "code_fingerprint": code_fingerprint(), "trained_issue_date": str(self.issue_date.date()),
+             "last_archive_day": str(self.last_archive.date()), "regions": self.regions, "neighbours": self.nn,
+             "weather_cols": self.weather_cols, "weekly_weather_cols": self.weekly_weather_cols,
+             "skill_rows": self.skill_rows, "climatology": {}, "daily": {}, "weekly": {}}
         for target in mc["targets"]:
             clim = self.climatology(target, archive)
+            b["climatology"][target] = clim
             for lead in mc["leads"]:
                 pr = self.pairs(target, lead, clim, self.weather_cols)
                 tr = pr[pr["y"].notna() & ~pr["target_provisional"].fillna(True).astype(bool)]
+                pref = self.preferred_tier(target, lead)
+                entry = {"preferred": pref, "tiers": {}}
+                for tier in (("noweather", "weather") if pref == "weather" else ("noweather",)):
+                    extra = self.extra(tier)
+                    boots = []
+                    if target == "big":
+                        yrs = tr["target_date"].dt.year.to_numpy()
+                        uniq = np.unique(yrs)
+                        by_year = {y: np.flatnonzero(yrs == y) for y in uniq}
+                        for _ in range(mc["bootstrap_models"]):
+                            pick = rng.choice(uniq, size=len(uniq), replace=True)
+                            boots.append(self.fit_daily(tr.iloc[np.concatenate([by_year[y] for y in pick])], target, lead, extra))
+                    use = {r: bool(self.use_model.get((tier, target, lead, r), self.use_model.get((tier, target, lead, "all"), False)))
+                           for r in self.regions}
+                    entry["tiers"][tier] = {"model": self.fit_daily(tr, target, lead, extra), "bootstrap": boots, "use": use}
+                b["daily"][f"{target}_{lead}"] = entry
+            print(f"  fitted production daily target={target}", flush=True)
+        weeks, wclim, lclim = self._week_inputs(
+            lambda w: ((w["week_start"] + pd.Timedelta(days=6) <= self.last_archive) & ~w["provisional"]).to_numpy(),
+            (~d["is_provisional"]).to_numpy())
+        b["week_climatology"], b["logfrp_climatology"] = wclim, lclim
+        sundays = (d["date"].dt.day_of_week == 6).to_numpy()
+        for k in wc["weeks_ahead"]:
+            pref = self.preferred_week_tier(k)
+            entry = {"preferred": pref, "tiers": {}}
+            for tier in (("noweather", "weather") if pref == "weather" else ("noweather",)):
+                extra = self.weekly_weather_cols if tier == "weather" else []
+                pw = self.add_weather(weekly.week_pairs(d, self.feats, weeks, wclim, lclim, k, sundays), extra, "issue_date")
+                tr = pw[pw["complete"] & ~pw["provisional"] & (pw["week_start"] + pd.Timedelta(days=6) <= self.last_archive)]
+                entry["tiers"][tier] = {"model": weekly.train(tr, k, wc["l2"], extra),
+                                        "use": bool(self.use_model.get((tier, "week", k, "all"), False))}
+            b["weekly"][k] = entry
+        print("  fitted production weekly", flush=True)
+        return b
+
+    def apply(self, b: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Today's forecast from a fitted bundle: features of the issue date, no model fitting (cheap)."""
+        self.weather_cols, self.weekly_weather_cols = list(b["weather_cols"]), list(b["weekly_weather_cols"])
+        return self._apply_daily(b), self._apply_weekly(b)
+
+    def _apply_daily(self, b: dict) -> pd.DataFrame:
+        mc = self.mc
+        out = {}
+        for target in mc["targets"]:
+            clim = b["climatology"][target]
+            for lead in mc["leads"]:
+                pr = self.pairs(target, lead, clim, self.weather_cols if self.weather is not None else [])
                 live = pr[pr["issue_date"] == self.issue_date].copy()
-                tier = self.preferred_tier(target, lead)
-                if tier == "weather" and not live[self.weather_cols].notna().all(axis=None):
+                e = b["daily"][f"{target}_{lead}"]
+                tier = e["preferred"]
+                if tier == "weather" and (self.weather is None or not live[self.weather_cols].notna().all(axis=None)):
                     tier = "noweather"          # no weather (forecast) for this target day: no-weather tier
                 self.ev["shipped_tier"][f"{target}_{lead}"] = tier
-                extra = self.extra(tier)
-                m = self.fit_daily(tr, target, lead, extra)
-                self.models_out[f"daily_{target}_lead{lead}"] = {"tier": tier, **m.to_dict()}
-                live["p"] = daily.predict(m, live)
-                if target == "big":
-                    yrs = tr["target_date"].dt.year.to_numpy()
-                    uniq = np.unique(yrs)
-                    by_year = {y: np.flatnonzero(yrs == y) for y in uniq}
-                    sims = []
-                    for _ in range(mc["bootstrap_models"]):
-                        pick = rng.choice(uniq, size=len(uniq), replace=True)
-                        idx = np.concatenate([by_year[y] for y in pick])
-                        sims.append(daily.predict(self.fit_daily(tr.iloc[idx], target, lead, extra), live))
-                    lo, hi = np.quantile(np.array(sims), mc["band_quantiles"], axis=0)
+                t = e["tiers"][tier]
+                self.models_out[f"daily_{target}_lead{lead}"] = {"tier": tier, **t["model"].to_dict()}
+                live["p"] = daily.predict(t["model"], live)
+                if t["bootstrap"]:
+                    sims = np.array([daily.predict(m, live) for m in t["bootstrap"]])
+                    lo, hi = np.quantile(sims, mc["band_quantiles"], axis=0)
                     live["lo"], live["hi"] = np.minimum(lo, live["p"]), np.maximum(hi, live["p"])
-                live["use"] = [self.use_model.get((tier, target, lead, r), self.use_model.get((tier, target, lead, "all"), False))
-                               for r in live["region_id"]]
+                live["use"] = [t["use"].get(r, False) for r in live["region_id"]]
                 out[(target, lead)] = live
-            print(f"  fitted production daily target={target}", flush=True)
         rows = []
         for lead in mc["leads"]:
-            version = mc["version"] if self.ev["shipped_tier"][f"big_{lead}"] == "weather" else mc["version_noweather"]
-            b, f = out[("big", lead)].set_index("region_id"), out[("fire", lead)].set_index("region_id")
+            version = b["model_version"][self.ev["shipped_tier"][f"big_{lead}"]]
+            bb, f = out[("big", lead)].set_index("region_id"), out[("fire", lead)].set_index("region_id")
             for r in self.regions:
-                pb = b.at[r, "p"] if b.at[r, "use"] else b.at[r, "clim"]
-                lo = b.at[r, "lo"] if b.at[r, "use"] else pb
-                hi = b.at[r, "hi"] if b.at[r, "use"] else pb
+                pb = bb.at[r, "p"] if bb.at[r, "use"] else bb.at[r, "clim"]
+                lo = bb.at[r, "lo"] if bb.at[r, "use"] else pb
+                hi = bb.at[r, "hi"] if bb.at[r, "use"] else pb
                 pf = f.at[r, "p"] if f.at[r, "use"] else f.at[r, "clim"]
-                rows.append({"region_id": r, "issue_date": self.issue_date.date(), "target_date": b.at[r, "target_date"].date(),
+                rows.append({"region_id": r, "issue_date": self.issue_date.date(), "target_date": bb.at[r, "target_date"].date(),
                              "lead_days": lead, "p_big_fire_day": pb, "p_fire_day": pf,
-                             "p_clim_big_fire_day": b.at[r, "clim"], "p_clim_fire_day": f.at[r, "clim"],
-                             "risk_ratio": pb / b.at[r, "clim"], "p_big_fire_day_lo": min(lo, pb), "p_big_fire_day_hi": max(hi, pb),
-                             "source": "model" if b.at[r, "use"] else "climatology", "model_version": version})
+                             "p_clim_big_fire_day": bb.at[r, "clim"], "p_clim_fire_day": f.at[r, "clim"],
+                             "risk_ratio": pb / bb.at[r, "clim"], "p_big_fire_day_lo": min(lo, pb), "p_big_fire_day_hi": max(hi, pb),
+                             "source": "model" if bb.at[r, "use"] else "climatology", "model_version": version})
         df = pd.DataFrame(rows)
         df["risk_class"] = contract.risk_class(df["p_big_fire_day"], df["risk_ratio"], self.cfg["risk_class"])
         return df[contract.DAILY_COLUMNS]
 
-    def predict_weekly(self) -> pd.DataFrame:
-        mc, wc = self.mc, self.mc["weekly"]
-        d = self.d
-        weeks, wclim, lclim = self._week_inputs(
-            lambda w: ((w["week_start"] + pd.Timedelta(days=6) <= self.last_archive) & ~w["provisional"]).to_numpy(),
-            (~d["is_provisional"]).to_numpy())
-        sundays = (d["date"].dt.day_of_week == 6).to_numpy()
+    def _apply_weekly(self, b: dict) -> pd.DataFrame:
+        mc, d = self.mc, self.d
+        weeks = weekly.weekly_table(d, week_col(mc))
+        wclim, lclim = b["week_climatology"], b["logfrp_climatology"]
         live_mask = (d["date"] == self.issue_date).to_numpy()
         rows = []
-        for k in wc["weeks_ahead"]:
-            tier = self.preferred_week_tier(k)
+        for k, e in b["weekly"].items():
+            tier = e["preferred"]
             extra = self.weekly_weather_cols if tier == "weather" else []
-            pw = self.add_weather(weekly.week_pairs(d, self.feats, weeks, wclim, lclim, k, sundays), extra, "issue_date")
             live = self.add_weather(weekly.week_pairs(d, self.feats, weeks, wclim, lclim, k, live_mask), extra, "issue_date")
-            if extra and not live[extra].notna().all(axis=None):
-                tier, extra = "noweather", []
+            if extra and (self.weather is None or not live[extra].notna().all(axis=None)):
+                tier = "noweather"
             self.ev["shipped_tier"][f"week_{k}"] = tier
-            version = mc["version"] if tier == "weather" else mc["version_noweather"]
-            tr = pw[pw["complete"] & ~pw["provisional"] & (pw["week_start"] + pd.Timedelta(days=6) <= self.last_archive)]
-            m = weekly.train(tr, k, wc["l2"], extra)
-            self.models_out[f"weekly_week{k}"] = {"tier": tier, **m.to_dict()}
-            P = weekly.predict(m, live)
+            t = e["tiers"][tier]
+            self.models_out[f"weekly_week{k}"] = {"tier": tier, **t["model"].to_dict()}
+            P = weekly.predict(t["model"], live)
             C = live[["clim_p_below", "clim_p_normal", "clim_p_above"]].to_numpy()
-            use = self.use_model.get((tier, "week", k, "all"), False)
-            P = P if use else C
+            P = P if t["use"] else C
             bm = np.nan_to_num(wclim.get(live["region_id"], live["woy"].to_numpy(), ["big_mean_0", "big_mean_1", "big_mean_2"]))
             for i, r in enumerate(live["region_id"]):
                 rows.append({"region_id": r, "issue_date": self.issue_date.date(), "week_start": live["week_start"].iloc[i].date(),
                              "week_ahead": k, "p_below": P[i, 0], "p_normal": P[i, 1], "p_above": P[i, 2],
                              "expected_big_fire_days": float(P[i] @ bm[i]), "clim_big_fire_days": float(C[i] @ bm[i]),
-                             "source": "model" if use else "climatology", "model_version": version})
-        print("  fitted production weekly", flush=True)
+                             "source": "model" if t["use"] else "climatology", "model_version": b["model_version"][tier]})
         return pd.DataFrame(rows)[contract.WEEKLY_COLUMNS]
 
-    def skill_table(self) -> pd.DataFrame:
+    def skill_table(self, skill_rows: dict | None = None) -> pd.DataFrame:
         """forecast_skill: per product, target and lead the rows of the tier that is shipped live."""
+        skill_rows = skill_rows or self.skill_rows
         rows = []
-        for (product, target, lead) in self.skill_rows["noweather"]:
+        for (product, target, lead) in skill_rows["noweather"]:
             key = f"{target}_{lead}" if product == "daily" else f"week_{lead}"
             tier = self.ev["shipped_tier"].get(key, "noweather")
-            rows += self.skill_rows[tier][(product, target, lead)]
+            rows += skill_rows[tier][(product, target, lead)]
         return pd.DataFrame(rows)
 
 
@@ -600,8 +658,11 @@ def kpi_report(pipe: Pipeline, daily_df, weekly_df, skill_df, checks, runtime, t
     add("F3", "values valid (p in [0,1], lo <= p <= hi, risk_ratio, source, risk_class)", f3, "true", f3)
     f4 = all(key in manifest for key in ("model_version", "fingerprints", "input_hashes", "issue_date", "training_period"))
     add("F4", "manifest complete", f4, "true", f4)
-    add("F5", "runtime evaluation + production (minutes, without API)", round(runtime / 60, 2),
-        f"<= {k['F5_train_minutes']}", runtime / 60 <= k["F5_train_minutes"])
+    pred_min = getattr(pipe, "apply_seconds", float("nan")) / 60
+    add("F5", "runtime: train (evaluation + production fit) and applying the models (minutes, without API, "
+        "`predict` adds loading data and weather)", {"train": round(runtime / 60, 2), "apply": round(pred_min, 3)},
+        f"<= {k['F5_train_minutes']} / <= {k['F5_predict_minutes']}",
+        runtime / 60 <= k["F5_train_minutes"] and pred_min <= k["F5_predict_minutes"])
     add("F6", "pytest (offline)", tests_ok, "true", tests_ok)
     f7 = f1 and f2 and f3
     add("F7", "valid outputs; the no-weather tier is evaluated and used where weather is missing", f7, "true", f7)
@@ -622,14 +683,88 @@ def write_weather_qc(pipe: Pipeline) -> None:
                                                              "files": pipe.weather_info}), indent=1))
 
 
+def write_outputs(daily_df: pd.DataFrame, weekly_df: pd.DataFrame, skill_df: pd.DataFrame, models_out: dict) -> dict:
+    (OUT / "csv").mkdir(parents=True, exist_ok=True)
+    (OUT / "models").mkdir(parents=True, exist_ok=True)
+    outputs = {"forecast_daily": daily_df, "forecast_weekly": weekly_df, "forecast_skill": skill_df}
+    for name, df in outputs.items():
+        df.to_parquet(OUT / f"{name}.parquet", index=False)
+        df.to_csv(OUT / "csv" / f"{name}.csv", index=False)
+    for name, m in models_out.items():
+        (OUT / "models" / f"{name}.json").write_text(json.dumps(jsonable(m), indent=1))
+    return {n: sha256(OUT / f"{n}.parquet") for n in outputs}
+
+
+def output_checks(pipe: Pipeline, daily_df: pd.DataFrame, weekly_df: pd.DataFrame, skill_df: pd.DataFrame) -> dict:
+    """F1-F3 (contract columns, row counts, valid values); also run by `predict`."""
+    p = daily_df
+    f1 = list(daily_df.columns) == contract.DAILY_COLUMNS and list(weekly_df.columns) == contract.WEEKLY_COLUMNS \
+        and all(c in skill_df.columns for c in contract.SKILL_COLUMNS)
+    f2 = len(daily_df) == len(pipe.regions) * len(pipe.mc["leads"]) and len(weekly_df) == len(pipe.regions) * 3
+    probs = weekly_df[["p_below", "p_normal", "p_above"]].to_numpy()
+    f3 = bool(p[["p_big_fire_day", "p_fire_day", "p_clim_big_fire_day", "p_clim_fire_day"]].apply(lambda s: s.between(0, 1)).all().all()
+              and (p["p_big_fire_day_lo"] <= p["p_big_fire_day"] + 1e-12).all() and (p["p_big_fire_day"] <= p["p_big_fire_day_hi"] + 1e-12).all()
+              and np.allclose(p["risk_ratio"], p["p_big_fire_day"] / p["p_clim_big_fire_day"], atol=1e-9)
+              and p["source"].isin(contract.SOURCES).all() and p["risk_class"].isin(contract.RISK_CLASSES).all()
+              and np.allclose(probs.sum(axis=1), 1, atol=1e-9) and (probs >= 0).all() and (probs <= 1).all())
+    return {"F1": f1, "F2": f2, "F3": f3}
+
+
+def cmd_predict(cfg: dict, use_weather: bool) -> int:
+    t0 = time.time()
+    if not BUNDLE.exists():
+        print(f"no fitted models: run `run_forecast.py train` first ({BUNDLE.relative_to(REPO)} missing)", file=sys.stderr)
+        return 2
+    with open(BUNDLE, "rb") as f:      # written by `train` of this repository only; never load a bundle from elsewhere
+        b = pickle.load(f)
+    if b.get("format") != BUNDLE_FORMAT:
+        print("bundle has another format: run `run_forecast.py train` again", file=sys.stderr)
+        return 2
+    cfg_fp = fingerprint({k: cfg[k] for k in ("model", "risk_class")})
+    if b["config_fingerprint"] != cfg_fp:
+        print("warning: config.yaml changed since training (model / risk_class); retrain for consistent results",
+              file=sys.stderr)
+    pipe = Pipeline(cfg, use_weather=use_weather and bool(b["weather_cols"]), neighbours=b["neighbours"], weather_qc=False)
+    if sorted(b["regions"]) != pipe.regions:
+        print("regions differ from the training data: run `run_forecast.py train` again", file=sys.stderr)
+        return 2
+    daily_df, weekly_df = pipe.apply(b)
+    skill_df = pipe.skill_table(b["skill_rows"])
+    runtime = time.time() - t0
+    checks = output_checks(pipe, daily_df, weekly_df, skill_df)
+    if not all(checks.values()):
+        # keep the last valid tables for the backend; nothing is overwritten
+        print(f"predict output failed its checks {checks}; previous outputs kept", file=sys.stderr, flush=True)
+        return 1
+    out_hashes = write_outputs(daily_df, weekly_df, skill_df, pipe.models_out)
+    manifest = json.loads((OUT / "manifest.json").read_text()) if (OUT / "manifest.json").exists() else {}
+    inputs = {n: sha256(HARM / n) for n in ("activity_daily_harmonised.parquet", "day_status.parquet")}
+    if pipe.weather is not None:
+        inputs.update({p.name: sha256(p) for p in weather_files() if p.exists()})
+    manifest.update({
+        "model_version": b["model_version"]["weather"] if "weather" in pipe.ev["shipped_tier"].values() else b["model_version"]["noweather"],
+        "issue_date": str(pipe.issue_date.date()), "weather": pipe.weather_info, "shipped_tier": pipe.ev["shipped_tier"],
+        "skill_basis": sorted(skill_df["skill_basis"].unique()), "output_hashes": out_hashes,
+        "predict": {"bundle_trained_issue_date": b["trained_issue_date"], "bundle_last_archive_day": b["last_archive_day"],
+                    "input_hashes": inputs, "runtime_s": round(runtime, 1), "checks": checks,
+                    "threads": os.environ.get("OPENBLAS_NUM_THREADS")}})
+    (OUT / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    ok = all(checks.values())
+    print(f"predict for issue date {pipe.issue_date.date()} in {runtime:.1f} s; tiers {sorted(set(pipe.ev['shipped_tier'].values()))}; "
+          f"checks {'ok' if ok else checks}", flush=True)
+    return 0 if ok else 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["all", "weather-qc"])
+    ap.add_argument("cmd", choices=["train", "predict", "all", "weather-qc"])
     ap.add_argument("--no-weather", action="store_true", help="no-weather tier only")
     ap.add_argument("--force", action="store_true", help="recompute even if inputs are unchanged (always recomputes for now)")
     ap.add_argument("--skip-tests", action="store_true")
     args = ap.parse_args()
     cfg = yaml.safe_load((HERE / "config.yaml").read_text())
+    if args.cmd == "predict":
+        return cmd_predict(cfg, use_weather=not args.no_weather)
     t0 = time.time()
     pipe = Pipeline(cfg, use_weather=not args.no_weather)
     print(f"data: {len(pipe.d)} rows, issue date {pipe.issue_date.date()}, last archive day {pipe.last_archive.date()}, "
@@ -644,21 +779,18 @@ def main() -> int:
     pipe.evaluate_daily()
     pipe.evaluate_loyo()
     pipe.evaluate_weekly()
-    daily_df = pipe.predict_daily()
-    weekly_df = pipe.predict_weekly()
+    bundle = pipe.fit_production()
+    (OUT / "models").mkdir(parents=True, exist_ok=True)
+    with open(BUNDLE, "wb") as f:
+        pickle.dump(bundle, f, protocol=pickle.HIGHEST_PROTOCOL)
+    t_apply = time.time()
+    daily_df, weekly_df = pipe.apply(bundle)
+    pipe.apply_seconds = time.time() - t_apply
     runtime = time.time() - t0
     skill_df = pipe.skill_table()
     checks = leakage_checks(pipe)
     fwi_dev = fwi_reference_check()
-
-    (OUT / "csv").mkdir(exist_ok=True)
-    (OUT / "models").mkdir(exist_ok=True)
-    outputs = {"forecast_daily": daily_df, "forecast_weekly": weekly_df, "forecast_skill": skill_df}
-    for name, df in outputs.items():
-        df.to_parquet(OUT / f"{name}.parquet", index=False)
-        df.to_csv(OUT / "csv" / f"{name}.csv", index=False)
-    for name, m in pipe.models_out.items():
-        (OUT / "models" / f"{name}.json").write_text(json.dumps(jsonable(m), indent=1))
+    out_hashes = write_outputs(daily_df, weekly_df, skill_df, pipe.models_out)
     ev = {**pipe.ev, "weather_features": {"daily": pipe.weather_cols, "weekly": pipe.weekly_weather_cols}}
     (OUT / "forecast_evaluation.json").write_text(json.dumps(jsonable(ev), indent=1))
 
@@ -675,8 +807,9 @@ def main() -> int:
                 "fingerprints": {"config": fingerprint({k: cfg[k] for k in ("model", "risk_class", "meteomatics")}),
                                  "code": code_fingerprint(), "inputs": fingerprint(inputs)},
                 "input_hashes": inputs, "weather": pipe.weather_info, "shipped_tier": pipe.ev["shipped_tier"],
-                "skill_basis": sorted(skill_df["skill_basis"].unique()),
-                "output_hashes": {n: sha256(OUT / f"{n}.parquet") for n in outputs}}
+                "skill_basis": sorted(skill_df["skill_basis"].unique()), "bundle": {"file": str(BUNDLE.relative_to(REPO)),
+                                                                                   "sha256": sha256(BUNDLE)},
+                "threads": os.environ.get("OPENBLAS_NUM_THREADS"), "output_hashes": out_hashes}
     tests_ok = None if args.skip_tests else run_tests()
     kpis = kpi_report(pipe, daily_df, weekly_df, skill_df, checks, runtime, tests_ok, prev, manifest, fwi_dev)
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=1))
