@@ -43,3 +43,58 @@ meteomatics:
       - forest_fire_warning:idx
       - drought_index:idx
   forecast_days: 10
+
+# Forecast models (step 1: no weather)
+model:
+  version: "0.1-noweather"
+  seed: 20261114
+  viirs_start: "2012-01-20"
+  train_end: "2021-12-31"
+  test_start: "2022-01-01"
+  leads: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  targets: [big, fire]
+  clim_window_days: 7
+  neighbours: 3
+  # chosen on validation 2020-2021 (train 2012-2019), not on the test years: L2 = 1 / 30 / 100 / 300 with and
+  # without Platt; L2 = 100 + Platt had the best Brier with calibration slopes ~0.8-0.85
+  l2_continuous: 100.0
+  l2_region: 20.0
+  platt_calibration: true
+  calib_years: 2             # Platt fitted on the last 2 years of the training period
+  warn_share: 0.10            # warning threshold = top 10 % of training predictions
+  bootstrap: 1000             # block bootstrap over years for skill intervals
+  bootstrap_models: 20        # refits on resampled years for p_big_fire_day_lo / _hi
+  band_quantiles: [0.05, 0.95]
+  min_region_events: 30       # per-region fallback only where the test has at least this many events
+  weekly:
+    weeks_ahead: [2, 3, 4]
+    window_weeks: 1
+    l2: 1.0
+    # weekly activity = sum of log1p(FRP) over the week. frp_harm drifts with the number of VIIRS satellites
+    # (share of days with FRP > 0: 0.32 -> 0.41-0.45 after NOAA-20/21). frp_snpp was tested (14.11.2026) and
+    # drifts the other way in the test years (SNPP detections -12 %); RPSS and ECE were not better.
+    # Kept at the original definition until the team decides. Options: frp_harm | frp_snpp
+    activity_frp: frp_harm
+
+# Proposal, team decision. The first draft (low/normal overlapping) made "low" unreachable; fixed here.
+risk_class:
+  ratio_low: 0.67
+  ratio_elevated: 1.5
+  ratio_high: 3.0
+  ratio_very_high: 6.0
+  p_high: 0.25
+  p_very_high: 0.5
+  p_floor: 0.02
+
+kpi:
+  B1_gain_lead1: 0.10
+  B2_gain_lead3: 0.05
+  B5_auc_lead1: 0.87
+  B6_ece: 0.015
+  B6_slope: [0.8, 1.2]
+  C2_ece: 0.03
+  C3_ratio: [0.75, 1.33]
+  D3_ece: 0.05
+  E1_share_years: 0.80
+  F5_train_minutes: 10
+  F5_predict_minutes: 1
