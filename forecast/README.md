@@ -12,8 +12,8 @@ aus anderen Ordnern und schreibt nach `data/forecast/`.
 > geprüften Wetterdaten, das eigene FWI-System und das Modell mit Wetter (1.6, Details in
 > [docs/weather_model.md](docs/weather_model.md)). Mit Wetter steigt der Gewinn an Tag 5 von 0,04 auf 0,16. Das ist
 > eine Obergrenze, gemessen mit dem tatsächlichen Wetter, nicht mit einer Vorhersage.
-> Die Ausgabe vom 13.11. nutzt noch die Stufe ohne Wetter, weil die 10-Tage-Wettervorhersage noch nicht geladen ist
-> (Schritt 6, **vor dem 22.11.2026**).
+> **Schritt 6 (15.11.):** Die Ausgabe vom 13.11. nutzt jetzt die IFS-Wettervorhersage für den 14.–24.11.
+> Meteomatics läuft am **22.11.2026** aus, bis dahin die Vorhersage täglich neu holen.
 
 ---
 
@@ -221,9 +221,78 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # einmalig
 .venv/bin/python fetch_weather.py forecast   # Vorhersage ab heute für 10 Tage (~8 Anfragen)
 
 .venv/bin/python run_forecast.py weather-qc         # Wetter prüfen (A5/A6) -> data/forecast/weather_qc.json
-.venv/bin/python run_forecast.py all                # beide Stufen auswerten + Vorhersage (~7 min, inkl. Tests)
-.venv/bin/python run_forecast.py all --no-weather   # nur die Stufe ohne Wetter (~5 min)
+.venv/bin/python run_forecast.py train              # auswerten + trainieren -> models/bundle.pkl + Vorhersage + KPIs (~11 min)
+.venv/bin/python run_forecast.py predict            # tägliche Vorhersage aus bundle.pkl, ohne Training (~8 s)
+.venv/bin/python run_forecast.py train --no-weather # nur die Stufe ohne Wetter
+```
+
+### 2.1 Betrieb: was wo läuft
+
+| | `train` | `predict` |
+|---|---|---|
+| Was | Auswertung beider Stufen, Auswahl der Merkmale, Produktionsmodelle samt Bootstrap, KPIs, Tests | lädt `models/bundle.pkl`, berechnet die Merkmale des Ausgabetags, wendet die Gewichte an |
+| Wann | wenn sich Daten-Archiv, Code oder `config.yaml` ändern, z. B. wöchentlich | täglich, nach neuen FIRMS-Daten und neuer Wettervorhersage |
+| Wo | Arbeitsrechner (Laptop) | Server |
+| Gemessen (14.11.2026) | 11 min, 1 Kern, max. 0,9 GB RAM | **8 s, 1 Kern, max. 0,9 GB RAM** |
+
+Der Server hat 4 vCores, 8 GB RAM, davon höchstens 3,4 GB für diesen Teil. `predict` passt mit großem Abstand.
+Nach `train` wird nur `data/forecast/models/bundle.pkl` (~1 MB) auf den Server kopiert. `predict` prüft, ob
+`config.yaml` und die Regionen noch dazu passen, und warnt sonst. `predict` liest die Datei mit `pickle`. Deshalb nur
+eine Datei laden, die `train` aus diesem Repository erzeugt hat.
+
+**Threads:** Die Lineare Algebra läuft standardmäßig auf **einem** Kern (`FORECAST_THREADS`, Standard 1). Das ist
+hier sogar schneller: Ein Modell braucht mit 1 Thread 0,5 s, mit 24 Threads 1,2 s, weil OpenBLAS sich bei so
+kleinen Matrizen vor allem selbst abstimmt. Vorher hat genau das den Laptop voll ausgelastet.
+
+```bash
 .venv/bin/python analysis/data_analysis.py          # Datenanalyse neu bauen → docs/data_analysis.html
+```
+
+### 2.2 Automatisierung: täglicher Lauf per Cron
+
+`daily.py` ist der tägliche Job. Er ermittelt die Daten selbst und macht der Reihe nach:
+
+1. **Wetter holen:** `recent` für die Tage nach dem Ende der Historie bis gestern, und `forecast` ab heute. Das sind
+   etwa 16 Anfragen.
+2. **`predict`** ausführen.
+3. **Aufräumen:** Es bleiben nur die letzten 14 Vorhersage-Dateien je Gruppe.
+4. **Protokoll:** eine Zeile je Lauf in `data/forecast/logs/daily_runs.jsonl`.
+
+Gemessen: 14 s, 1 Kern, 1,1 GB RAM.
+
+| Fall | Verhalten |
+|---|---|
+| Meteomatics antwortet nicht oder lehnt ab | weiter ohne neues Wetter. Ist die letzte Vorhersage älter als 1 Tag (`daily.max_forecast_age_days`), läuft `predict` mit der Stufe ohne Wetter. |
+| nach dem 22.11.2026 (`daily.meteomatics_valid_until`) | keine Anfragen mehr, automatisch die Stufe ohne Wetter |
+| ein zweiter Lauf startet, während einer läuft | endet sofort (Sperrdatei, Rückgabewert 3) |
+| keine trainierten Modelle (`bundle.pkl` fehlt) | Rückgabewert 2 |
+| Ausgabe verletzt den Vertrag (F1–F3) | Rückgabewert 1, die letzten gültigen Tabellen bleiben stehen |
+| Feuerdaten älter als 2 Tage | Warnung: Die Vorhersage rückt nicht weiter, solange `data/harmonised/` nicht aktualisiert wird |
+
+**Wichtig:** Der Ausgabetag ist der letzte Tag in `data/harmonised/`. Damit die Vorhersage jeden Tag weiterrückt,
+muss vorher die tägliche Aktualisierung der Feuerdaten laufen, also FIRMS laden und harmonisieren. Laut der README im
+Hauptordner ist `pipeline/update_daily.py` noch nicht umgesetzt. Das liegt außerhalb dieses Ordners und ist
+Team-Aufgabe. Bis dahin holt `daily.py` zwar jeden Tag neues Wetter, der Ausgabetag bleibt aber stehen.
+
+**Crontab auf dem Server** (`crontab -e`, Zeiten in UTC, Pfad anpassen):
+
+```cron
+# täglich 07:30 UTC, nach der Aktualisierung der Feuerdaten (die selbst z. B. um 07:00 läuft)
+30 7 * * *  cd /srv/La-Brasa/forecast && nice -n 10 .venv/bin/python daily.py >> ../data/forecast/logs/daily_$(date -u +\%F).log 2>&1
+
+# optional, nur wenn train auf dem Server laufen soll: sonntags 03:00 UTC, niedrigste Priorität
+0 3 * * 0   cd /srv/La-Brasa/forecast && nice -n 19 .venv/bin/python run_forecast.py train --skip-tests >> ../data/forecast/logs/train_$(date -u +\%F).log 2>&1
+```
+
+In der crontab muss `%` als `\%` geschrieben werden. Mit Docker startet Cron auf dem Rechner stattdessen
+`docker compose run --rm forecast python daily.py`, mit einem Dienst `forecast` wie in
+[docs/integration_backend_frontend.md](docs/integration_backend_frontend.md), 3.4. Diesen Dienst gibt es noch nicht.
+
+**Prüfen, ob es läuft:**
+
+```bash
+tail -1 data/forecast/logs/daily_runs.jsonl          # letzter Lauf: Ausgabetag, Stufe, Rückgabewert, Dauer
+.venv/bin/python daily.py --dry-run                  # was heute angefragt würde, ohne etwas zu ändern
 ```
 
 Mit `--group core` oder `--group fire` lädt man nur eine Gruppe. Den Fortschritt eines laufenden Downloads zeigt
@@ -373,6 +442,8 @@ Erledigt: Schritt 1 (ohne Wetter), Schritt 2 (Wetter prüfen), Schritt 3 (FWI), 
 
 5. **Ehrliche Auswertung** für die Tage 4–10: archivierte Vorhersagen, sofern Meteomatics sie liefert, sonst
    verrauschtes Wetter je Vorlauf. Danach ist `skill_basis` nicht mehr `analysis`.
-6. **Live-Vorhersage mit Wetter:** `fetch_weather.py forecast`, dann `run_forecast.py all`, **vor dem 22.11.2026**.
+6. ~~Live-Vorhersage mit Wetter~~ erledigt am 15.11.: `fetch_weather.py recent` + `forecast`, dann
+   `run_forecast.py predict` ([docs/weather_model.md](docs/weather_model.md), Abschnitt 7). Bis zum 22.11. täglich.
+   Offener Punkt daraus: eine weichere Saisonkurve für Monate mit sehr wenigen Ereignissen.
 7. Täglicher Lauf: Vorhersage holen, dann die Tabellen schreiben. Nach dem 22.11. ohne Meteomatics nur die Stufe
    ohne Wetter.

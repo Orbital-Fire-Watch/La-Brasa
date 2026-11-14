@@ -1,4 +1,4 @@
-# Forecast mit Wetter: Dateien und Berechnung (Schritte 2–4)
+# Forecast mit Wetter: Dateien und Berechnung (Schritte 2–4 und 6)
 
 Stand: 14.11.2026. Modellversion `0.2-weather` (Stufe mit Wetter), `0.1-noweather` (Stufe ohne Wetter).
 
@@ -31,8 +31,8 @@ Für jeden Schritt steht hier, welche Datei was macht und wie gerechnet wird. Sc
   schlechter, besonders an den späten Tagen. Die Zahlen sind deshalb eine **Obergrenze**. Wie weit sie sinken, misst
   Schritt 5.
 - **Der Wochenausblick wird durch das Wetter nicht besser.** Er bleibt bei der Stufe ohne Wetter.
-- **Die heutige Ausgabe (13.11.) nutzt noch kein Wetter.** Dafür fehlt die 10-Tage-Wettervorhersage (Schritt 6,
-  vor dem 22.11.). Bis dahin liefert die Pipeline automatisch die Stufe ohne Wetter aus.
+- **Seit Schritt 6 nutzt die Ausgabe vom 13.11. das Wetter**, mit einer IFS-Vorhersage für den 14.–24.11. (Abschnitt 7).
+  Fehlt die Wettervorhersage, liefert die Pipeline automatisch die Stufe ohne Wetter aus.
 - **KPIs:** Alle Pflicht-KPIs außer D3 sind bestanden. D3 (Kalibrierung des Wochenausblicks) war schon in Schritt 1
   verfehlt.
 
@@ -58,7 +58,7 @@ Für jeden Schritt steht hier, welche Datei was macht und wie gerechnet wird. Sc
 | `config.yaml` | `meteomatics.models`: die Quelle je Zweck und Gruppe, also ERA5 für die Historie von `core` und ECMWF IFS für die letzten Tage und die Vorhersage. `model.version` 0.2-weather, `model.weather.selection_leads`. |
 | `fetch_weather.py` | Nutzt die Quelle je Gruppe aus der Konfiguration. Neuer Befehl `recent` für die Tage nach dem Ende von ERA5. |
 | `models/daily.py`, `models/weekly.py` | Nehmen zusätzliche Merkmale (`extra`) an. Ohne sie ist es das Modell aus Schritt 1. |
-| `run_forecast.py` | Zwei Stufen (`noweather`, `weather`), Auswahl der Wettermerkmale auf der Validierung, Befehl `weather-qc`, KPIs A5, A6, A7, B3 und B4, Zukunfts-Prüfung auch für das Wetter, Rückfall je Vorlauf. |
+| `run_forecast.py` | Befehle `train` (schwer, Arbeitsrechner) und `predict` (leicht, Server, lädt `models/bundle.pkl`), 1 BLAS-Thread als Standard. Zwei Stufen (`noweather`, `weather`), Auswahl der Wettermerkmale auf der Validierung, Befehl `weather-qc`, KPIs A5, A6, A7, B3 und B4, Zukunfts-Prüfung auch für das Wetter, Rückfall je Vorlauf. |
 
 ### Daten in `data/forecast/` (von Git ignoriert)
 
@@ -387,7 +387,7 @@ auf die mit Wetter, und zwar mit analysiertem Wetter.
 | D1 / D2 Woche | RPSS 0,020 / Summen = 1 | > 0 | bestanden |
 | **D3 Woche, Kalibrierung** | 0,059 | ≤ 0,05 | **verfehlt** (wie in Schritt 1) |
 | E1 Leave-one-year-out | 15 von 15 Jahren | ≥ 80 % | bestanden |
-| F1–F7 | Ausgabe, Laufzeit 6,5–7,3 min, 36 Tests | | bestanden |
+| F1–F7 | Ausgabe, 36 Tests; Laufzeit `train` 9,9 min auf 1 Kern, `predict` 8 s | ≤ 10 min / ≤ 1 min | bestanden |
 
 ---
 
@@ -399,9 +399,9 @@ auf die mit Wetter, und zwar mit analysiertem Wetter.
    - Sonst wird das Wetter je Vorlauf verrauscht.
 
    Erst dann ist `skill_basis` der Stufe mit Wetter mehr als `analysis`.
-2. **Die Live-Vorhersage nutzt das Wetter noch nicht.** Es fehlt `fetch_weather.py forecast` (Schritt 6). Das sind
-   etwa 8 Anfragen, und sie müssen **vor dem 22.11.2026** passieren, dann läuft der Meteomatics-Account ab. Danach gibt
-   es nur noch die Stufe ohne Wetter, außer das Team besorgt eine andere Wetterquelle.
+2. **Live-Vorhersage:** seit Schritt 6 (Abschnitt 7) mit Wetter. Der Meteomatics-Account läuft am **22.11.2026** ab.
+   Bis dahin muss die Vorhersage täglich neu geholt werden (etwa 16 Anfragen). Danach gibt es nur noch die Stufe ohne
+   Wetter, außer das Team besorgt eine andere Wetterquelle.
 3. **Training mit ERA5, Vorhersage mit IFS.** Beide stammen von ECMWF, aber kleine systematische Unterschiede sind
    möglich, z. B. regnet IFS an einem Punkt in Galicien an den Tagen 09.–13.11. deutlich mehr als `mix`. Das prüft Schritt 5 bzw. 6 mit.
 4. **Die Gruppe `fire` kommt aus `mix`.** Fosberg, Waldbrandwarnung und Dürreindex zeigen keine Sprünge. Wie
@@ -412,7 +412,57 @@ auf die mit Wetter, und zwar mit analysiertem Wetter.
 
 ---
 
-## 7. Ausführen
+## 7. Schritt 6: Live-Vorhersage mit Wetter (14./15.11.2026)
+
+### 7.1 Ablauf
+
+```bash
+.venv/bin/python fetch_weather.py recent --start 2026-11-09 --end 2026-11-14 --group core   # IFS, 4 Anfragen
+.venv/bin/python fetch_weather.py recent --start 2026-11-14 --end 2026-11-14 --group fire   # mix, 4 Anfragen
+.venv/bin/python fetch_weather.py forecast                                                  # 14.-24.11., 8 Anfragen
+.venv/bin/python run_forecast.py predict                                                    # 5 s, 1 Kern, 1,1 GB
+```
+
+Der Ausgabetag ist der 13.11., der letzte Tag in `data/harmonised/`. Die Zieltage sind also der 14.–23.11.
+`recent` schließt die Lücke zwischen dem Ende der Historie und dem Start der Vorhersage. Beim nächsten Lauf mit
+neueren Feuerdaten verschiebt sich das entsprechend.
+
+### 7.2 Passt IFS zu ERA5?
+
+Trainiert wurde mit ERA5, vorhergesagt wird mit IFS. Verglichen habe ich beide an den 182 Punkten für die Tage
+01.10.–08.11.2026 (7098 Punkt-Tage, 4 Anfragen, nur zur Prüfung, nicht gespeichert):
+
+| Größe | Mittel IFS | Mittel ERA5 | Abweichung | mittlerer Fehler | Korrelation |
+|---|---|---|---|---|---|
+| Temperatur 12 UTC | 18,7 °C | 18,9 °C | −0,3 °C | 1,0 °C | 0,97 |
+| Luftfeuchte | 56,0 % | 58,0 % | −2,0 % | 6,1 % | 0,88 |
+| Wind | 9,1 km/h | 8,4 km/h | +0,8 km/h | 2,6 km/h | 0,80 |
+| Niederschlag | 2,0 mm | 1,7 mm | +0,25 mm | 1,1 mm | 0,80 |
+| Taupunkt | 9,1 °C | 10,0 °C | −0,9 °C | 1,3 °C | 0,97 |
+| Regentage ≥ 1 mm | 25 % | 23 % | | | |
+
+IFS ist etwas trockener und windiger als ERA5. Der FWI fällt damit eher etwas zu hoch aus. Das ist klein, wird
+aber nicht korrigiert, und Schritt 5 sollte es mitbewerten.
+
+### 7.3 Ergebnis
+
+- An allen 10 Vorläufen wird die Stufe mit Wetter ausgeliefert (`model_version 0.2-weather`). Der Wochenausblick
+  bleibt ohne Wetter.
+- Mitte November ist es in Iberien nass. Das Modell sieht die Gefahr deshalb meist **unter** der Saison: 135 Region-Tage
+  `low`, 94 `normal`, einer `high`. Im Mittel liegt `p_big_fire_day` bei 0,1 %, die Saisonkurve bei 0,7 %.
+- **Der eine `high`: Katalonien (ES51) am 19.11.**, `p_big_fire_day` 2,5 % (Spanne 1,1–4,2 %) gegenüber 0,5 % in
+  der Saison.
+  - **Wetter:** Am 19. und 20.11. ist es dort trocken und windig, mit Luftfeuchte 45 %, Böen 48 km/h, FFMC 87,
+    FWI 10 und Fosberg 24. Das ist der gefährlichste Abschnitt der zehn Tage.
+  - **Saisonkurve:** Ein Teil des Signals kommt aus ihr. In den Trainingsjahren gab es im Spätherbst in ES51 nur zwei
+    Großfeuer-Tage, am 12.11.2013 und am 07.11.2021. Wegen des Fensters von ±7 Tagen wirkt das Feuer von 2013 genau
+    bis zum 19.11. Ab dem 20.11. sinkt die Saisonkurve auf das Minimum von 0,01 %, und damit sinkt auch die
+    Vorhersage (0,12 % am 20.11. bei ähnlichem Wetter).
+  - **Offener Punkt:** In Monaten mit sehr wenigen Ereignissen sollte die Saisonkurve weicher werden, z. B. mit
+    einem gleitenden Gewicht statt einer harten Fenstergrenze und einem Zug zum Mittel der Region bzw. des Monats.
+    Das ändert das Modell und braucht ein neues `train` samt Auswertung.
+
+## 8. Ausführen
 
 ```bash
 cd La-Brasa/forecast
@@ -420,6 +470,7 @@ cd La-Brasa/forecast
 .venv/bin/python fetch_weather.py history --start 2012-01-20 --end 2026-11-08 --group core   # ERA5, 60 Anfragen
 .venv/bin/python fetch_weather.py recent --start 2026-11-09 --end 2026-11-13 --group core    # IFS, 4 Anfragen
 .venv/bin/python run_forecast.py weather-qc         # Schritt 2: A5/A6 -> data/forecast/weather_qc.json
-.venv/bin/python run_forecast.py all                # Schritte 2-4: Auswertung beider Stufen + Vorhersage (~7 min)
-.venv/bin/python run_forecast.py all --no-weather   # nur die Stufe ohne Wetter
+.venv/bin/python run_forecast.py train              # Schritte 2-4: Auswertung beider Stufen, Modelle -> bundle.pkl (~11 min)
+.venv/bin/python run_forecast.py predict            # tägliche Vorhersage ohne Training (~8 s, 1 Kern, 0,9 GB)
+.venv/bin/python run_forecast.py train --no-weather # nur die Stufe ohne Wetter
 ```

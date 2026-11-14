@@ -38,7 +38,7 @@ einmal täglich
   harmonisation/run_pipeline.py      -> data/harmonised/*.parquet      (gibt es)
   pipeline/load_to_db.py             -> Postgres: activity_daily_...   (gibt es)
   forecast/fetch_weather.py forecast -> data/forecast/weather_*.parquet (gibt es, ab Schritt 4 gebraucht)
-  forecast/run_forecast.py all       -> data/forecast/forecast_*.parquet (gibt es)
+  forecast/run_forecast.py predict   -> data/forecast/forecast_*.parquet (gibt es; ~8 s, 1 Kern, 0,9 GB)
   pipeline/load_forecast_to_db.py    -> Postgres: forecast_*           (NEU)
 
 bei jeder Anfrage
@@ -154,10 +154,12 @@ Für Docker braucht `pipeline/requirements.txt` nichts Neues (psycopg und pyarro
 diese Schritte an:
 
 ```
-python forecast/fetch_weather.py forecast   # ab Modell mit Wetter (Schritt 4) nötig
-python forecast/run_forecast.py all --skip-tests
+python forecast/daily.py                     # Wetter holen (bis 22.11.2026) + predict; ~14 s, 1 Kern, 1,1 GB
 python pipeline/load_forecast_to_db.py
 ```
+
+`daily.py` fällt selbst auf die Stufe ohne Wetter zurück, wenn Meteomatics nicht antwortet oder der Account
+abgelaufen ist (forecast/README.md, Abschnitt 2.2).
 
 Für Docker gibt es zwei Möglichkeiten:
 
@@ -167,11 +169,24 @@ Für Docker gibt es zwei Möglichkeiten:
 
 Empfehlung: **b)**, weil der Forecast eigene Abhängigkeiten und eigene Zugangsdaten hat.
 
-**Für die Demo** reicht es, `run_forecast.py all` lokal laufen zu lassen und danach `load_forecast_to_db.py`
+Der Server hat 4 vCores und 8 GB RAM, für den Forecast stehen höchstens 3,4 GB zur Verfügung. `predict` braucht
+gemessen 8 s, 1 Kern und 0,9 GB. Für den Dienst reicht deshalb eine Begrenzung wie diese:
+
+```yaml
+    cpus: 1
+    mem_limit: 3400m
+    environment:
+      FORECAST_THREADS: "1"
+```
+
+`run_forecast.py train` (11 min) läuft nicht auf dem Server, sondern auf einem Arbeitsrechner, z. B. wöchentlich.
+Danach wird nur `data/forecast/models/bundle.pkl` auf den Server kopiert (forecast/README.md, Abschnitt 2.1).
+
+**Für die Demo** reicht es, `run_forecast.py train` lokal laufen zu lassen und danach `load_forecast_to_db.py`
 aufzurufen.
 
 > Der Meteomatics-Zugang des Hackathons läuft am **22.11.2026** aus. Danach geht nur noch das Modell ohne Wetter
-> (`run_forecast.py all --no-weather`). Der tägliche Lauf muss damit umgehen können.
+> (`run_forecast.py predict --no-weather`). Der tägliche Lauf muss damit umgehen können.
 
 ### 3.5 `backend/dtos.py`
 
