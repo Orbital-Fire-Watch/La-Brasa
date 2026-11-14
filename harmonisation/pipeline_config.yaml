@@ -3,11 +3,13 @@
 # Relative Pfade gelten ab dem Ordner dieser Datei.
 
 paths:
-  raw_dir: data/raw
-  processed_dir: data/processed
-  harmonised_dir: data/harmonised
+  # Gemeinsamer Datenordner des Repositorys (La-Brasa/data), nicht in Git
+  raw_dir: ../data/raw
+  processed_dir: ../data/processed
+  harmonised_dir: ../data/harmonised
   nuts_geojson: geo/NUTS_RG_10M_2021_4326_LEVL_2.geojson
   reference_results_dir: data_analysis/results                        # nur fuer Regressionstests
+  # Version 1 liegt nicht im Repository; der Regressionstest wird dann uebersprungen
   reference_v1_harmonised: ../harmonisation_pipeline/data/harmonised/activity_harmonised.parquet
 
 nuts:
@@ -17,10 +19,10 @@ nuts:
   coast_tolerance_deg: 0.05        # Kuestenpunkte bis zu diesem Abstand bekommen die naechste Region
 
 sources:
-  - {name: modis_archive, sensor: MODIS, source: archive, csv: data/raw/fire_archive_M-C61_845369.csv}
-  - {name: modis_nrt,     sensor: MODIS, source: nrt,     csv: data/raw/fire_nrt_M-C61_845369.csv}
-  - {name: viirs_archive, sensor: VIIRS, source: archive, csv: data/raw/fire_archive_SV-C2_845370.csv}
-  - {name: viirs_nrt,     sensor: VIIRS, source: nrt,     csv: data/raw/fire_nrt_SV-C2_845370.csv}
+  - {name: modis_archive, sensor: MODIS, source: archive, csv: ../data/raw/fire_archive_M-C61_845369.csv}
+  - {name: modis_nrt,     sensor: MODIS, source: nrt,     csv: ../data/raw/fire_nrt_M-C61_845369.csv}
+  - {name: viirs_archive, sensor: VIIRS, source: archive, csv: ../data/raw/fire_archive_SV-C2_845370.csv}
+  - {name: viirs_nrt,     sensor: VIIRS, source: nrt,     csv: ../data/raw/fire_nrt_SV-C2_845370.csv}
 
 satellites:
   sensor_of: {Terra: MODIS, Aqua: MODIS, SNPP: VIIRS}
@@ -49,7 +51,9 @@ static_sources:
   holdout_first_year: 2023
 
 export:
-  csv: true                        # CSV-Kopien aller Ausgabetabellen fuer das Frontend
+  # CSV-Kopien aller Ausgabetabellen, nur zum Ansehen der Daten. Das Produkt nutzt sie nicht:
+  # Postgres wird aus den Parquet-Dateien geladen (pipeline/load_to_db.py).
+  csv: true
   csv_dir: csv                     # Unterordner von data/harmonised
 
 classification:

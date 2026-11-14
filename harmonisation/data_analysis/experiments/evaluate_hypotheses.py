@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent   # Pipeline-Wurzel (move_harmonisation_pipeline)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent   # Pipeline-Wurzel (harmonisation)
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pipeline.algorithms import daily_grid, uncertainty_model, validation_kpis  # noqa: E402

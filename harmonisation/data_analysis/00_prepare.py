@@ -12,7 +12,7 @@ Zusaetzliche Spalten:
   lst      lokale Sonnenzeit = utc_h + longitude/15  (0-24 h)
   type     im NRT nicht vorhanden -> NULL
 """
-from common import DATA, GLOBAL, IBERIA, con
+from common import GLOBAL, IBERIA, RAW, con
 
 SELECT = """
 SELECT
@@ -43,13 +43,13 @@ def build(files, out):
 
 
 if __name__ == "__main__":
-    ib = DATA / "NASA_SPACEAPP"
-    build([ib / "DL_FIRE_M-C61_845369" / "fire_archive_M-C61_845369.csv",
-           ib / "DL_FIRE_M-C61_845369" / "fire_nrt_M-C61_845369.csv",
-           ib / "DL_FIRE_SV-C2_845370" / "fire_archive_SV-C2_845370.csv",
-           ib / "DL_FIRE_SV-C2_845370" / "fire_nrt_SV-C2_845370.csv"], IBERIA)
+    build([RAW / "fire_archive_M-C61_845369.csv",
+           RAW / "fire_nrt_M-C61_845369.csv",
+           RAW / "fire_archive_SV-C2_845370.csv",
+           RAW / "fire_nrt_SV-C2_845370.csv"], IBERIA)
+    # Weltweite Gegenprobe (57 Mio. Zeilen) liegt nicht im Repository: Ordner bei Bedarf nach data/raw/ legen
     gl = []
     for d in ["DL_FIRE_M-C61_835029", "DL_FIRE_SV-C2_835019",
               "DL_FIRE_J1V-C2_835017", "DL_FIRE_J2V-C2_835018"]:
-        gl += sorted((DATA / d).glob("fire_*.csv"))
+        gl += sorted((RAW / d).glob("fire_*.csv"))
     build(gl, GLOBAL)

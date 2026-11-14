@@ -4,8 +4,9 @@ from pathlib import Path
 
 import duckdb
 
-ROOT = Path(__file__).resolve().parent          # .../move_harmonisation_pipeline/data_analysis
-DATA = ROOT.parent.parent                       # .../Daten_Satellit (Rohdaten: NASA_SPACEAPP, DL_FIRE_*)
+ROOT = Path(__file__).resolve().parent          # .../harmonisation/data_analysis
+RAW = ROOT.parent.parent / "data" / "raw"       # gemeinsamer Datenordner des Repositorys (Iberien-CSVs)
+GEO = ROOT.parent / "geo"                       # NUTS-2-Grenzen (eine Kopie fuer Pipeline und Analyse)
 CACHE = ROOT / "cache"                          # Parquet-Zwischenstaende (neu erzeugbar)
 RES = ROOT / "results"                          # Ergebnisse als JSON/CSV
 CACHE.mkdir(exist_ok=True)

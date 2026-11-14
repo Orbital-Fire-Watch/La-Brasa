@@ -1,4 +1,4 @@
-# harmonisation_daily
+# harmonisation
 
 Taegliche Harmonisierung der FIRMS-Hotspots (MODIS Terra/Aqua -> VIIRS SNPP) fuer Iberien, mit Punktgewichten, Fehlermodell
 und einem getrennten Aggregationsmodul. Datengrundlage fuer ein spaeteres Frontend (Karte, Kalender).
@@ -28,10 +28,11 @@ Rueckgabewert 1, wenn eine KPI-Schwelle verfehlt wird.
     pipeline/algorithms/     Tagesraster, Kalibrierung, Harmonisierung, Gewichte, Fehlermodell, KPIs, Drift
     pipeline/column_catalogue.py   eine Quelle fuer Schema und Dokumentation
     aggregation/             Roll-up, Unsicherheit, Flaechenabfragen, Klimaprofil, laufender Monat (nicht im Orchestrator)
-    data/raw, processed, harmonised
-    data/harmonised/csv/     CSV-Kopien aller Ausgabetabellen fuer das Frontend (Stufe export_csv, bei jedem Lauf neu)
+    ../data/raw, processed, harmonised   gemeinsamer Datenordner des Repositorys (nicht in Git)
+    ../data/harmonised/csv/  CSV-Kopien aller Ausgabetabellen, nur zum Ansehen (Stufe export_csv, bei jedem Lauf neu).
+                             Das Produkt nutzt sie nicht: Postgres wird aus den Parquet-Dateien geladen.
     tests/, aggregation/tests/, data_analysis/experiments/, docs/
 
 Herkunft: `config.py`, `io_utils.py`, `ingest_csv_to_parquet.py`, `static_source_mask.py`, `assign_region.py`,
 `classify_hotspots.py`, `drift_monitor.py` und Teile von `clean_hotspots.py` sind aus `../harmonisation_pipeline` (Version 1)
-kopiert und angepasst. Es gibt keine Importe aus Version 1. `data/` ist neu erzeugbar und nicht fuer Git gedacht.
+kopiert und angepasst. Es gibt keine Importe aus Version 1. `../data/processed` und `../data/harmonised` sind neu erzeugbar und nicht fuer Git gedacht.

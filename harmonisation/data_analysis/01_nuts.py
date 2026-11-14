@@ -1,7 +1,7 @@
 """Schritt 1: jedem Hotspot eine NUTS-2-Region zuordnen (lokal, ohne API).
 
 Quelle: Eurostat GISCO, NUTS 2021, 1:10 Mio, EPSG:4326
-        geo/NUTS_RG_10M_2021_4326_LEVL_2.geojson
+        ../geo/NUTS_RG_10M_2021_4326_LEVL_2.geojson
 Vorgehen: Point-in-Polygon mit shapely STRtree. Punkte ohne Treffer, die hoechstens
 0,05 Grad (~5 km) von einer Region entfernt liegen (Kueste, vereinfachte Grenzen),
 bekommen die naechste Region. Alles andere (Meer, Marokko, Andorra) bleibt NULL.
@@ -15,9 +15,9 @@ import pandas as pd
 import shapely
 from shapely.geometry import shape
 
-from common import IBERIA, ROOT, save
+from common import GEO, IBERIA, save
 
-gj = json.loads((ROOT / "geo" / "NUTS_RG_10M_2021_4326_LEVL_2.geojson").read_text())
+gj = json.loads((GEO / "NUTS_RG_10M_2021_4326_LEVL_2.geojson").read_text())
 ids = np.array([f["properties"]["NUTS_ID"] for f in gj["features"]])
 names = {f["properties"]["NUTS_ID"]: f["properties"]["NAME_LATN"] for f in gj["features"]}
 geoms = np.array([shape(f["geometry"]) for f in gj["features"]])

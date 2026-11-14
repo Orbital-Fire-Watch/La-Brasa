@@ -1,6 +1,8 @@
 services:
   db:
-    image: postgis/postgis:17-3.5
+    # official image, runs natively on Apple Silicon. postgis/postgis has no arm64 build;
+    # if PostGIS is needed later, use a multi-arch PostGIS image instead.
+    image: postgres:17
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -39,6 +41,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       FIRMS_MAP_KEY: ${FIRMS_MAP_KEY}
+      DATA_DIR: /app/data
     volumes:
       - ./data:/app/data
     depends_on:

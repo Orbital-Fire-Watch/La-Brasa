@@ -157,7 +157,7 @@ def run_stage_weight_hotspots(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_stage_export_csv(config: dict[str, Any]) -> dict[str, Any]:
-    """Stufe export_csv: CSV-Kopien der Ausgabetabellen nach data/harmonised/csv (fuer das Frontend)."""
+    """Stufe export_csv: CSV-Kopien der Ausgabetabellen nach data/harmonised/csv (nur zum Ansehen, nicht vom Produkt genutzt)."""
     return export_tables_to_csv(config)
 
 

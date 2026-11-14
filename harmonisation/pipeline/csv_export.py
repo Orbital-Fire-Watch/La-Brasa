@@ -1,4 +1,6 @@
-"""Export der harmonisierten Tabellen als CSV fuer das Frontend (data/harmonised/csv)."""
+"""Export der harmonisierten Tabellen als CSV zum Ansehen der Daten (data/harmonised/csv).
+
+Nicht Teil des Produkts: Postgres wird aus den Parquet-Dateien geladen (pipeline/load_to_db.py)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -35,7 +37,7 @@ def csv_directory(config: dict[str, Any]) -> Path:
 def export_table_to_csv(source: Path, target: Path) -> int:
     """Schreibt eine Parquet-Tabelle als CSV und gibt die Zahl der Datenzeilen zurueck.
 
-    Format, damit das Frontend die Dateien ohne Sonderbehandlung lesen kann: UTF-8, Komma als
+    Format, damit die Dateien ohne Sonderbehandlung lesbar sind: UTF-8, Komma als
     Trennzeichen, Punkt als Dezimalzeichen, Kopfzeile mit den Spaltennamen des Katalogs, Tage als
     ISO-Datum (2025-08-01), Zeitstempel als ISO-Zeit in UTC (2025-08-01T13:20:00), Wahrheitswerte als
     true/false. Leere Felder bedeuten "kein Wert" und sind etwas anderes als 0 (siehe column_guide.html).

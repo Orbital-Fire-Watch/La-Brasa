@@ -414,7 +414,7 @@ OVERVIEW_BODY = r"""
 </ul>
 
 <h2>Ausführen</h2>
-<pre>cd Daten_Satellit/harmonisation_daily
+<pre>cd harmonisation
 .venv/bin/python run_pipeline.py                  # alle Stufen
 .venv/bin/python run_pipeline.py --force          # alles neu, prüft den Determinismus
 .venv/bin/python -m pytest -q tests aggregation/tests
