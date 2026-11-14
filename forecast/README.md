@@ -8,10 +8,12 @@ Dieser Ordner baut eine Vorhersage der Feueraktivität je NUTS-2-Region:
 Er ist ein eigener Teil neben `harmonisation/`. Er liest nur `data/harmonised/*.parquet`, importiert keinen Code
 aus anderen Ordnern und schreibt nach `data/forecast/`.
 
-> **Stand 14.11.2026, abends:** **Schritt 1 ist fertig: das Modell ohne Wetter.** Es erzeugt
-> `forecast_daily`, `forecast_weekly` und `forecast_skill` (Abschnitt 4) in `data/forecast/`, dazu CSV-Kopien.
-> Ergebnisse und KPIs stehen in Abschnitt 1.5. Die Wetterdaten werden geladen, ins Modell eingebaut werden sie in
-> den Schritten 2–4.
+> **Stand 14.11.2026, nachts:** **Die Schritte 1–4 sind fertig.** Dazu gehören das Modell ohne Wetter (1.5), die
+> geprüften Wetterdaten, das eigene FWI-System und das Modell mit Wetter (1.6, Details in
+> [docs/weather_model.md](docs/weather_model.md)). Mit Wetter steigt der Gewinn an Tag 5 von 0,04 auf 0,16. Das ist
+> eine Obergrenze, gemessen mit dem tatsächlichen Wetter, nicht mit einer Vorhersage.
+> Die Ausgabe vom 13.11. nutzt noch die Stufe ohne Wetter, weil die 10-Tage-Wettervorhersage noch nicht geladen ist
+> (Schritt 6, **vor dem 22.11.2026**).
 
 ---
 
@@ -67,7 +69,14 @@ Ergebnis: 184 Punkte in 23 Regionen, gespeichert in `data/forecast/weather_point
 
 ### 1.3 Meteomatics-Anbindung (`features/meteomatics.py`, `fetch_weather.py`)
 
-- **Abfrageformat:** `https://api.meteomatics.com/<start>--<ende>:P1D/<parameter>/<lat,lon+…>/csv?model=mix`.
+- **Abfrageformat:** `https://api.meteomatics.com/<start>--<ende>:P1D/<parameter>/<lat,lon+…>/csv?model=<quelle>`.
+- **Quelle je Zweck** (`config.yaml`, `meteomatics.models`):
+  - Historie von `core`: `ecmwf-era5`.
+  - Letzte Tage und Vorhersage: `ecmwf-ifs`.
+  - Gruppe `fire`: `mix`.
+
+  Die Historie von `mix` hat falsche Niederschläge und springende Böen, siehe
+  [docs/weather_model.md](docs/weather_model.md), Abschnitt 2.1.
 - **Zugangsdaten:** `METEOMATICS_USERNAME` und `METEOMATICS_PASSWORD` stehen in `La-Brasa/.env`. Diese Datei
   wird von Git ignoriert. In `.env.example` stehen nur leere Platzhalter. Die Zugangsdaten gehen per HTTP-Basic-Auth
   mit, nie in der URL, und werden nie ausgegeben.
@@ -78,14 +87,15 @@ Ergebnis: 184 Punkte in 23 Regionen, gespeichert in `data/forecast/weather_point
   | Gruppe | Parameter |
   |---|---|
   | `core` | `t_2m:C`, `relative_humidity_2m:p`, `wind_speed_10m:kmh`, `precip_24h:mm`, `t_max_2m_24h:C`, `t_min_2m_24h:C`, `wind_gusts_10m_24h:kmh`, `dew_point_2m:C` |
-  | `fire` | `fosberg_fire_weather_index:idx` (0–100), `forest_fire_warning:idx` (0–1, Gefahr ab 0,5), `drought_index:idx` (−4 sehr trocken bis +4 sehr feucht) |
+  | `fire` | `fosberg_fire_weather_index:idx` (0–100, bei starkem Wind auch darüber), `forest_fire_warning:idx` (0–1, Gefahr ab 0,5), `drought_index:idx` (−4 sehr trocken bis +4 sehr feucht) |
 
 - **Limits des Hackathon-Accounts:**
   - 1.000 Anfragen pro Tag, 250 pro Minute, 10 gleichzeitig,
   - Historie ab 1900, Abfragen mit mehr als 10 Punkten erlaubt,
   - **läuft am 22.11.2026 ab.** Was bis dahin geladen ist, bleibt im Zwischenspeicher.
 - **Aufteilung der Anfragen:** 50 Punkte × 1 Jahr je Anfrage, 8 Anfragen gleichzeitig. Die Historie 2012–2026
-  braucht 60 Anfragen je Gruppe, also 120 insgesamt. Eine Anfrage dauert 3–4 Minuten.
+  braucht 60 Anfragen je Gruppe. Bei `mix` dauert eine Anfrage 3–4 Minuten, bei ERA5 wenige Sekunden.
+  Insgesamt sind bisher etwa 190 Anfragen verbraucht: 120 für die erste Historie, 64 für ERA5 und `recent`, dazu Tests.
 - **Zwischenspeicher:** Jede Antwort wird in `data/raw/weather/meteomatics/` gespeichert. Ein erneuter Start lädt
   nichts doppelt, und ein abgebrochener Download macht dort weiter, wo er aufgehört hat.
 - **Fehlwerte:** Platzhalter von Meteomatics (−999, −666) werden als leer gelesen. Fehlt ein Wert an einzelnen
@@ -159,7 +169,37 @@ Bei 2,9 % Ereignissen ist das zu erwarten.
    `p < 0,02` höchstens `normal`. So wird eine winzige Wahrscheinlichkeit nicht rot, nur weil sie ein Vielfaches
    der Saison ist.
 
-### 1.6 Änderungen außerhalb dieses Ordners
+### 1.6 Schritte 2–4: Wetter prüfen, FWI, Modell mit Wetter
+
+Die Einzelheiten zu Dateien und Rechenweg stehen in [docs/weather_model.md](docs/weather_model.md). Kurz:
+
+- **Schritt 2, Wetterdaten:**
+  - Vollständig (A5: 100 %) und plausibel (A6: 0 Verstöße), nachdem die Historie von `core` mit ERA5 neu geladen
+    wurde.
+  - `mix` hatte z. B. 2023 in Galicien nur 42 mm Regen im Jahr, ERA5 dagegen etwa 1400 mm.
+  - Signalprüfung in der Saison: Die Abweichung des FWI vom Üblichen trennt Großfeuer-Tage am besten (AUC 0,76).
+- **Schritt 3, FWI-System:**
+  - `features/fwi.py` rechnet FFMC, DMC, DC, ISI, BUI und FWI je Wetterpunkt und mittelt danach je Region.
+  - Gegen die veröffentlichte Testtabelle (Van Wagner & Pickett 1985) liegt die größte Abweichung bei 0,005
+    (A7: < 0,1).
+- **Schritt 4, Modell mit Wetter:**
+  - Merkmale des Zieltags: FWI-System, Temperatur, Feuchte, VPD, Böen, Regen davor, Abweichungen vom Üblichen und die
+    Meteomatics-Indizes. 21 Merkmale, ausgewählt auf der Validierung 2020–2021.
+  - Gewinn gegenüber der Saisonkurve im Test:
+
+    | Großfeuer-Tag | Tag 1 | Tag 3 | Tag 5 | Tag 7 | Tag 10 |
+    |---|---|---|---|---|---|
+    | ohne Wetter | 0,213 | 0,081 | 0,042 | 0,025 | 0,011 |
+    | mit Wetter (Obergrenze) | **0,269** | **0,181** | **0,158** | **0,143** | **0,134** |
+
+  - Kalibrierung: ECE ≤ 0,005, Steigung 0,95–1,05.
+  - B3 und B4 sind bestanden.
+  - Beim Wochenausblick bringt das Wetter nichts, er bleibt bei der Stufe ohne Wetter.
+- **KPIs:** Alle Pflicht-KPIs außer D3 sind bestanden (Wochenausblick, ECE 0,059 bei Schwelle 0,05, wie in Schritt 1).
+- **Ausgeliefert** wird je Vorlauf die Stufe mit Wetter, wenn sie im Test besser ist und für den Zieltag Wetter
+  vorliegt. Sonst die Stufe ohne Wetter. `model_version` je Zeile sagt, welche.
+
+### 1.7 Änderungen außerhalb dieses Ordners
 
 - `.gitignore`: neue Zeile `data/forecast/`.
 - `.env.example`: leere Platzhalter für Meteomatics (vom Nutzer eingetragen).
@@ -172,14 +212,17 @@ Bei 2,9 % Ereignissen ist das zu erwarten.
 ```bash
 cd La-Brasa/forecast
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # einmalig
-.venv/bin/python -m pytest -q                                         # 9 Tests, ohne Internet
+.venv/bin/python -m pytest -q                                         # 36 Tests, ohne Internet
 
 .venv/bin/python fetch_weather.py points     # Wetterpunkte wählen (keine API-Anfrage)
 .venv/bin/python fetch_weather.py check      # Limits des Accounts + jeden Parameter testen (~23 Anfragen)
-.venv/bin/python fetch_weather.py history --start 2012-01-20 --end 2026-11-13   # ~120 Anfragen, etwa 1 Stunde
-.venv/bin/python fetch_weather.py forecast   # Vorhersage ab heute für 10 Tage (wenige Anfragen)
+.venv/bin/python fetch_weather.py history --start 2012-01-20 --end 2026-11-08   # ERA5 (core) + mix (fire), ~120 Anfragen
+.venv/bin/python fetch_weather.py recent --start 2026-11-09 --end 2026-11-13     # Tage nach dem Ende von ERA5 (IFS)
+.venv/bin/python fetch_weather.py forecast   # Vorhersage ab heute für 10 Tage (~8 Anfragen)
 
-.venv/bin/python run_forecast.py all --no-weather   # Auswertung + Vorhersage ohne Wetter (~5 min, inkl. Tests)
+.venv/bin/python run_forecast.py weather-qc         # Wetter prüfen (A5/A6) -> data/forecast/weather_qc.json
+.venv/bin/python run_forecast.py all                # beide Stufen auswerten + Vorhersage (~7 min, inkl. Tests)
+.venv/bin/python run_forecast.py all --no-weather   # nur die Stufe ohne Wetter (~5 min)
 .venv/bin/python analysis/data_analysis.py          # Datenanalyse neu bauen → docs/data_analysis.html
 ```
 
@@ -193,14 +236,16 @@ Mit `--group core` oder `--group fire` lädt man nur eine Gruppe. Den Fortschrit
 | Datei | Stand | Zeile | Inhalt |
 |---|---|---|---|
 | `weather_points.parquet` | vorhanden | Region × Zelle | `region_id`, `cell_id`, `lat`, `lon`, `n_detections`, `weight` |
-| `weather_region_history_<gruppe>.parquet` | entsteht nach dem Download | Region × Tag | `region_id`, `validdate` (12:00 UTC), `date`, dazu eine Spalte je Parameter mit dem Meteomatics-Namen als Spaltenname, z. B. `t_2m:C` |
+| `weather_region_history_<gruppe>.parquet`, `weather_region_recent_core.parquet` | vorhanden (core: ERA5 bis 08.11., recent: IFS 09.–13.11.) | Region × Tag | `region_id`, `validdate` (12:00 UTC), `date`, dazu eine Spalte je Parameter mit dem Meteomatics-Namen als Spaltenname, z. B. `t_2m:C` |
 | `weather_region_forecast_<gruppe>_<datum>.parquet` | nach `forecast` | Region × Tag | wie oben, für die nächsten 10 Tage ab `<datum>` |
 | `weather_points_*.parquet` | wie oben | Punkt × Tag | dieselben Werte je Punkt, vor der Mittelung |
 | `forecast_daily.parquet` | vorhanden (ohne Wetter) | Region × Ausgabetag × Zieltag | siehe 4.1 |
 | `forecast_weekly.parquet` | vorhanden (ohne Wetter) | Region × Ausgabetag × Woche | siehe 4.2 |
 | `forecast_skill.parquet` | vorhanden | Produkt × Ziel × Vorlauf × Region | siehe 4.3, zusätzlich `ci_lo`, `ci_hi`, `pr_auc`, `ece`, `n_events`, `skill_basis` |
 | `csv/*.csv` | vorhanden | | CSV-Kopien der drei Tabellen für das Frontend |
-| `forecast_kpi_report.json`, `forecast_evaluation.json`, `manifest.json`, `models/*.json` | vorhanden | | KPIs, alle Testzahlen, Herkunft, Koeffizienten |
+| `forecast_kpi_report.json`, `forecast_evaluation.json`, `manifest.json`, `models/*.json` | vorhanden | | KPIs, alle Testzahlen beider Stufen, Herkunft, Koeffizienten |
+| `weather_qc.json` | vorhanden | | Prüfung der Wetterdaten (A5, A6, Lücken, Ausreißer, Signal) |
+| `backup_mix_core/` | vorhanden | | die verworfene `core`-Historie aus `mix` |
 
 Die Spaltennamen der Wettertabellen enthalten Doppelpunkte (`t_2m:C`). Im Frontend als Schlüssel in Anführungszeichen
 ansprechen oder beim Laden umbenennen.
@@ -324,11 +369,10 @@ GET /api/v1/forecast/skill                           -> Güte je Vorlauf
 
 ## 5. Nächste Schritte
 
-1. Download der Historie abschließen und prüfen (Lücken, plausible Werte je Region).
-2. Modell **ohne Wetter**: Saisonkurve und Feuerverlauf, je Vorlauf 1–10 ein Modell, Auswertung, Rückfall auf die
-   Saisonkurve, Ausgabe von `forecast_daily`, `forecast_weekly`, `forecast_skill`.
-3. **Mit Wetter**: Meteomatics-Variablen und Feuerwetter-Indizes dazunehmen und den Gewinn je Vorlauf zeigen.
-4. **Ehrliche Auswertung** für die Tage 4–10 mit archivierten Vorhersagen, sofern Meteomatics sie liefert (noch zu prüfen).
-5. Täglicher Lauf: Vorhersage holen, dann die Tabellen schreiben.
+Erledigt: Schritt 1 (ohne Wetter), Schritt 2 (Wetter prüfen), Schritt 3 (FWI), Schritt 4 (Modell mit Wetter).
 
-Mehr Hintergrund, Methode und Regeln: [PROMPT.md](PROMPT.md).
+5. **Ehrliche Auswertung** für die Tage 4–10: archivierte Vorhersagen, sofern Meteomatics sie liefert, sonst
+   verrauschtes Wetter je Vorlauf. Danach ist `skill_basis` nicht mehr `analysis`.
+6. **Live-Vorhersage mit Wetter:** `fetch_weather.py forecast`, dann `run_forecast.py all`, **vor dem 22.11.2026**.
+7. Täglicher Lauf: Vorhersage holen, dann die Tabellen schreiben. Nach dem 22.11. ohne Meteomatics nur die Stufe
+   ohne Wetter.
