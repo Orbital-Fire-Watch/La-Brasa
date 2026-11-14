@@ -108,8 +108,9 @@ class WeeklyModel:
         return {"week_ahead": self.week_ahead, "design": self.design.to_dict(), "W": self.W.tolist()}
 
 
-def train(pairs: pd.DataFrame, week_ahead: int, l2: float) -> WeeklyModel:
-    design = Design(continuous=WEEK_FEATURES).fit(pairs)
+def train(pairs: pd.DataFrame, week_ahead: int, l2: float, extra: tuple[str, ...] | list[str] = ()) -> WeeklyModel:
+    """`extra`: additional features of the issue date (slow drought codes, features/weather.WEEKLY_WEATHER)."""
+    design = Design(continuous=[*WEEK_FEATURES, *extra]).fit(pairs)
     X = design.matrix(pairs)
     W = fit_multinomial(X, pairs["y_class"].to_numpy(), 3, design.penalty(l2, l2))
     return WeeklyModel(week_ahead, design, W)

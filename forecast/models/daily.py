@@ -1,7 +1,9 @@
-"""Daily models: one penalised logistic regression per target and lead (direct approach), no weather.
+"""Daily models: one penalised logistic regression per target and lead (direct approach).
 
 Inputs: logit of the region x day-of-year climatology of the target day, fire-history features of the
 issue date, region dummies (penalised). For the fire-day target also the weekday of the target day.
+Optional `extra` features (weather of the target day, features/weather.py) make the weather tier; without
+them it is the no-weather tier, which stays the comparison and the fallback.
 """
 from __future__ import annotations
 
@@ -38,15 +40,16 @@ def add_climatology(pairs: pd.DataFrame, clim: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def make_design(target: str, regions: list[str]) -> Design:
+def make_design(target: str, regions: list[str], extra: tuple[str, ...] | list[str] = ()) -> Design:
     cat = {"region_id": sorted(regions)}
     if target == "fire":
         cat["target_weekday"] = list(range(7))
-    return Design(continuous=["clim_logit", *ISSUE_FEATURES], categorical=cat)
+    return Design(continuous=["clim_logit", *ISSUE_FEATURES, *extra], categorical=cat)
 
 
-def train(pairs: pd.DataFrame, target: str, lead: int, regions: list[str], l2_cont: float, l2_cat: float) -> DailyModel:
-    design = make_design(target, regions).fit(pairs)
+def train(pairs: pd.DataFrame, target: str, lead: int, regions: list[str], l2_cont: float, l2_cat: float,
+          extra: tuple[str, ...] | list[str] = ()) -> DailyModel:
+    design = make_design(target, regions, extra).fit(pairs)
     X = design.matrix(pairs)
     w = fit_logistic(X, pairs["y"].to_numpy().astype(float), design.penalty(l2_cont, l2_cat))
     return DailyModel(target, lead, design, w)
@@ -68,15 +71,15 @@ def apply_platt(p: np.ndarray, ab: tuple[float, float]) -> np.ndarray:
 
 
 def train_calibrated(pairs: pd.DataFrame, target: str, lead: int, regions: list[str], l2_cont: float, l2_cat: float,
-                     calib_years: int) -> DailyModel:
+                     calib_years: int, extra: tuple[str, ...] | list[str] = ()) -> DailyModel:
     """Platt calibration: fit on all but the last `calib_years` years, learn y ~ a + b*logit(p) on those years,
     then refit on all years and attach (a, b)."""
     from evaluate import calibration_line
     end = pairs["target_date"].max()
     cut = end - pd.DateOffset(years=calib_years)
     inner, cal = pairs[pairs["target_date"] <= cut], pairs[pairs["target_date"] > cut]
-    m_inner = train(inner, target, lead, regions, l2_cont, l2_cat)
+    m_inner = train(inner, target, lead, regions, l2_cont, l2_cat, extra)
     ab = calibration_line(cal["y"].to_numpy().astype(float), predict(m_inner, cal))
-    model = train(pairs, target, lead, regions, l2_cont, l2_cat)
+    model = train(pairs, target, lead, regions, l2_cont, l2_cat, extra)
     model.platt = ab
     return model
