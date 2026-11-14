@@ -27,3 +27,6 @@ dist/
 
 
 .env.local
+
+# design mock: working prompts, stay local
+frontend/design-mock/PROMPT*.md
