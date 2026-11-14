@@ -8,10 +8,10 @@ Dieser Ordner baut eine Vorhersage der Feueraktivität je NUTS-2-Region:
 Er ist ein eigener Teil neben `harmonisation/`. Er liest nur `data/harmonised/*.parquet`, importiert keinen Code
 aus anderen Ordnern und schreibt nach `data/forecast/`.
 
-> **Stand 14.11.2026:** Der Teil mit den Wetterdaten ist fertig (Wetterpunkte, Meteomatics-Anbindung, Tests),
-> der Download der Historie 2012–2026 läuft. **Das Vorhersagemodell selbst ist noch nicht gebaut.**
-> Die Tabellen `forecast_daily`, `forecast_weekly` und `forecast_skill` in Abschnitt 4 sind der **geplante**
-> Vertrag mit dem Frontend. Das Frontend kann schon dagegen entwickeln, die Dateien gibt es aber noch nicht.
+> **Stand 14.11.2026, abends:** **Schritt 1 ist fertig: das Modell ohne Wetter.** Es erzeugt
+> `forecast_daily`, `forecast_weekly` und `forecast_skill` (Abschnitt 4) in `data/forecast/`, dazu CSV-Kopien.
+> Ergebnisse und KPIs stehen in Abschnitt 1.5. Die Wetterdaten werden geladen, ins Modell eingebaut werden sie in
+> den Schritten 2–4.
 
 ---
 
@@ -91,7 +91,75 @@ Ergebnis: 184 Punkte in 23 Regionen, gespeichert in `data/forecast/weather_point
 - **Fehlwerte:** Platzhalter von Meteomatics (−999, −666) werden als leer gelesen. Fehlt ein Wert an einzelnen
   Punkten, werden die Gewichte der übrigen Punkte neu verteilt.
 
-### 1.4 Änderungen außerhalb dieses Ordners
+### 1.5 Schritt 1: Modell ohne Wetter (`run_forecast.py`)
+
+**Aufbau:**
+- **Tagesmodell:** eine logistische Regression je Ziel und Vorlauf 1–10. Eingaben:
+  - Saisonkurve des Zieltags (je Region und Kalendertag, ±7 Tage),
+  - Feuerverlauf am Ausgabetag (log-FRP letzter Tag, 3, 7 und 30 Tage; Feuertage 7 und 30 Tage; Großfeuer-Anteil
+    30 Tage; Tage seit dem letzten Großfeuer; log-FRP der 3 nächsten Regionen),
+  - Regionseffekt mit Strafe,
+  - beim Feuertag zusätzlich der Wochentag.
+
+  L2 = 100 und Platt-Kalibrierung auf den letzten 2 Trainingsjahren. Gewählt wurde das auf einem
+  Validierungs-Split (Training 2012–2019, Validierung 2020–2021), nicht auf den Testjahren. Code und Rechenweg
+  ohne Fremdpakete (numpy).
+- **Wochenmodell:** multinomiale logistische Regression auf „weniger / üblich / mehr“ als in früheren Jahren.
+  Die Klassen sind die Terzile der wöchentlichen Summe von log1p(FRP) je Region und Kalenderwoche ±1. Gleichstände
+  bei 0 zählen zu „weniger“. Im Winter ist „üblich“ deshalb oft fast leer.
+- **Auswertung:** Training 2012-01-20 bis 2021-12-31, Test 2022-01-01 bis 2026-07-31 (letzter Archivtag).
+  Bootstrap über Jahre.
+- **Rückfall:** Das Modell wird nur ausgeliefert, wenn der Gewinn > 0 ist und die untere Bootstrap-Grenze ≥ 0.
+  Entschieden wird über alle Regionen zusammen, Regionen mit ≥ 30 Ereignissen im Test bekommen eine eigene
+  Entscheidung. Sonst gilt `source = climatology`.
+- **Ausgelieferte Modelle:** Für die Vorhersage werden die Modelle auf allen Archivdaten neu geschätzt. Die Spanne
+  `p_big_fire_day_lo` / `_hi` kommt aus 20 Neuschätzungen auf zufällig gezogenen Jahren.
+
+**Ergebnisse im Test** (Gewinn = 1 − Brier(Modell) / Brier(Saisonkurve), 90-%-Intervall über Jahre):
+
+| Ziel | Tag 1 | Tag 3 | Tag 5 | Tag 7 | Tag 10 |
+|---|---|---|---|---|---|
+| Großfeuer-Tag, Gewinn | **0,213** (0,187–0,238) | 0,081 (0,053–0,113) | 0,042 (0,016–0,067) | 0,025 (0,004–0,051) | 0,011 (−0,007–0,035) → Saisonkurve |
+| Großfeuer-Tag, AUC / PR-AUC | 0,92 / 0,46 | 0,88 / 0,29 | 0,86 / 0,22 | 0,86 / 0,20 | 0,85 / 0,18 |
+| Feuertag (SNPP), Gewinn | 0,130 | 0,059 | 0,042 | 0,032 | 0,027 |
+
+Die Saisonkurve allein hat für Großfeuer-Tage AUC 0,83 und PR-AUC 0,14. Für die Tage 8–10 schließt das Intervall
+die 0 ein, dort wird die Saisonkurve ausgeliefert. Im Leave-one-year-out (2012–2026) ist das Modell an Tag 1 in allen
+15 Jahren besser als die Saisonkurve (Gewinn 0,10–0,25).
+
+Warnschwelle „oberste 10 %“, Tag 1: Das Modell findet 71 % der Großfeuer-Tage, 77 % der Warnungen sind Fehlalarme.
+Bei 2,9 % Ereignissen ist das zu erwarten.
+
+**Risikoklassen im Test, Tag 1:**
+
+| Klasse | Anteil der Region-Tage | davon Großfeuer-Tage |
+|---|---|---|
+| `low` | 39,8 % | 1,5 % |
+| `normal` | 54,4 % | 1,2 % |
+| `elevated` | 2,2 % | 11 % |
+| `high` | 2,2 % | 25 % |
+| `very_high` | 1,4 % | 54 % |
+
+**Wochenausblick:** RPSS gegenüber der Klimatologie: Woche 2 0,020 (0,009–0,033), Woche 3 0,009, Woche 4 0,002
+(Intervall schließt 0 ein → Klimatologie). Ein kleiner, aber echter Gewinn.
+
+**KPIs** (`data/forecast/forecast_kpi_report.json`): 24 von 26 Pflicht-KPIs bestanden.
+
+| Verfehlt | Wert | Schwelle | Grund |
+|---|---|---|---|
+| B6 Kalibrierung | Steigung 0,798 bei Tag 8–9 | 0,8–1,2 | Knapp. Diese Vorläufe werden ohnehin als Saisonkurve ausgeliefert. ECE überall ≤ 0,010 |
+| D3 Kalibrierung Woche | ECE 0,059 | ≤ 0,05 | Die Klimatologie selbst liegt bei 0,067. Die Wochensumme der FRP driftet mit der Zahl der VIIRS-Satelliten (siehe unten) |
+
+**Zwei Entscheidungen für das Team:**
+1. **Wochenziel:** `frp_harm` driftet nach oben, sobald NOAA-20/21 dazukommen (Anteil Tage mit FRP > 0:
+   0,32 → 0,41–0,45). Eine SNPP-Variante wurde getestet (`model.weekly.activity_frp: frp_snpp`). Sie driftet in
+   den Testjahren nach unten (SNPP −12 %) und ist nicht besser. Vorerst bleibt die ursprüngliche Definition.
+2. **Risikoklassen:** Im ersten Vorschlag überschnitten sich `low` und `normal`, `low` kam nie vor. Jetzt (`config.yaml`,
+   `risk_class`): nach `risk_ratio` < 0,67 / 1,5 / 3 / 6, `p ≥ 0,25` mindestens `high`, `p ≥ 0,5` `very_high`, und
+   `p < 0,02` höchstens `normal`. So wird eine winzige Wahrscheinlichkeit nicht rot, nur weil sie ein Vielfaches
+   der Saison ist.
+
+### 1.6 Änderungen außerhalb dieses Ordners
 
 - `.gitignore`: neue Zeile `data/forecast/`.
 - `.env.example`: leere Platzhalter für Meteomatics (vom Nutzer eingetragen).
@@ -110,6 +178,9 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # einmalig
 .venv/bin/python fetch_weather.py check      # Limits des Accounts + jeden Parameter testen (~23 Anfragen)
 .venv/bin/python fetch_weather.py history --start 2012-01-20 --end 2026-11-13   # ~120 Anfragen, etwa 1 Stunde
 .venv/bin/python fetch_weather.py forecast   # Vorhersage ab heute für 10 Tage (wenige Anfragen)
+
+.venv/bin/python run_forecast.py all --no-weather   # Auswertung + Vorhersage ohne Wetter (~5 min, inkl. Tests)
+.venv/bin/python analysis/data_analysis.py          # Datenanalyse neu bauen → docs/data_analysis.html
 ```
 
 Mit `--group core` oder `--group fire` lädt man nur eine Gruppe. Den Fortschritt eines laufenden Downloads zeigt
@@ -125,9 +196,11 @@ Mit `--group core` oder `--group fire` lädt man nur eine Gruppe. Den Fortschrit
 | `weather_region_history_<gruppe>.parquet` | entsteht nach dem Download | Region × Tag | `region_id`, `validdate` (12:00 UTC), `date`, dazu eine Spalte je Parameter mit dem Meteomatics-Namen als Spaltenname, z. B. `t_2m:C` |
 | `weather_region_forecast_<gruppe>_<datum>.parquet` | nach `forecast` | Region × Tag | wie oben, für die nächsten 10 Tage ab `<datum>` |
 | `weather_points_*.parquet` | wie oben | Punkt × Tag | dieselben Werte je Punkt, vor der Mittelung |
-| `forecast_daily.parquet` | **geplant** | Region × Ausgabetag × Zieltag | siehe 4.1 |
-| `forecast_weekly.parquet` | **geplant** | Region × Ausgabetag × Woche | siehe 4.2 |
-| `forecast_skill.parquet` | **geplant** | Produkt × Ziel × Vorlauf × Region | siehe 4.3 |
+| `forecast_daily.parquet` | vorhanden (ohne Wetter) | Region × Ausgabetag × Zieltag | siehe 4.1 |
+| `forecast_weekly.parquet` | vorhanden (ohne Wetter) | Region × Ausgabetag × Woche | siehe 4.2 |
+| `forecast_skill.parquet` | vorhanden | Produkt × Ziel × Vorlauf × Region | siehe 4.3, zusätzlich `ci_lo`, `ci_hi`, `pr_auc`, `ece`, `n_events`, `skill_basis` |
+| `csv/*.csv` | vorhanden | | CSV-Kopien der drei Tabellen für das Frontend |
+| `forecast_kpi_report.json`, `forecast_evaluation.json`, `manifest.json`, `models/*.json` | vorhanden | | KPIs, alle Testzahlen, Herkunft, Koeffizienten |
 
 Die Spaltennamen der Wettertabellen enthalten Doppelpunkte (`t_2m:C`). Im Frontend als Schlüssel in Anführungszeichen
 ansprechen oder beim Laden umbenennen.
