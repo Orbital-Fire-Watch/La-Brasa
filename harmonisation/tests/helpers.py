@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
-FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+FIXTURE_DIR = Path(__file__).resolve().parents[2] / "data" / "raw" / "fixtures"   # Test-Ausschnitte im gemeinsamen Datenordner
 RAW_DEFAULTS = {"latitude": 40.0, "longitude": -4.0, "brightness": 320.0, "scan": 1.0, "track": 1.0,
                 "acq_date": "2015-07-01", "acq_time": "1300", "satellite": "Aqua", "instrument": "MODIS",
                 "confidence": "50", "version": "6.03", "bright_t31": 295.0, "frp": 12.0, "daynight": "D",

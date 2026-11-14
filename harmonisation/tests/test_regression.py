@@ -25,13 +25,20 @@ def daily(config: dict[str, Any]) -> pd.DataFrame:
 
 
 def test_overall_factors_match_analysis(config: dict[str, Any], daily: pd.DataFrame) -> None:
-    """Die Gesamtfaktoren stimmen auf 1 % mit der Voranalyse (08_series.py) ueberein."""
-    reference_path = Path(config["paths"]["reference_results_dir"]) / "series.json"
-    if not reference_path.exists():
+    """Die Faktoren stimmen auf 1 % mit der Voranalyse ueberein.
+
+    Kalibriert wird gegen SNPP allein (calibration.reference_satellites, Iteration 1). Massstab ist
+    darum 08_series.py. Zusaetzlich: Der Gesamtfaktor liegt hoechstens 3 % (Regel R3) neben dem
+    Faktor, den eine Kalibrierung auf das VIIRS-Mittel ergaebe (09_viirs_satellites.py).
+    """
+    results = Path(config["paths"]["reference_results_dir"])
+    if not (results / "viirs_satellites.json").exists() or not (results / "series.json").exists():
         pytest.skip("Analyseergebnisse fehlen")
-    reference, summary = read_json(reference_path), read_json(path_of(config, "harmonised", "calib_summary.json"))["overall_factors"]
+    reference, mean_calibration = read_json(results / "series.json"), read_json(results / "viirs_satellites.json")["calibration"]
+    summary = read_json(path_of(config, "harmonised", "calib_summary.json"))["overall_factors"]
     assert summary["k_count_pair"] == pytest.approx(reference["k_global"], rel=RELATIVE_TOLERANCE)
     assert summary["k_count_terra"] == pytest.approx(reference["kt_global"], rel=RELATIVE_TOLERANCE)
+    assert summary["k_count_pair"] == pytest.approx(mean_calibration["k_pair_overall_mean"], rel=0.03)
     factors = read_parquet(path_of(config, "harmonised", "calib_factors.parquet")).set_index("region_id")
     for region_id, expected in reference["k_region"].items():
         assert factors.loc[region_id, "k_count_pair"] == pytest.approx(expected, rel=RELATIVE_TOLERANCE), region_id
