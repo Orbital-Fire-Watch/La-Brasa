@@ -250,6 +250,8 @@ kleinen Matrizen vor allem selbst abstimmt. Vorher hat genau das den Laptop voll
 
 ### 2.2 Automatisierung: täglicher Lauf per Cron
 
+Eine Schritt-für-Schritt-Anleitung für den Server steht in [docs/server_setup.md](docs/server_setup.md).
+
 `daily.py` ist der tägliche Job. Er ermittelt die Daten selbst und macht der Reihe nach:
 
 1. **Wetter holen:** `recent` für die Tage nach dem Ende der Historie bis gestern, und `forecast` ab heute. Das sind
