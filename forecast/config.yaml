@@ -1,0 +1,45 @@
+# Forecast module configuration. Paths are relative to the La-Brasa repository root.
+
+paths:
+  harmonised_dir: data/harmonised
+  weather_cache_dir: data/raw/weather/meteomatics
+  output_dir: data/forecast
+  env_file: .env
+
+# Where weather is sampled: the 0.25° cells with the most VIIRS detections per region.
+points:
+  training_start: "2012-01-20"
+  training_end: "2021-12-31"
+  max_cells_per_region: 8
+  min_share_of_region: 0.0   # drop cells below this share of the region's detections (0 = keep top N)
+
+meteomatics:
+  base_url: https://api.meteomatics.com
+  model: mix                  # Meteomatics picks the best source per time and place
+  format: csv
+  max_points_per_request: 50  # more than 10 points needs the "area requests" option (the hackathon account has it)
+  chunk_days: 366             # one request covers at most this many days
+  timeout_s: 900              # one 50-point x 1-year request takes about 3-4 minutes
+  parallel_requests: 8        # account limit is 10 parallel requests
+  max_retries: 4
+  pause_between_requests_s: 0.5
+  # Daily values at 12:00 UTC (≈ local noon in Iberia, the standard time of the Canadian FWI system).
+  # *_24h parameters are aggregated over the 24 h ending at the valid time.
+  valid_hour_utc: 12
+  # Parameter groups are requested separately, so a parameter missing from the account
+  # only fails its own group. Check names with `fetch_weather.py check`.
+  parameter_groups:
+    core:
+      - t_2m:C
+      - relative_humidity_2m:p
+      - wind_speed_10m:kmh
+      - precip_24h:mm
+      - t_max_2m_24h:C
+      - t_min_2m_24h:C
+      - wind_gusts_10m_24h:kmh
+      - dew_point_2m:C
+    fire:
+      - fosberg_fire_weather_index:idx
+      - forest_fire_warning:idx
+      - drought_index:idx
+  forecast_days: 10
