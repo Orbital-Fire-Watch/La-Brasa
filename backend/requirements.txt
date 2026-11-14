@@ -1,5 +1,9 @@
-fastapi==0.162.7
-uvicorn[standard]==0.54.0
-sqlalchemy==2.1.8
-psycopg[binary]==3.3.9
-pydantic-settings==2.16.3
+fastapi>=0.115
+pydantic>=2.7
+uvicorn>=0.30
+psycopg[binary]>=3.2
+h3>=4.0
+shapely>=2.0
+# tests
+pytest
+httpx
