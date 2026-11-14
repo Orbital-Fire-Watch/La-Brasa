@@ -37,11 +37,11 @@ def build_units(hotspots: pd.DataFrame, config: dict[str, Any]) -> dict[str, pd.
     points = hotspots.assign(obs_date=assign_observation_date(hotspots, params["date_assignment"], params["solar_day_shift_hours"]))
     sums = daily_grid.sum_hotspots_by_day(points, config)
     status = daily_grid.build_day_status(sums, daily_grid.find_satellite_coverage(config), config)
-    calibration_days = select_calibration_days(daily_grid.build_daily_grid(sums, status), config)
+    calibration_days = select_calibration_days(daily_grid.build_daily_grid(sums, status, config), config)
     loyo = uncertainty_model.estimate_leave_one_year_out_factors(calibration_days, config)
-    dates = pd.DatetimeIndex(sorted(calibration_days["date"].unique()))
+    operating = calibration_days[["date"] + [c for c in calibration_days if c.endswith("_operating")]].drop_duplicates("date")
     return {"nuts2": uncertainty_model.predict_leave_one_year_out(calibration_days, loyo),
-            "cell": uncertainty_model.predict_cell_units(points, dates, loyo, config)}
+            "cell": uncertainty_model.predict_cell_units(points, operating, loyo, config)}
 
 
 def summarise_variant(units: dict[str, pd.DataFrame], config: dict[str, Any]) -> dict[str, float]:
@@ -72,7 +72,7 @@ def evaluate_scaled_thresholds(units: pd.DataFrame, config: dict[str, Any]) -> l
     """H3: Recall, Precision und Kappa der Grossfeuer-Tage fuer verschiedene Schwellen der umgerechneten Zeilen."""
     regions = validation_kpis.select_evaluation_regions(units, config)
     rows = units[units["area_id"].isin(regions)]
-    measured = (rows["frp_snpp"] >= config["strength"]["big_fire_threshold_mw"]).to_numpy()
+    measured = (rows["frp_viirs"] >= config["strength"]["big_fire_threshold_mw"]).to_numpy()
     frp_column = validation_kpis.default_prediction_columns(config)[1]
     results = []
     for threshold in H3_THRESHOLDS_MW:
@@ -87,19 +87,19 @@ def evaluate_season_factors(hotspots: pd.DataFrame, config: dict[str, Any]) -> d
     points = hotspots.assign(obs_date=assign_observation_date(hotspots, config["daily"]["date_assignment"], config["daily"]["solar_day_shift_hours"]))
     sums = daily_grid.sum_hotspots_by_day(points, config)
     status = daily_grid.build_day_status(sums, daily_grid.find_satellite_coverage(config), config)
-    days = select_calibration_days(daily_grid.build_daily_grid(sums, status), config)
+    days = select_calibration_days(daily_grid.build_daily_grid(sums, status, config), config)
     days = days.assign(year=days["date"].dt.year, summer=days["date"].dt.month.isin(SUMMER_MONTHS))
     minimum, parts = config["calibration"]["min_modis_detections"], []
     for year in sorted(days["year"].unique()):
         train, test = days[days["year"] != year], days[days["year"] == year]
         for summer in (True, False):
-            ratio = estimate_ratio_per_region(train[train["summer"] == summer], "n_snpp", "n_pair", minimum)
+            ratio = estimate_ratio_per_region(train[train["summer"] == summer], "n_viirs", "n_pair", minimum)
             factor = test.loc[test["summer"] == summer, "region_id"].map(ratio.set_index("region_id")["factor"])
             parts.append(test[test["summer"] == summer].assign(pred_n_pair=lambda rows, f=factor: rows["n_pair"] * f.to_numpy()))
     units = pd.concat(parts).rename(columns={"region_id": "area_id"})
     units = units[units["area_id"].isin(validation_kpis.select_evaluation_regions(units, config))]
     offset = config["uncertainty"]["count_offset"]
-    monthly = validation_kpis.measure_monthly_accuracy(units.assign(frp_snpp=0.0, **{c: 0.0 for c in uncertainty_model.VALUE_COLUMNS if c not in units}),
+    monthly = validation_kpis.measure_monthly_accuracy(units.assign(frp_viirs=0.0, **{c: 0.0 for c in uncertainty_model.VALUE_COLUMNS if c not in units}),
                                                        "pred_n_pair", offset)
     return {"d1_day_error": validation_kpis.measure_daily_count_accuracy(units, "pred_n_pair", offset)["median_factor_error"],
             "d3_month_error": monthly["median_factor_error"], "d3_month_class": monthly["class_accuracy"], "d3_month_kappa": monthly["kappa"]}
