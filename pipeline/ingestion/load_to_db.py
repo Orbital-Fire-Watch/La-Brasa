@@ -4,11 +4,11 @@ load_to_db.py - load CSV files into PostgreSQL (regions and raw hotspot tables).
 
 Run in this order:
     # 1) Regions, once, before the hotspots (foreign key)
-    python pipeline/ingestion/load_to_db.py regions --boundaries data/boundary-files/NUTS_RG_01M_2021_4326.geojson
+    python pipeline/ingestion/load_to_db.py regions --boundaries data/raw/NUTS_RG_01M_2021_4326.geojson
 
     # 2) Hotspots from tag_regions.py (one file or a folder)
-    python pipeline/ingestion/load_to_db.py hotspots --table modis data/tagged --pattern "modis*_tagged.csv"
-    python pipeline/ingestion/load_to_db.py hotspots --table viirs data/tagged/viirs_2019_tagged.csv
+    python pipeline/ingestion/load_to_db.py hotspots --table modis data/processed --pattern "modis*_tagged.csv"
+    python pipeline/ingestion/load_to_db.py hotspots --table viirs data/processed/viirs_2019_tagged.csv
 
 Options:
     --dry-run      validate and clean only, do not write to the database

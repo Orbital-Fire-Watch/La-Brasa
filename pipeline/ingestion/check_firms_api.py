@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-test_firms.py - quick check of the FIRMS API for the Iberian Peninsula.
+check_firms_api.py - quick check of the FIRMS API for the Iberian Peninsula.
 
 Reads FIRMS_MAP_KEY from the environment or from .env in the current folder.
 The key is part of the API URL path and is never printed.
 
 Usage (from the repository root):
-    python pipeline/ingestion/test_firms.py          # 1 day
-    python pipeline/ingestion/test_firms.py 5        # 5 days per request
-    python pipeline/ingestion/test_firms.py 10       # check whether 10 days are allowed
+    python pipeline/ingestion/check_firms_api.py          # 1 day
+    python pipeline/ingestion/check_firms_api.py 5        # 5 days per request
+    python pipeline/ingestion/check_firms_api.py 10       # check whether 10 days are allowed
 
 Standard library only.
 """

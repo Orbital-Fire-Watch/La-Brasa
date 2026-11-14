@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 random.seed(42)
-out = Path("testdata"); out.mkdir(exist_ok=True)
+out = Path(__file__).resolve().parent / "testdata"; out.mkdir(exist_ok=True)  # git-ignored
 
 # region_id: (name, country, west, south, east, north)
 R = {

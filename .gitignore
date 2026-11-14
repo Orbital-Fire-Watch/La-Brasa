@@ -6,6 +6,9 @@ data/**
 !data/*/
 !data/**/.gitkeep
 
+# generated test data (pipeline/tests/make_test_data.py)
+pipeline/tests/testdata/
+
 # python
 __pycache__/
 *.py[cod]
