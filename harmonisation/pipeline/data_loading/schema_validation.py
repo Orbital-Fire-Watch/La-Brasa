@@ -49,7 +49,7 @@ def validate_clean_hotspots(hotspots: pd.DataFrame, config: dict[str, Any]) -> N
         raise SchemaError("hotspots_clean enthaelt Werte ausserhalb der erlaubten Bereiche")
     if hotspots["hotspot_id"].duplicated().any():
         raise SchemaError("hotspots_clean: hotspot_id ist nicht eindeutig")
-    for column in ["satellite", "sensor", "source", "daynight", "frp_class", "obs_date", "cell_id"]:
+    for column in ["satellite", "sensor", "source", "daynight", "frp_class", "obs_date", "cell_id", "h3_cell"]:
         if hotspots[column].isna().any():
             raise SchemaError(f"hotspots_clean: {column} enthaelt NULL")
 

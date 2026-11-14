@@ -39,6 +39,21 @@ def path_of(config: dict[str, Any], layer: str, file_name: str) -> Path:
     return Path(config["paths"][f"{layer}_dir"]) / file_name
 
 
+def satellite_key(config: dict[str, Any], satellite: str) -> str:
+    """Namensteil der Spalten eines Satelliten, z. B. "N20" -> "noaa20" (n_noaa20, frp_noaa20, noaa20_operating)."""
+    return config["satellites"]["column_key"][satellite]
+
+
+def viirs_keys(config: dict[str, Any]) -> list[str]:
+    """Namensteile der VIIRS-Satelliten, aus denen die Referenzreihe gemittelt wird (Standard: snpp, noaa20, noaa21)."""
+    return [satellite_key(config, satellite) for satellite in config["satellites"]["viirs"]]
+
+
+def calibration_keys(config: dict[str, Any]) -> list[str]:
+    """Namensteile der VIIRS-Satelliten, gegen die Faktoren und Fehlermodell bestimmt werden (Standard: nur snpp)."""
+    return [satellite_key(config, satellite) for satellite in config["calibration"]["reference_satellites"]]
+
+
 def config_fingerprint(config: dict[str, Any]) -> str:
     """Stabiler Hash aller Parameter. Aendert sich, sobald ein Parameter geaendert wird."""
     relevant = {key: value for key, value in config.items() if not key.startswith("_")}

@@ -43,10 +43,11 @@ def build(files, out):
 
 
 if __name__ == "__main__":
-    build([RAW / "fire_archive_M-C61_845369.csv",
-           RAW / "fire_nrt_M-C61_845369.csv",
-           RAW / "fire_archive_SV-C2_845370.csv",
-           RAW / "fire_nrt_SV-C2_845370.csv"], IBERIA)
+    # Ein Unterordner je FIRMS-Produkt (siehe docs/raw_sources.md). NOAA-20/21 liest 09_viirs_satellites.py.
+    build([RAW / "modis" / "fire_archive_M-C61_845369.csv",
+           RAW / "modis" / "fire_nrt_M-C61_845369.csv",
+           RAW / "viirs_snpp" / "fire_archive_SV-C2_845370.csv",
+           RAW / "viirs_snpp" / "fire_nrt_SV-C2_845370.csv"], IBERIA)
     # Weltweite Gegenprobe (57 Mio. Zeilen) liegt nicht im Repository: Ordner bei Bedarf nach data/raw/ legen
     gl = []
     for d in ["DL_FIRE_M-C61_835029", "DL_FIRE_SV-C2_835019",

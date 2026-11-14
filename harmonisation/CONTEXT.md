@@ -7,6 +7,34 @@ entschieden wurde. Sie ist dafür gedacht, einen neuen Chat ohne Informationsver
 
 ---
 
+## 0. Aktueller Stand (14.11.2026 nachmittags, Schema-Version 2) – zuerst lesen
+
+Die Abschnitte 1 bis 10 beschreiben die Vorgeschichte (Version 2 mit SNPP als einziger VIIRS-Referenz, alte Pfade unter
+`Daten_Satellit/`). Wo sie diesem Abschnitt widersprechen, gilt dieser Abschnitt.
+
+- **Ort:** Pipeline in `La-Brasa/harmonisation/` (Git-Repo `La-Brasa`, Branch `data_harmonisation`). **Niemals committen**,
+  der Nutzer committet selbst. Daten in `La-Brasa/data/` (nicht in Git): `raw/<produkt>/`, `processed/`, `harmonised/`.
+- **Rohdaten:** `data/raw/modis/`, `viirs_snpp/` (Archiv aus dem ZIP, ohne beschädigte Zeile), `viirs_noaa20/` (`DL_FIRE_J1V-C2_848091`),
+  `viirs_noaa21/` (`DL_FIRE_J2V-C2_848092`). Herkunft und Prüfsummen: `docs/raw_sources.md`. Der erste, unvollständige
+  NOAA-Download liegt in `Daten_Satellit/NASA_SPACEAPP/Data_new_false/` und wird nicht verwendet.
+- **VIIRS-Referenz = Mittel der aktiven VIIRS-Satelliten** (SNPP ab 20.01.2012, NOAA-20 ab 01.04.2018, NOAA-21 ab 01.03.2023):
+  `n_viirs`, `frp_viirs`, `viirs_operating`. Gewicht je VIIRS-Punkt 1/k. Rohzahlen je Satellit bleiben (`n_snpp`, `n_noaa20`, `n_noaa21`).
+- **Gemeinsames Gebiet** (`common_area`): Alle Satelliten zählen nur in 0,25°-Zellen mit Terra-, Aqua- oder SNPP-Erkennungen
+  (die NOAA-Downloads reichen weiter).
+- **Kalibrierung und Fehlermodell gegen SNPP allein** (`calibration.reference_satellites`), Ortsmaske je Sensor
+  (`static_sources.mask_training_sensors`). Beides aus Iteration 1 der Erweiterung.
+- **Neu:** `h3_cell` (H3, Auflösung 8) in `hotspots_harmonised`. `schema_version: 2` in Config und `manifest.json`.
+- **KPIs:** alle 42 erfüllt (34 bisherige, unverändert gegenüber SNPP allein, dazu N1a–c, N2, N3, N4a–b, N5).
+- **Datenbank:** `La-Brasa/db/init/001_schema.sql` und `pipeline/load_to_db.py` (prüft `SCHEMA_VERSION = 2`) angepasst,
+  Modell in `db/docs/data_model.md`. Bestehende Datenbank neu anlegen: `docker compose down -v`.
+- **Dokumentation:** `docs/viirs_extension.md` (für das Team), `docs/viirs_extension.html` (Entstehung mit Zahlen),
+  `docs/pipeline_overview.html`, `docs/column_guide.html`, `docs/data_dictionary.md`, `docs/iteration_log.md`, `docs/raw_sources.md`.
+- **Voranalyse der Erweiterung:** `data_analysis/09_viirs_satellites.py` → `results/viirs_satellites.json`.
+- **Ausführen:** `cd La-Brasa/harmonisation && .venv/bin/python run_pipeline.py` (≈ 90 s, 54 Tests).
+  `.venv` neu anlegen mit `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` (enthält jetzt `h3`).
+- **Offene Punkte:** siehe `docs/viirs_extension.md`, Abschnitt „Offene Punkte“ (Bänder gemessener Tage, Ausfälle einzelner
+  Satelliten, Randzellen des gemeinsamen Gebiets, H3-Auflösung als Teamentscheidung).
+
 ## 1. Projekt und Aufgabe
 
 - **Hackathon:** NASA Space Apps Challenge 2026, 14.–15.11.2026, Challenge „MODIS and VIIRS Hot Spots“ (FIRMS-Daten).

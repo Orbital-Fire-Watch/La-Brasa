@@ -18,17 +18,23 @@ nuts:
   name_property: NAME_LATN
   coast_tolerance_deg: 0.05        # Kuestenpunkte bis zu diesem Abstand bekommen die naechste Region
 
+# Ein Unterordner je FIRMS-Produkt, Original-Dateinamen (Herkunft: docs/raw_sources.md)
 sources:
-  - {name: modis_archive, sensor: MODIS, source: archive, csv: ../data/raw/fire_archive_M-C61_845369.csv}
-  - {name: modis_nrt,     sensor: MODIS, source: nrt,     csv: ../data/raw/fire_nrt_M-C61_845369.csv}
-  - {name: viirs_archive, sensor: VIIRS, source: archive, csv: ../data/raw/fire_archive_SV-C2_845370.csv}
-  - {name: viirs_nrt,     sensor: VIIRS, source: nrt,     csv: ../data/raw/fire_nrt_SV-C2_845370.csv}
+  - {name: modis_archive,  sensor: MODIS, source: archive, csv: ../data/raw/modis/fire_archive_M-C61_845369.csv}
+  - {name: modis_nrt,      sensor: MODIS, source: nrt,     csv: ../data/raw/modis/fire_nrt_M-C61_845369.csv}
+  - {name: snpp_archive,   sensor: VIIRS, source: archive, csv: ../data/raw/viirs_snpp/fire_archive_SV-C2_845370.csv}
+  - {name: snpp_nrt,       sensor: VIIRS, source: nrt,     csv: ../data/raw/viirs_snpp/fire_nrt_SV-C2_845370.csv}
+  - {name: noaa20_archive, sensor: VIIRS, source: archive, csv: ../data/raw/viirs_noaa20/fire_archive_J1V-C2_848091.csv}
+  - {name: noaa20_nrt,     sensor: VIIRS, source: nrt,     csv: ../data/raw/viirs_noaa20/fire_nrt_J1V-C2_848091.csv}
+  - {name: noaa21_archive, sensor: VIIRS, source: archive, csv: ../data/raw/viirs_noaa21/fire_archive_J2V-C2_848092.csv}
+  - {name: noaa21_nrt,     sensor: VIIRS, source: nrt,     csv: ../data/raw/viirs_noaa21/fire_nrt_J2V-C2_848092.csv}
 
 satellites:
-  sensor_of: {Terra: MODIS, Aqua: MODIS, SNPP: VIIRS}
-  reference: SNPP                  # VIIRS-Referenz
+  sensor_of: {Terra: MODIS, Aqua: MODIS, SNPP: VIIRS, N20: VIIRS, N21: VIIRS}   # Werte der Spalte `satellite`
+  column_key: {Terra: terra, Aqua: aqua, SNPP: snpp, N20: noaa20, N21: noaa21}  # Namensteil der Spalten n_*, frp_*, *_operating
+  viirs: [SNPP, N20, N21]          # VIIRS-Referenz: Mittel ueber die an einem Tag aktiven Satelliten (n_viirs, frp_viirs)
   modis_pair: [Aqua, Terra]        # Anzahl vor 2012: Summe aus beiden
-  modis_afternoon: Aqua            # fliegt wie SNPP am fruehen Nachmittag
+  modis_afternoon: Aqua            # fliegt wie die VIIRS-Satelliten am fruehen Nachmittag
   modis_single: Terra              # einziger MODIS-Satellit vor dem Start von Aqua
 
 validation_ranges:
@@ -48,7 +54,12 @@ static_sources:
   mask_min_static_detections: 3
   mask_min_static_share: 0.5
   mask_neighbour_cells: 1
+  # Iteration 1: Maske je Sensor. VIIRS-Zeilen nur mit einer Maske aus VIIRS-Archivzeilen (375-m-Pixel, genauer Ort);
+  # MODIS-Zeilen wie bisher mit einer Maske aus allen Satelliten (sonst faellt der MODIS-Recall von 0,69 auf 0,50).
+  mask_training_sensors: {VIIRS: [VIIRS], MODIS: [MODIS, VIIRS]}
   holdout_first_year: 2023
+
+schema_version: 2                  # 1 = nur SNPP (n_snpp als Referenz), 2 = VIIRS-Mittel aus SNPP, NOAA-20, NOAA-21 (n_viirs)
 
 export:
   # CSV-Kopien aller Ausgabetabellen, nur zum Ansehen der Daten. Das Produkt nutzt sie nicht:
@@ -65,6 +76,14 @@ classification:
 
 grid:
   cell_deg: 0.25                   # Zellraster fuer die Karte
+  h3_resolution: 8                 # H3-Zelle je Hotspot (Aufloesung 8: etwa 0,74 km^2, Kante etwa 530 m)
+
+common_area:
+  # Alle Satelliten zaehlen nur im Gebiet, das die Referenz-Downloads abdecken (Voranalyse 09: die
+  # NOAA-Downloads reichen ueber das Gebiet von MODIS und SNPP hinaus). Gebiet = alle Zellen dieses
+  # Rasters mit mindestens einer Erkennung der Referenzsatelliten (2000-2026, jede Art von Quelle).
+  reference_satellites: [Terra, Aqua, SNPP]
+  cell_deg: 0.25
 
 columns:
   drop_not_comparable: [brightness, bright_t31]
@@ -90,6 +109,10 @@ strength:
   big_fire_threshold_scaled_mw: 80.0    # Schwelle fuer umgerechnete Zeilen (H3: gleicht Recall und Precision aus)
 
 calibration:
+  # Iteration 1: Faktoren und Fehlermodell gegen SNPP allein. Das Fehlermodell braucht eine Referenz mit gleichem
+  # Rauschen ueber das ganze Fenster (2018-2021 waere das Mittel aus SNPP und NOAA-20 ruhiger, U1b verfehlt).
+  # Die Reihe ab 2012 bleibt das Mittel aller aktiven VIIRS-Satelliten; Faktorunterschied nur +0,1 % (Voranalyse 09, R3).
+  reference_satellites: [SNPP]
   window_start: "2012-02-01"
   window_end: "2021-12-31"
   min_modis_detections: 300
@@ -117,7 +140,8 @@ climatology:
 
 drift_monitor:
   daynight: D
-  baseline_years: [2012, 2013, 2014]
+  baseline_years: [2012, 2013, 2014]   # Satelliten ohne Daten in diesen Jahren (NOAA-20/21): ihre ersten vollen Jahre
+  baseline_fallback_years: 2
   max_deviation_minutes: 15
   min_detections_per_year: 50
 
@@ -127,6 +151,7 @@ kpi:                               # VOR der ersten Messung festgelegt, nicht na
   climatology_check_years: [2013, 2021]
   uncertainty_check_scales: [[nuts2, day], [nuts2, month]]
   uncertainty_min_units: 100
+  viirs_level_min_snpp_per_region_year: 50   # N1: Region-Jahre mit weniger SNPP-Erkennungen sind zu verrauscht
   rollup_tolerance: 1.0e-9
   climatology_offset: 0.1          # Versatz beim Fehler des Klimaprofils (kleine Mittelwerte je Tag)
   thresholds:
@@ -154,3 +179,11 @@ kpi:                               # VOR der ersten Messung festgelegt, nicht na
     m1_mask_recall_min: 0.90
     m1_mask_false_removal_max: 0.02
     m2_region_coverage_min: 0.999
+    # VIIRS-Mehrsatelliten-Erweiterung (NOAA-20/21), festgelegt am 14.11.2026 VOR der ersten Messung
+    n1_viirs_over_snpp_median_range: [0.95, 1.05]   # Median n_viirs / n_snpp je Region x Jahr (Tage mit beiden)
+    n1c_viirs_over_snpp_region_min: 0.85            # je Region ueber alle Jahre; ergaenzt nach Voranalyse 09 (unvollstaendiger
+                                                    # Download im Nordosten), vor der ersten Messung der Pipeline
+    n2_weight_identity_max: 1.0e-9                  # SUM(weight_n) = n_viirs, SUM(frp * weight_frp) = frp_viirs
+    n3_mean_beats_single_rotations_min: 3           # Mittel trifft den zurueckgehaltenen Satelliten besser, in allen 3 Rotationen
+    n4_mask_recall_min: 0.90                        # Ortsmaske je NOAA-Satellit
+    n4_mask_false_removal_max: 0.02

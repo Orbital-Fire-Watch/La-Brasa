@@ -84,8 +84,8 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-of
 """
 
 STAGES = [
-    ("ingest", "<code>data_loading/ingest_csv_to_parquet.py</code>", "4 FIRMS-CSVs", "<code>raw/*.parquet</code>"),
-    ("clean", "<code>data_loading/clean_hotspots.py</code> mit <code>static_source_mask.py</code>, <code>assign_region.py</code>, "
+    ("ingest", "<code>data_loading/ingest_csv_to_parquet.py</code>", "8 FIRMS-CSVs (MODIS, SNPP, NOAA-20, NOAA-21)", "<code>raw/*.parquet</code>"),
+    ("clean", "<code>data_loading/clean_hotspots.py</code> mit <code>common_area.py</code>, <code>static_source_mask.py</code>, <code>assign_region.py</code>, "
      "<code>classify_hotspots.py</code>, <code>derive_hotspot_columns.py</code>", "<code>raw</code>, NUTS-2-Grenzen",
      "<code>processed/hotspots_clean</code>, <code>rejected_hotspots</code>, <code>static_mask</code>"),
     ("daily_grid", "<code>algorithms/daily_grid.py</code>", "<code>hotspots_clean</code>, <code>raw</code>",
@@ -99,8 +99,8 @@ STAGES = [
     ("weight_hotspots", "<code>algorithms/hotspot_weights.py</code>", "<code>hotspots_clean</code>, <code>day_status</code>, <code>calib_factors</code>",
      "<code>harmonised/hotspots_harmonised</code>"),
     ("export_csv", "<code>pipeline/csv_export.py</code>", "alle Tabellen in <code>harmonised</code>", "<code>harmonised/csv/*.csv</code> (Kopien für das Frontend)"),
-    ("test", "<code>tests/</code>, <code>aggregation/tests/</code>", "Ausschnitt in <code>tests/fixtures</code>", "–"),
-    ("validate", "<code>algorithms/validation_kpis.py</code>", "Einheiten der Kreuzvalidierung, alle Ausgaben", "<code>harmonised/kpi_report.json</code>, <code>manifest.json</code>"),
+    ("test", "<code>tests/</code>, <code>aggregation/tests/</code>", "Ausschnitt in <code>../data/raw/fixtures</code>", "–"),
+    ("validate", "<code>algorithms/validation_kpis.py</code>, <code>viirs_kpis.py</code>", "Einheiten der Kreuzvalidierung, alle Ausgaben", "<code>harmonised/kpi_report.json</code>, <code>manifest.json</code>"),
 ]
 
 FUNCTION_CATALOGUE = [
@@ -113,15 +113,23 @@ FUNCTION_CATALOGUE = [
          "Solche Zeilen liefen sonst still in falsche Summen. Jede steht mit Grund in <code>rejected_hotspots</code>."),
         ("deduplicate_hotspots", "Entfernt doppelte Messungen (gleicher Satellit, Ort, Datum, Uhrzeit). Das Archiv gewinnt vor dem NRT.",
          "Duplikate entstehen nur bei überlappenden Downloads. Verschiedene Uhrzeiten bleiben: Überlappende Bildstreifen sind echte Einzelbeobachtungen."),
-        ("filter_static_sources", "Behält nur Vegetationsfeuer. Archiv: <code>type</code> = 0. NRT: alles außerhalb der Ortsmaske.",
+        ("restrict_to_common_area", "Verwirft Erkennungen außerhalb des Gebiets, das die MODIS- und SNPP-Downloads abdecken.",
+         "Die NOAA-Downloads reichen weiter (bis 44,8° N, 4,9° O). Ohne Angleichung zählte NOAA-20/21 in Randregionen Feuer, die SNPP und MODIS nicht sehen können."),
+        ("filter_static_sources", "Behält nur Vegetationsfeuer. Archiv: <code>type</code> = 0. NRT: alles außerhalb der Ortsmaske seines Sensors.",
          "Statische Quellen sind keine Feueraktivität (32 % der SNPP-Nacht-Erkennungen). Zeilen mit und ohne <code>type</code> werden getrennt behandelt, sonst fiele das NRT weg."),
         ("enrich_hotspots", "Ruft Region, Klassen und abgeleitete Spalten auf und droppt die vereinbarten Spalten.",
          "Eine feste Reihenfolge an einer Stelle. Das Ergebnis hat genau das Schema des Spaltenkatalogs."),
     ]),
+    ("pipeline.data_loading.common_area", "Gemeinsames Gebiet", [
+        ("learn_common_area", "Lernt das Gebiet der Referenz-Downloads: alle 0,25°-Zellen mit mindestens einer Erkennung von Terra, Aqua oder SNPP seit 2000.",
+         "FIRMS liefert genau das gewählte Download-Gebiet, und das ist für MODIS/SNPP kein Rechteck. Eine Zelle im Gebiet ohne jede Erkennung in 26 Jahren gibt es praktisch nicht."),
+    ]),
     ("pipeline.data_loading.static_source_mask", "Ortsmaske für das NRT", [
         ("learn_static_mask", "Lernt aus dem Archiv Zellen von 0,005° mit mindestens 3 statischen Erkennungen und statischer Mehrheit, plus Nachbarzellen.",
          "Fabriken stehen immer am selben Ort, Feuer nicht. Gelernt wird nur aus Zeilen mit bekanntem <code>type</code>, nie aus dem NRT."),
-        ("evaluate_mask_on_holdout", "Lernt die Maske bis 2022 und prüft sie an 2023 bis 2026.",
+        ("learn_static_masks", "Lernt je Sensor eine Maske: für VIIRS nur aus VIIRS, für MODIS aus allen Satelliten.",
+         "MODIS-Pixel (1 km) verschmieren den Ort einer Anlage. Eine gemeinsame Maske entfernte zu viele VIIRS-Feuer neben Industrie (NOAA-20: 2,2 %)."),
+        ("evaluate_mask_on_holdout", "Lernt die Masken bis 2022 und prüft sie an 2023 bis 2026, gesamt, je Sensor und je Satellit.",
          "Nur so zeigt sich, ob sie neue Daten trifft: {{mask_recall}} erkannt, {{mask_false}} der echten Feuer fälschlich entfernt."),
     ]),
     ("pipeline.data_loading.assign_region", "Region", [
@@ -144,6 +152,8 @@ FUNCTION_CATALOGUE = [
         ("assign_observation_date", "Bestimmt den Tag, zu dem ein Punkt zählt: UTC-Datum oder Sonnendatum mit Tageswechsel um 6 Uhr.",
          "Mit dem Sonnendatum landet eine Nacht auf einem Tag. Im Test waren die Anzahlen damit etwas besser, die Stärke aber schlechter. Es gilt das UTC-Datum (H2)."),
         ("add_cell_id", "Rasterzelle von 0,25° als „Breitenindex_Längenindex“.", "Für Kacheln auf der Karte und schnelle Flächenfilter."),
+        ("add_h3_cell", "H3-Zelle der Pixelmitte (Auflösung {{h3_resolution}}, etwa 0,74 km²).",
+         "Sechsecke haben gleich weite Nachbarn und eignen sich für Heatmaps. Gröbere Zellen ergeben sich mit <code>h3.cell_to_parent</code> ohne Neuberechnung."),
         ("add_pixel_area", "Pixelfläche = scan × track.", "Am Bildrand sind Pixel größer. Die Karte kann den echten Fußabdruck zeichnen."),
     ]),
     ("pipeline.algorithms.daily_grid", "Tagesraster und Status", [
@@ -151,7 +161,7 @@ FUNCTION_CATALOGUE = [
          "Die FRP-Summe des Tages ist das Maß für die Stärke. Tag und Nacht zählen zusammen (H5: nur Tag war nicht besser)."),
         ("find_satellite_coverage", "Bestimmt je Satellit die Zeitfenster, in denen das Produkt Daten liefert.",
          "Gemessen am Dateifenster, nicht an Erkennungen: Ein Tag ohne Zeile heißt „kein Feuer“, nicht „keine Daten“."),
-        ("choose_basis_per_day", "Legt je Tag die Quelle fest: VIIRS gemessen, sonst MODIS umgerechnet (bis 2021), sonst kein Wert.",
+        ("choose_basis_per_day", "Legt je Tag die Quelle fest: VIIRS gemessen (mindestens ein VIIRS-Satellit), sonst MODIS umgerechnet (bis 2021), sonst kein Wert.",
          "Eine Messung ist besser als eine Umrechnung. Ab 2022 driften Terra und Aqua ({{drift_aqua}} und {{drift_terra}} Minuten), der Faktor gilt nicht mehr. Die Sensoren werden nie addiert."),
         ("flag_possible_gaps", "Markiert Tage, an denen ein Satellit laut Fenster arbeitet, aber auffällig nichts meldet.",
          "Ausfälle innerhalb eines Dateifensters wären sonst unsichtbar. Es wird nur markiert, nicht entfernt."),
@@ -159,10 +169,12 @@ FUNCTION_CATALOGUE = [
          "Die Punktdaten kennen keine leeren Tage. Erst diese Tabelle trennt „kein Feuer“ von „keine Daten“."),
         ("build_daily_grid", "Baut das lückenlose Raster Region × Tag: Zahl, 0 oder leer (Satellit nicht in Betrieb).",
          "Ohne die ergänzten Nullen rechnet jede Statistik nur mit Brandtagen. Vor 2012 wäre eine 0 für VIIRS dagegen falsch."),
+        ("add_viirs_reference", "Bildet <code>n_viirs</code> und <code>frp_viirs</code>: das Mittel der an diesem Tag aktiven VIIRS-Satelliten (SNPP, NOAA-20, NOAA-21).",
+         "Die Satelliten sehen dasselbe Feuer zu anderer Uhrzeit, eine Summe verdoppelte die Reihe ab 2018. Das Mittel bleibt auf SNPP-Niveau ({{n1_median}}) und ist genauer (× {{n3_single}} → × {{n3_mean}} gegen einen zurückgehaltenen Satelliten)."),
     ]),
     ("pipeline.algorithms.calibration_factors", "Kalibrierung", [
-        ("select_calibration_days", "Wählt die Tage 02/2012 bis 12/2021, an denen alle drei Satelliten in Betrieb sind.",
-         "Nur dort messen MODIS und VIIRS gleichzeitig und zur festen Tageszeit."),
+        ("select_calibration_days", "Wählt die Tage 02/2012 bis 12/2021, an denen SNPP, Aqua und Terra in Betrieb sind. Die Referenz ist dort SNPP allein.",
+         "Nur dort messen MODIS und VIIRS gleichzeitig und zur festen Tageszeit. SNPP allein, damit das Rauschen der Referenz im ganzen Fenster gleich bleibt (Iteration 1 der Erweiterung)."),
         ("estimate_ratio_per_region", "Faktor je Region = Summe VIIRS / Summe MODIS. Unter 300 MODIS-Erkennungen gilt der Gesamtfaktor.",
          "Ein Verhältnis von Summen verträgt Tage mit 0 und erhält die Gesamtsumme exakt."),
         ("estimate_calibration_factors", "Berechnet die Faktoren für Aqua + Terra, nur Aqua und nur Terra, je für Anzahl und FRP.",
@@ -177,8 +189,8 @@ FUNCTION_CATALOGUE = [
          "Die Summe ist zwischen den Sensoren vergleichbar, das stärkste Einzelpixel nicht. Umgerechnete Tage haben die Schwelle {{h3_threshold}} MW (H3)."),
     ]),
     ("pipeline.algorithms.hotspot_weights", "Gewichte je Punkt", [
-        ("weight_hotspots", "Legt den Faktor auf jeden Punkt: 1 bei VIIRS, Regionsfaktor bei MODIS, 0 außerhalb der Reihe.",
-         "Die Umrechnung ist linear, darum ist die Zahl jeder Fläche einfach SUM(weight_n). Die Regel gilt je Satellit, sonst stünde ab 2012 jedes Feuer doppelt da."),
+        ("weight_hotspots", "Legt den Faktor auf jeden Punkt: 1/k bei VIIRS (k aktive VIIRS-Satelliten), Regionsfaktor bei MODIS, 0 außerhalb der Reihe.",
+         "Umrechnung und Mittel sind linear, darum ist die Zahl jeder Fläche einfach SUM(weight_n). Die Regel gilt je Satellit, sonst stünde ab 2012 jedes Feuer doppelt da."),
     ]),
     ("pipeline.algorithms.uncertainty_model", "Fehlermodell", [
         ("predict_leave_one_year_out", "Rechnet jedes Jahr mit Faktoren aus den übrigen Jahren um.",
@@ -235,8 +247,8 @@ DROPPED_COLUMNS = [
 ]
 
 KPI_AS_FACTOR = {"D1a", "D1b", "D3a", "D8b"}
-KPI_AS_SHARE = {"D2", "D3b", "D5b", "D5c", "D7", "U1a", "U1b", "U2a", "U2b", "U3", "M1a", "M1b", "M2"}
-KPI_SCIENTIFIC = {"D10", "D11"}
+KPI_AS_SHARE = {"D2", "D3b", "D5b", "D5c", "D7", "U1a", "U1b", "U2a", "U2b", "U3", "M1a", "M1b", "M2", "N4a", "N4b"}
+KPI_SCIENTIFIC = {"D10", "D11", "N2"}
 KPI_NAMES = {
     "Anzahl je Region x Tag: typischer Fehler": "Anzahl je Region und Tag (aktive Tage): typischer Fehler",
     "Anzahl je Region x Tag: 90-%-Fehler": "Anzahl je Region und Tag: 90-%-Fehler",
@@ -272,11 +284,21 @@ KPI_NAMES = {
     "Zwei Laeufe ergeben dieselben Dateien": "Zwei Läufe ergeben dieselben Dateien",
     "Alle Tests bestanden": "Alle Tests bestanden",
     "Schema gleich Dokumentation": "Schema gleich Dokumentation",
+    "VIIRS-Mittel / SNPP je Region x Jahr: Median (untere Grenze)": "VIIRS-Mittel / SNPP je Region und Jahr: Median",
+    "VIIRS-Mittel / SNPP je Region x Jahr: Median (obere Grenze)": "VIIRS-Mittel / SNPP je Region und Jahr: Median",
+    "VIIRS-Mittel / SNPP: kleinstes Verhaeltnis je Region": "VIIRS-Mittel / SNPP: kleinstes Verhältnis je Region (Abdeckung)",
+    "Gewichte 1/k: Abweichung zu n_viirs / frp_viirs": "Gewichte 1/k: größte Abweichung zu n_viirs und frp_viirs",
+    "Mittel genauer als ein Satellit (gewonnene Rotationen)": "Mittel genauer als ein einzelner Satellit (gewonnene Rotationen von 3)",
+    "Ortsmaske je VIIRS-Satellit: kleinster Recall": "Ortsmaske je VIIRS-Satellit: kleinster Recall",
+    "Ortsmaske je VIIRS-Satellit: hoechste Fehlentfernung": "Ortsmaske je VIIRS-Satellit: höchste Fehlentfernung",
+    "Schema gleich in Parquet, CSV, Katalog und data_dictionary.md": "Schema gleich in Parquet, CSV, Katalog und data_dictionary.md",
 }
 
 FRONTEND_MAP = [
     ("Karte mit einzelnen Feuerpunkten", "<code>hotspots_harmonised</code>",
-     "<code>latitude</code>, <code>longitude</code>, <code>obs_date</code>, <code>frp</code>, <code>frp_class</code>, <code>sensor</code>, <code>source</code>. Mit <code>in_series_n</code> = wahr gibt es ab 2012 keine Doppelten."),
+     "<code>latitude</code>, <code>longitude</code>, <code>obs_date</code>, <code>frp</code>, <code>frp_class</code>, <code>satellite</code>, <code>sensor</code>, <code>source</code>. Mit <code>in_series_n</code> = wahr gibt es ab 2012 keine MODIS-Doppelten; ab 2018 kann ein Feuer als Punkt von SNPP und NOAA-20/21 erscheinen (Filter nach <code>satellite</code>)."),
+    ("Sechseck-Heatmap", "<code>hotspots_harmonised</code>",
+     "<code>h3_cell</code> (Auflösung 8). Gröber mit <code>h3.cell_to_parent</code>, Summe von <code>weight_n</code> je Zelle."),
     ("Stärke eines Tages je Region", "<code>activity_daily_harmonised</code>",
      "<code>frp_harm</code>, <code>strength_class</code>, <code>big_fire_day</code> mit den Bändern <code>frp_harm_lo50</code> bis <code>frp_harm_hi90</code>."),
     ("Verlauf über die Jahre", "<code>activity_daily_harmonised</code> + <code>roll_up_daily</code>",
@@ -332,7 +354,8 @@ FRONTEND_RULES = [
     ("Leer ist nicht 0.", "Leere Werte heißen „keine Daten“ oder „Satellit nicht in Betrieb“. Grau zeigen, nicht als ruhigen Tag."),
     ("Klassenfilter nur auf der Karte.", "Summen mit Filter auf <code>frp_class</code> oder <code>confidence_class</code> sind vor 2012 falsch skaliert."),
     ("Pixelwerte nicht zwischen Sensoren vergleichen.", "<code>frp</code> je Punkt, <code>frp_class</code> und <code>confidence_class</code> bedeuten bei MODIS und VIIRS Verschiedenes."),
-    ("Gewichte sind keine Eigenschaft des Punkts.", "<code>weight_n</code> = 3 heißt nicht „drei Feuer“. Nur als Summe verwenden, nie im Popup anzeigen."),
+    ("Gewichte sind keine Eigenschaft des Punkts.", "<code>weight_n</code> = 3 heißt nicht „drei Feuer“ und 1/3 nicht „ein drittel Feuer“. Nur als Summe verwenden, nie im Popup anzeigen."),
+    ("Mehrere VIIRS-Satelliten.", "Ab 2018 messen SNPP und NOAA-20, ab 2023 auch NOAA-21. Die Tageswerte sind ihr Mittel (<code>n_viirs</code>). Punkte nicht zählen, sondern <code>weight_n</code> summieren."),
     ("Feuertage und Wahrscheinlichkeiten nur ab 2012.", "MODIS meldet an etwa 60 % der Tage mit VIIRS-Feuer nichts. <code>n_days_with_fire</code> und die <code>p_*</code>-Spalten kommen deshalb nur aus VIIRS."),
     ("Vorläufige Daten kennzeichnen.", "<code>source</code> = nrt und <code>is_provisional</code> = wahr können sich später leicht ändern."),
 ]
@@ -350,6 +373,7 @@ OVERVIEW_BODY = r"""
 <h1>Tägliche Harmonisierungs-Pipeline</h1>
 <p class="lede">Die Pipeline bringt MODIS und VIIRS je Region und Tag auf eine gemeinsame Skala, legt den Faktor auf jeden einzelnen Hotspot und liefert zu jeder Zahl ihre Unsicherheit. Diese Seite beschreibt Aufbau, Funktionen und Prüfung. Die Spalten erklärt der <a href="column_guide.html">Spaltenbericht</a>.</p>
 <p class="status">{{status_text}}</p>
+<p>Seit Schema-Version 2 ist die VIIRS-Referenz das Mittel aus SNPP, NOAA-20 und NOAA-21. Wie das gebaut und geprüft wurde, steht in <a href="viirs_extension.html">VIIRS-Erweiterung</a>.</p>
 
 <div class="tiles">
 <div class="tile"><b>{{rows_kept}}</b><span>Hotspots bleiben von {{rows_read}} gelesenen Zeilen, {{rows_in_series}} davon zählen in der Reihe</span></div>
@@ -360,7 +384,7 @@ OVERVIEW_BODY = r"""
 
 <h2>Datenfluss</h2>
 <div class="flow">
-<div class="layer l-src"><i>Quelle</i><b>4 FIRMS-CSVs</b><span>MODIS und VIIRS, je Archiv und NRT</span></div>
+<div class="layer l-src"><i>Quelle</i><b>8 FIRMS-CSVs</b><span>MODIS, VIIRS SNPP, NOAA-20 und NOAA-21, je Archiv und NRT</span></div>
 <div class="layer l-raw"><i>data/raw</i><b>Raw-Parquet</b><span>1:1, typisiert, alle Originalspalten</span></div>
 <div class="layer l-proc"><i>data/processed</i><b>Bereinigt</b><span>hotspots_clean, daily_grid, Einheiten der Kreuzvalidierung</span></div>
 <div class="layer l-harm"><i>data/harmonised</i><b>Harmonisiert</b><span>Tagesdatensatz, gewichtete Hotspots, day_status, Fehlermodell</span></div>
@@ -406,9 +430,10 @@ OVERVIEW_BODY = r"""
 <ul>
 <li><strong>Genaue Tageswerte gibt es nur ab dem 20.01.2012.</strong> Davor ist jeder Tageswert eine Schätzung: MODIS meldet an etwa 60 % der Tage mit VIIRS-Feuer nichts.</li>
 <li><strong>Nur Iberien.</strong> Die Faktoren gelten nicht für andere Regionen.</li>
-<li><strong>Bänder für gemessene VIIRS-Werte sind eine Annahme</strong> (Zählrauschen mit Mindestfaktor). In Iberien liegt nur ein VIIRS-Instrument vor, prüfen lässt sich das hier nicht.</li>
+<li><strong>Bänder für gemessene VIIRS-Werte sind eine Annahme</strong> (Zählrauschen mit Mindestfaktor). Seit 2023 lässt sich das Instrumentenrauschen mit drei Satelliten schätzen (Prüfung N3), die Bänder nutzen das noch nicht.</li>
+<li><strong>Das gemeinsame Gebiet ist aus den Daten gelernt</strong> (0,25°-Zellen mit MODIS- oder SNPP-Erkennungen). Am Rand einer Zelle können NOAA-Punkte knapp außerhalb des SNPP-Gebiets mitzählen.</li>
 <li><strong>Gewichte stellen keine verpassten Feuer wieder her.</strong> Auf kleinen Flächen und kurzen Zeiträumen ist die Summe entsprechend unsicher.</li>
-<li><strong>Ab 2022 gibt es ohne VIIRS keinen Wert,</strong> weil MODIS wegen der Bahndrift nicht mehr umgerechnet wird ({{none_days}} Tage am Ende der Reihe).</li>
+<li><strong>Ab 2022 gibt es ohne VIIRS keinen Wert,</strong> weil MODIS wegen der Bahndrift nicht mehr umgerechnet wird ({{none_days}} Tage ohne Wert; seit NOAA-20/21 reicht die Reihe bis zum letzten Datentag).</li>
 <li><strong>Ausfälle innerhalb des Produktfensters</strong> werden nur markiert (<code>possible_gap</code>: {{gap_days}} Tage), nicht korrigiert.</li>
 <li><strong>Die Ortsmaske kennt keine neuen Anlagen</strong> und trifft MODIS schlechter als VIIRS.</li>
 </ul>
@@ -459,6 +484,7 @@ REJECT_REASONS = {
     "static_mask": "statisch laut Ortsmaske, NRT",
     "duplicate": "Duplikat zwischen Archiv und NRT",
     "invalid_value": "ungültiger oder unlesbarer Wert",
+    "outside_common_area": "außerhalb des Gebiets von MODIS und SNPP (NOAA-Downloads reichen weiter)",
 }
 
 ITERATIONS = [
@@ -468,4 +494,8 @@ ITERATIONS = [
      "Messung korrigiert (jede Richtung einzeln, die ungünstigere zählt). Hypothesen H1 bis H5 geprüft."),
     ("Iteration 2", "FRP-Größenklassen 0 bis 10 und 10 bis 100 MW zusammengelegt (zu wenige und zu verrauschte Fälle). Großfeuer-Schwelle für umgerechnete Tage von 100 auf 80 MW (H3).",
      "Alle Schwellen erfüllt. Stopp laut Regel."),
+    ("VIIRS-Erweiterung, Aufbau", "NOAA-20/21 als weitere VIIRS-Satelliten. Erster Download deckte den Nordosten nicht ab (Katalonien 0,44 von SNPP), der zweite reichte weiter als MODIS/SNPP.",
+     "Neuer Download; gemeinsames Gebiet aus den MODIS-/SNPP-Erkennungen. Danach alle Regionen 0,83 bis 1,23 von SNPP."),
+    ("VIIRS-Erweiterung, Iteration 1", "Verfehlt: U1b (50-%-Band 0,614 bei Grenze 0,58) und N4b (Fehlentfernung NOAA-20 2,2 % bei Grenze 2 %).",
+     "Kalibrierung und Fehlermodell gegen SNPP allein (gleiches Rauschen im ganzen Fenster), Ortsmaske je Sensor. Alle {{n_kpis}} Schwellen erfüllt, keine gesenkt."),
 ]

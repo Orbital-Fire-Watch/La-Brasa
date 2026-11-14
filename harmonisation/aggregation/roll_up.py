@@ -9,7 +9,9 @@ import pandas as pd
 from aggregation.periods import days_in_period, period_end_of, period_start_of
 from aggregation.uncertainty import BASIS_MEASURED, classify_reliability, lookup_error_factors, uncertainty_bands
 
-RAW_COLUMNS = ["n_aqua", "n_terra", "n_snpp", "frp_aqua", "frp_terra", "frp_snpp"]
+# Rohspalten der Tagestabelle (Spaltenkatalog): je Satellit und die VIIRS-Referenz, alle additiv
+RAW_COLUMNS = ["n_aqua", "n_terra", "n_snpp", "n_noaa20", "n_noaa21", "n_viirs",
+               "frp_aqua", "frp_terra", "frp_snpp", "frp_noaa20", "frp_noaa21", "frp_viirs"]
 ROLL_UP_COLUMNS = ["region_id", "grain", "period_start", "period_end", "n_days", "n_days_complete", "is_complete_period",
                    "share_measured_days", "basis_mix", "basis_count_converted", "basis_frp_converted", "n_harm", "frp_harm",
                    "n_harm_mean_per_day", "frp_harm_mean_per_day", "n_big_fire_days", "n_days_with_fire"] + RAW_COLUMNS

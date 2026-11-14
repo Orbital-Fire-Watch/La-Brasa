@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+import h3
 import numpy as np
 import pandas as pd
 
@@ -70,6 +71,22 @@ def add_cell_id(hotspots: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
     lat_index = np.floor(hotspots["latitude"] / size).astype("int64").astype(str)
     lon_index = np.floor(hotspots["longitude"] / size).astype("int64").astype(str)
     return hotspots.assign(cell_id=pd.array(lat_index + "_" + lon_index, dtype="string"))
+
+
+def add_h3_cell(hotspots: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
+    """Ergaenzt `h3_cell`: die H3-Zelle (Uber H3, Sechseck-Raster) der Pixelmitte als Text, z. B. "88390ca343fffff".
+
+    Aufloesung laut `grid.h3_resolution` (Standard 8: etwa 0,74 km^2 je Zelle, Kante etwa 530 m).
+    Das liegt zwischen einem VIIRS-Pixel (0,13 bis 0,6 km^2) und einem MODIS-Pixel (1 bis 10 km^2):
+    Ein Punkt faellt in genau eine Zelle, ohne dass die Zelle feiner waere als die Ortsangabe.
+    Groebere Zellen (z. B. Aufloesung 5 oder 6 fuer die Karte) ergeben sich ohne Neuberechnung mit
+    `h3.cell_to_parent`. Sechsecke haben gleich weite Nachbarn, darum eignen sie sich besser fuer
+    Heatmaps und Nachbarschaftsabfragen als das Gradraster `cell_id`, dessen Zellen nach Norden
+    schmaler werden. Gerechnet wird aus den unveraenderten FIRMS-Koordinaten (WGS84).
+    """
+    resolution = config["grid"]["h3_resolution"]
+    cells = [h3.latlng_to_cell(lat, lon, resolution) for lat, lon in zip(hotspots["latitude"].to_numpy(), hotspots["longitude"].to_numpy())]
+    return hotspots.assign(h3_cell=pd.array(cells, dtype="string"))
 
 
 def add_pixel_area(hotspots: pd.DataFrame) -> pd.DataFrame:

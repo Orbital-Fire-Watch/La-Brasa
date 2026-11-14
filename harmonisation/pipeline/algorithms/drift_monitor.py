@@ -25,7 +25,9 @@ def monitor_overpass_drift(config: dict[str, Any]) -> pd.DataFrame:
     eines Satelliten, sieht er systematisch mehr oder weniger Feuer, und der Faktor stimmt nicht
     mehr. Terra und Aqua werden seit 2022 nicht mehr auf ihrer Bahn gehalten.
     Gemessen wird der Median der lokalen Sonnenzeit der Tag-Erkennungen. Die Abweichung zum
-    Mittel der Basisjahre (Standard 2012-2014) steht in Minuten in `deviation_minutes`.
+    Mittel der Basisjahre (Standard 2012-2014) steht in Minuten in `deviation_minutes`. Satelliten
+    ohne Daten in den Basisjahren (NOAA-20 ab 2018, NOAA-21 ab 2023) werden an ihren ersten
+    `baseline_fallback_years` vollen Jahren gemessen (das Startjahr ist meist unvollstaendig).
     `exceeds_limit` ist wahr, wenn sie die erlaubte Grenze (Standard 15 Minuten) ueberschreitet,
     `in_calibration_window` markiert die Jahre, die in die Faktoren eingehen.
     Ein Jahr, bei dem beide Spalten wahr sind, ist ein Warnsignal.
@@ -34,15 +36,25 @@ def monitor_overpass_drift(config: dict[str, Any]) -> pd.DataFrame:
     query = DRIFT_SQL.format(clean=path_of(config, "processed", "hotspots_clean.parquet"),
                              daynight=params["daynight"], min_n=params["min_detections_per_year"])
     yearly = duckdb.connect().execute(query).df()
-    baseline = (yearly[yearly["year"].isin(params["baseline_years"])].groupby("satellite")["median_solar_hour"].mean()
-                .rename("baseline_solar_hour"))
-    yearly = yearly.merge(baseline, on="satellite", how="left")
+    yearly = yearly.merge(baseline_solar_hours(yearly, params), on="satellite", how="left")
     yearly["deviation_minutes"] = (yearly["median_solar_hour"] - yearly["baseline_solar_hour"]) * MINUTES_PER_HOUR
     yearly["exceeds_limit"] = yearly["deviation_minutes"].abs() > params["max_deviation_minutes"]
     window = config["calibration"]
     first_year, last_year = pd.Timestamp(window["window_start"]).year, pd.Timestamp(window["window_end"]).year
     yearly["in_calibration_window"] = yearly["year"].between(first_year, last_year)
     return yearly
+
+
+def baseline_solar_hours(yearly: pd.DataFrame, params: dict[str, Any]) -> pd.Series:
+    """Mittlere Ueberflugzeit der Basisjahre je Satellit, ersatzweise seiner ersten vollen Jahre."""
+    rows = []
+    for satellite, group in yearly.groupby("satellite"):
+        base = group[group["year"].isin(params["baseline_years"])]
+        if base.empty:
+            first_full = group["year"].min() + 1
+            base = group[group["year"].between(first_full, first_full + params["baseline_fallback_years"] - 1)]
+        rows.append((satellite, base["median_solar_hour"].mean()))
+    return pd.DataFrame(rows, columns=["satellite", "baseline_solar_hour"]).set_index("satellite")["baseline_solar_hour"]
 
 
 def summarise_drift_warnings(drift: pd.DataFrame) -> dict[str, Any]:

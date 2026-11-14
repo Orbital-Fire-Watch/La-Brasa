@@ -8,6 +8,8 @@ Run after harmonisation/run_pipeline.py:
     docker compose run --rm pipeline python load_to_db.py
 
 What it does:
+    - checks that data/harmonised/manifest.json has the schema version this loader and
+      db/init/001_schema.sql were written for (SCHEMA_VERSION)
     - reads data/harmonised/<table>.parquet for every table in TABLES
     - checks that the Parquet columns are exactly the database columns (db/init/001_schema.sql)
     - refuses NaN in number columns: an empty value must be NULL, never NaN
@@ -24,6 +26,7 @@ POSTGRES_DB from the environment or .env, with host localhost and port 5432.
 Install: pip install -r pipeline/requirements.txt
 """
 import argparse
+import json
 import os
 import sys
 from collections.abc import Sequence
@@ -49,6 +52,10 @@ REGIONS_TABLE = "regions"
 REGIONS_SOURCE = "activity_daily_harmonised"
 REGION_COLUMNS = ["region_id", "region_name", "country"]
 BATCH_ROWS = 50_000
+# Schema version of the harmonised tables that db/init/001_schema.sql describes.
+# 2 = VIIRS reference n_viirs / frp_viirs from SNPP, NOAA-20 and NOAA-21 (harmonisation/docs/viirs_extension.md).
+SCHEMA_VERSION = 2
+RECREATE_HINT = "An existing database keeps its old tables: recreate it with docker compose down -v && docker compose up -d db."
 
 
 class LoadError(Exception):
@@ -87,6 +94,19 @@ def connect(cli_url: str | None) -> psycopg.Connection:
 
 
 # --------------------------------------------------------------------------- Files
+def check_schema_version(harmonised_dir: Path) -> None:
+    """The harmonised files must have the schema version this loader was written for."""
+    manifest = harmonised_dir / "manifest.json"
+    if not manifest.exists():
+        raise LoadError(f"{manifest} not found. Run harmonisation/run_pipeline.py first.")
+    version = json.loads(manifest.read_text(encoding="utf-8")).get("schema_version")
+    if version != SCHEMA_VERSION:
+        raise LoadError(
+            f"Harmonised data has schema version {version}, the loader and db/init/001_schema.sql expect {SCHEMA_VERSION}. "
+            "Run the current harmonisation/run_pipeline.py, or update the schema and SCHEMA_VERSION together."
+        )
+
+
 def read_tables(harmonised_dir: Path) -> dict[str, pa.Table]:
     """Read all harmonised tables and check them for NaN."""
     tables = {}
@@ -134,7 +154,7 @@ def check_columns(name: str, table: pa.Table, db_columns: list[str]) -> None:
         raise LoadError(
             f"{name}: columns differ between Parquet and database. "
             f"Missing in Parquet: {missing}. Missing in database: {extra}. "
-            "Update db/init/001_schema.sql to match harmonisation/docs/data_dictionary.md."
+            "Update db/init/001_schema.sql to match harmonisation/docs/data_dictionary.md. " + RECREATE_HINT
         )
 
 
@@ -183,6 +203,7 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        check_schema_version(args.data_dir / "harmonised")
         tables = read_tables(args.data_dir / "harmonised")
         with connect(args.database_url) as conn:
             if args.dry_run:

@@ -5,6 +5,18 @@ Every table except `regions` is a 1:1 copy of a harmonised Parquet file in `data
 loaded by `pipeline/load_to_db.py`. What each column means (units, "empty vs. 0") is documented in
 [`harmonisation/docs/data_dictionary.md`](../../harmonisation/docs/data_dictionary.md).
 
+**Schema version 2** (14.11.2026): the VIIRS reference is the mean of the operating VIIRS satellites SNPP, NOAA-20 and
+NOAA-21 (`n_viirs`, `frp_viirs`, `viirs_operating`); raw values per satellite stay available; hotspots carry an H3 cell
+(`h3_cell`, resolution 8). Why: [`harmonisation/docs/viirs_extension.md`](../../harmonisation/docs/viirs_extension.md).
+`pipeline/load_to_db.py` checks `schema_version` in `data/harmonised/manifest.json` against its `SCHEMA_VERSION`.
+
+| Table | Change in version 2 |
+|---|---|
+| `activity_daily_harmonised` | new `n_noaa20`, `n_noaa21`, `n_viirs`, `frp_noaa20`, `frp_noaa21`, `frp_viirs`; `n_snpp`/`frp_snpp` are now raw values only |
+| `day_status` | new `viirs_operating` (the day is measured), `noaa20_operating`, `noaa21_operating` |
+| `hotspots_harmonised` | new `h3_cell`; `satellite` also `N20`, `N21`; `weight_n` = 1/k for VIIRS |
+| all others | unchanged |
+
 ## Entity relationship model
 
 Solid lines are foreign keys enforced by the database. Dashed lines are logical relationships:
@@ -30,6 +42,7 @@ erDiagram
         date date PK
         double n_harm "harmonised count"
         double frp_harm "harmonised FRP, MW"
+        double n_viirs "VIIRS reference: mean of operating satellites"
         text basis_count "measured or converted"
         text reliability
         text strength_class
@@ -43,10 +56,11 @@ erDiagram
         timestamptz acq_datetime_utc
         double latitude
         double longitude
-        text satellite
+        text h3_cell "H3 cell, resolution 8"
+        text satellite "Terra, Aqua, SNPP, N20, N21"
         double frp "MW"
         boolean in_series_n
-        double weight_n "only to be summed"
+        double weight_n "1/k for VIIRS, only to be summed"
     }
     calib_factors {
         text region_id PK, FK
@@ -57,7 +71,10 @@ erDiagram
     }
     day_status {
         date date PK
+        boolean viirs_operating "any VIIRS satellite"
         boolean snpp_operating
+        boolean noaa20_operating
+        boolean noaa21_operating
         boolean aqua_operating
         boolean terra_operating
         boolean is_provisional "NRT"
@@ -112,19 +129,21 @@ Notation: **bold** = primary key, ↗ `table` = foreign key to that table.
 **regions** (**region_id**, region_name, country)
 
 **activity_daily_harmonised** (**region_id** ↗ `regions`, **date**, country, region_name,
-n_aqua, n_terra, n_snpp, frp_aqua, frp_terra, frp_snpp, basis_count, basis_frp,
+n_aqua, n_terra, n_snpp, n_noaa20, n_noaa21, n_viirs, frp_aqua, frp_terra, frp_snpp, frp_noaa20, frp_noaa21, frp_viirs,
+basis_count, basis_frp,
 n_harm, frp_harm, factor_count, factor_frp, strength_class, big_fire_day,
 n_harm_lo50, n_harm_hi50, n_harm_lo90, n_harm_hi90,
 frp_harm_lo50, frp_harm_hi50, frp_harm_lo90, frp_harm_hi90,
 reliability, is_complete_day, possible_gap)
 
-**hotspots_harmonised** (**hotspot_id**, latitude, longitude, cell_id, acq_date, acq_time,
+**hotspots_harmonised** (**hotspot_id**, latitude, longitude, cell_id, h3_cell, acq_date, acq_time,
 acq_datetime_utc, obs_date, local_solar_hour, satellite, sensor, source, daynight,
 frp, frp_class, confidence_class, confidence_raw, scan, track, pixel_area_km2,
 region_id ↗ `regions`, country, in_series_n, in_series_frp, weight_n, weight_frp,
 basis_count, basis_frp)
 
-**day_status** (**date**, snpp_operating, aqua_operating, terra_operating, basis_count, basis_frp,
+**day_status** (**date**, viirs_operating, snpp_operating, noaa20_operating, noaa21_operating, aqua_operating, terra_operating,
+basis_count, basis_frp,
 is_complete_day, is_provisional, possible_gap)
 
 **calib_factors** (**region_id** ↗ `regions`, k_count_pair, k_count_aqua, k_count_terra,
@@ -156,8 +175,17 @@ recall, precision, kappa, n_events_measured, n_events_converted, n_units)
 
 ## Updating this document
 
-Change the schema in `../init/001_schema.sql` first, then this file. Regenerate the SVG from the
-Mermaid block above:
+Change the schema in `../init/001_schema.sql` first, then this file, and raise `SCHEMA_VERSION` in
+`pipeline/load_to_db.py` together with `schema_version` in `harmonisation/pipeline_config.yaml`.
+`pipeline/tests/test_load_to_db.py` checks that the SQL columns match `harmonisation/docs/data_dictionary.md`.
+
+Regenerate the SVG from the Mermaid block above. Without Node or a browser (standard-library Python, used for version 2):
+
+```bash
+python db/docs/build_er_diagram.py      # reads the Mermaid block, writes er_diagram.svg
+```
+
+With mermaid-cli (Node and a headless browser):
 
 ```bash
 cd db/docs

@@ -24,17 +24,18 @@ from typing import Any, Callable
 import pandas as pd
 import pyarrow.parquet as pq
 
-from pipeline.algorithms import daily_grid, event_quality, uncertainty_model, validation_kpis
+from pipeline.algorithms import daily_grid, event_quality, uncertainty_model, validation_kpis, viirs_kpis
 from pipeline.algorithms.calibration_factors import estimate_calibration_factors, overall_factors, select_calibration_days
 from pipeline.algorithms.drift_monitor import monitor_overpass_drift, summarise_drift_warnings
 from pipeline.algorithms.harmonise_daily import add_strength_columns, harmonise_daily_activity
 from pipeline.algorithms.hotspot_weights import weight_hotspots
 from pipeline.column_catalogue import TABLES, columns_of
-from pipeline.csv_export import export_tables_to_csv
-from pipeline.config import DEFAULT_CONFIG_PATH, PROJECT_ROOT, config_fingerprint, load_config, path_of
+from pipeline.csv_export import csv_directory, export_tables_to_csv
+from pipeline.config import DEFAULT_CONFIG_PATH, PROJECT_ROOT, config_fingerprint, load_config, path_of, viirs_keys
 from pipeline.data_loading import clean_hotspots, schema_validation
 from pipeline.data_loading.assign_region import load_region_names
 from pipeline.data_loading.ingest_csv_to_parquet import ingest_all_sources
+from pipeline.data_loading.common_area import learn_common_area
 from pipeline.data_loading.static_source_mask import evaluate_mask_on_holdout
 from pipeline.io_utils import file_sha256, get_logger, read_json, read_parquet, write_json, write_parquet_deterministic
 
@@ -64,7 +65,7 @@ def run_stage_daily_grid(config: dict[str, Any]) -> dict[str, Any]:
     coverage = daily_grid.find_satellite_coverage(config)
     status = daily_grid.build_day_status(sums, coverage, config)[columns_of("day_status")]
     schema_validation.validate_day_status(status)
-    grid = daily_grid.build_daily_grid(sums, status)
+    grid = daily_grid.build_daily_grid(sums, status, config)
     write_parquet_deterministic(sums, path_of(config, "processed", "activity_daily_raw.parquet"), ["region_id", "obs_date", "satellite"], ("obs_date",))
     write_parquet_deterministic(coverage, path_of(config, "processed", "satellite_coverage.parquet"), date_columns=("window_start", "window_end"))
     write_parquet_deterministic(grid, path_of(config, "processed", "daily_grid.parquet"), date_columns=("date",))
@@ -99,8 +100,8 @@ def build_cross_validation_units(config: dict[str, Any]) -> dict[str, pd.DataFra
     calibration_days = select_calibration_days(grid, config)
     loyo = uncertainty_model.estimate_leave_one_year_out_factors(calibration_days, config)
     region_units = uncertainty_model.predict_leave_one_year_out(calibration_days, loyo)
-    dates = pd.DatetimeIndex(sorted(calibration_days["date"].unique()))
-    return {"cell": uncertainty_model.predict_cell_units(hotspots, dates, loyo, config), "nuts2": region_units,
+    operating = calibration_days[["date"] + [c for c in calibration_days if c.endswith("_operating")]].drop_duplicates("date")
+    return {"cell": uncertainty_model.predict_cell_units(hotspots, operating, loyo, config), "nuts2": region_units,
             "country": uncertainty_model.sum_units_to_area(region_units, "country"),
             "all": uncertainty_model.sum_units_to_area(region_units, "all")}
 
@@ -129,7 +130,7 @@ def run_stage_harmonise_daily(config: dict[str, Any]) -> dict[str, Any]:
     status = read_parquet(path_of(config, "harmonised", "day_status.parquet"))
     factors = read_parquet(path_of(config, "harmonised", "calib_factors.parquet"))
     quality = read_parquet(path_of(config, "harmonised", "quality_by_scale.parquet"))
-    daily = add_strength_columns(harmonise_daily_activity(grid, status, factors), config)
+    daily = add_strength_columns(harmonise_daily_activity(grid, status, factors, config), config)
     daily = uncertainty_model.attach_uncertainty_bands(daily, quality, config)
     daily = daily.merge(status[["date", "is_complete_day", "possible_gap"]], on="date")
     daily["region_name"] = daily["region_id"].map(load_region_names(config))
@@ -171,14 +172,15 @@ def run_stage_test(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_typed_archive_hotspots(config: dict[str, Any]) -> pd.DataFrame:
-    """Gueltige, eindeutige Archivzeilen mit bekanntem `type` (Grundlage fuer die Pruefung der Ortsmaske)."""
+    """Gueltige, eindeutige Archivzeilen mit bekanntem `type` im gemeinsamen Gebiet (Grundlage fuer die Pruefung der Ortsmaske)."""
     valid, _ = clean_hotspots.reject_invalid_rows(clean_hotspots.load_raw_hotspots(config), config)
     unique, _ = clean_hotspots.deduplicate_hotspots(valid, config)
-    return unique[unique["type"].notna()]
+    inside, _ = clean_hotspots.restrict_to_common_area(unique, learn_common_area(unique, config), config)
+    return inside[inside["type"].notna()]
 
 
 def check_status_and_types(config: dict[str, Any]) -> bool:
-    """S1: Datumsfelder sind DATE, und leere Rohzahlen stehen genau an Tagen ohne Betrieb des Satelliten."""
+    """S1: Datumsfelder sind DATE, und leere Rohzahlen stehen genau an Tagen ohne Betrieb des Satelliten (auch n_viirs)."""
     checks = {"activity_daily_harmonised": ["date"], "day_status": ["date"], "hotspots_harmonised": list(HOTSPOT_DATES)}
     for name, columns in checks.items():
         schema = pq.read_schema(path_of(config, "harmonised", f"{name}.parquet"))
@@ -187,12 +189,39 @@ def check_status_and_types(config: dict[str, Any]) -> bool:
     daily = read_parquet(path_of(config, "harmonised", "activity_daily_harmonised.parquet"))
     status = read_parquet(path_of(config, "harmonised", "day_status.parquet"))
     merged = daily.merge(status, on="date", suffixes=("", "_status"))
-    return all(bool((merged[f"n_{name}"].isna() == ~merged[f"{name}_operating"]).all()) for name in ("snpp", "aqua", "terra"))
+    keys = list(config["satellites"]["column_key"].values()) + ["viirs"]
+    return all(bool((merged[f"n_{key}"].isna() == ~merged[f"{key}_operating"]).all()) for key in keys)
 
 
 def schema_matches_documentation(config: dict[str, Any]) -> bool:
     """I1d: Jede gespeicherte Tabelle hat genau die Spalten, die der Katalog (und damit die Doku) nennt."""
     return all(pq.read_schema(path_of(config, "harmonised", f"{name}.parquet")).names == columns_of(name) for name in STORED_TABLES)
+
+
+def documented_columns(table_title: str) -> list[str]:
+    """Spaltennamen eines Abschnitts von docs/data_dictionary.md (Zeilen der Form | `name` | ...)."""
+    text = (PROJECT_ROOT / "docs" / "data_dictionary.md").read_text(encoding="utf-8")
+    parts = text.split(f"## {table_title}\n")
+    section = parts[1].split("\n## ")[0] if len(parts) > 1 else ""
+    return [line.split("`")[1] for line in section.splitlines() if line.startswith("| `")]
+
+
+def schema_matches_everywhere(config: dict[str, Any]) -> bool:
+    """N5: Parquet, CSV-Kopfzeile, Katalog und data_dictionary.md nennen dieselben Spalten in derselben Reihenfolge."""
+    for name in STORED_TABLES:
+        expected = columns_of(name)
+        csv_path = csv_directory(config) / f"{name}.csv"
+        csv_header = csv_path.read_text(encoding="utf-8").split("\n", 1)[0].split(",") if csv_path.exists() else expected
+        if not (pq.read_schema(path_of(config, "harmonised", f"{name}.parquet")).names == csv_header == documented_columns(TABLES[name].title) == expected):
+            return False
+    return True
+
+
+def measure_viirs_reference(config: dict[str, Any], daily: pd.DataFrame, hotspots: pd.DataFrame, regions: list[str]) -> dict[str, Any]:
+    """N1 bis N3: Niveau des VIIRS-Mittels gegen SNPP, Gewichte 1/k, Rauschen gegen einen zurueckgehaltenen Satelliten."""
+    return {"level": viirs_kpis.measure_viirs_level(daily, regions, config),
+            "weights": viirs_kpis.measure_viirs_weight_identity(hotspots, daily),
+            "noise": viirs_kpis.measure_instrument_noise(daily, regions, config), "satellites": viirs_keys(config)}
 
 
 def run_stage_validate(config: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
@@ -202,7 +231,8 @@ def run_stage_validate(config: dict[str, Any], state: dict[str, Any]) -> dict[st
     daily_path = path_of(config, "harmonised", "activity_daily_harmonised.parquet")
     daily, hotspots = read_parquet(daily_path), read_parquet(path_of(config, "harmonised", "hotspots_harmonised.parquet"))
     count_column, frp_column = validation_kpis.default_prediction_columns(config)
-    measured = {"accuracy": validation_kpis.measure_accuracy(units, config),
+    accuracy = validation_kpis.measure_accuracy(units, config)
+    measured = {"accuracy": accuracy, "viirs": measure_viirs_reference(config, daily, hotspots, accuracy["evaluation_regions"]),
                 "uncertainty": validation_kpis.measure_uncertainty_calibration(units, count_column, frp_column, config),
                 "roll_up": validation_kpis.measure_roll_up_exactness(daily, str(daily_path)),
                 "weights": validation_kpis.measure_weight_identity(hotspots, daily),
@@ -212,7 +242,8 @@ def run_stage_validate(config: dict[str, Any], state: dict[str, Any]) -> dict[st
                 "integrity": {"row_balance": state.get("clean", {}).get("report", {}).get("balanced"),
                               "deterministic": state.get("determinism", {}).get("identical"),
                               "tests_passed": state.get("test", {}).get("report", {}).get("passed"),
-                              "schema_matches_documentation": schema_matches_documentation(config)}}
+                              "schema_matches_documentation": schema_matches_documentation(config),
+                              "schema_everywhere": schema_matches_everywhere(config)}}
     kpis = validation_kpis.evaluate_thresholds(measured, config)
     report = {"all_passed": all(row["passed"] for row in kpis), "kpis": kpis, "measured": measured,
               "informational": {"possible_gap_days": state.get("daily_grid", {}).get("report", {}).get("possible_gap_days"),
@@ -271,7 +302,7 @@ def git_commit() -> str | None:
 def write_manifest(config: dict[str, Any], state: dict[str, Any]) -> None:
     """Schreibt manifest.json: was lief, mit welchen Parametern und Eingaben, und was herauskam."""
     manifest = {"written_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "run_signature": state.get("signature"), "git_commit": git_commit(),
+                "schema_version": config["schema_version"], "run_signature": state.get("signature"), "git_commit": git_commit(),
                 "config_fingerprint": config_fingerprint(config), "code_fingerprint": code_fingerprint(),
                 "nuts_version": config["nuts"]["version"], "calibration_window": config["calibration"],
                 "input_files": {source["name"]: file_sha256(Path(source["csv"])) for source in config["sources"]},

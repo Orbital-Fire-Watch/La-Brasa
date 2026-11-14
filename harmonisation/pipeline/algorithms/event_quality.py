@@ -38,7 +38,7 @@ def build_strength_confusion(region_units: pd.DataFrame, config: dict[str, Any])
     laesst sich ablesen, wie weit man einer Klasse vor 2012 trauen kann: Sehr starke Tage trifft
     MODIS meist, mittlere Tage landen oft eine Klasse zu tief oder ganz bei "kein Signal".
     """
-    measured = classify_strength(region_units["frp_snpp"], config)
+    measured = classify_strength(region_units["frp_viirs"], config)
     parts = []
     for variant in MODIS_VARIANTS:
         converted = classify_strength(region_units[f"pred_frp_{variant}"], config)
@@ -59,7 +59,7 @@ def build_big_fire_day_quality(units_by_area: dict[str, pd.DataFrame], config: d
     params, rows = config["strength"], []
     for area_scale in ("nuts2", "cell"):
         units = units_by_area[area_scale]
-        measured = (units["frp_snpp"] >= params["big_fire_threshold_mw"]).to_numpy()
+        measured = (units["frp_viirs"] >= params["big_fire_threshold_mw"]).to_numpy()
         for variant in MODIS_VARIANTS:
             converted = (units[f"pred_frp_{variant}"] >= params["big_fire_threshold_scaled_mw"]).to_numpy()
             rows.append({"area_scale": area_scale, "basis": BASIS_OF_VARIANT[variant],

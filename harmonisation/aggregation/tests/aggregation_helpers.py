@@ -23,8 +23,10 @@ def make_daily(start: str, end: str, measured_from: str | None = None, last_valu
             frame.loc[late, ["n_harm", "frp_harm"]] = np.nan
         frame["big_fire_day"] = (frame["frp_harm"] >= 100).astype("boolean").where(frame["frp_harm"].notna())
         frame["n_snpp"] = frame["n_harm"].where(measured)
+        frame["n_noaa20"], frame["n_noaa21"], frame["n_viirs"] = frame["n_snpp"], frame["n_snpp"], frame["n_snpp"]
         frame["n_aqua"], frame["n_terra"] = frame["n_harm"] / 6, frame["n_harm"] / 6
         frame["frp_snpp"], frame["frp_aqua"], frame["frp_terra"] = frame["frp_harm"].where(measured), frame["frp_harm"], frame["frp_harm"] / 2
+        frame["frp_noaa20"], frame["frp_noaa21"], frame["frp_viirs"] = frame["frp_snpp"], frame["frp_snpp"], frame["frp_snpp"]
         parts.append(frame)
     return pd.concat(parts, ignore_index=True)
 
