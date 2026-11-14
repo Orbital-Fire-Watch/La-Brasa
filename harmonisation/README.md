@@ -1,11 +1,14 @@
 # harmonisation
 
-Taegliche Harmonisierung der FIRMS-Hotspots (MODIS Terra/Aqua -> VIIRS SNPP) fuer Iberien, mit Punktgewichten, Fehlermodell
-und einem getrennten Aggregationsmodul. Datengrundlage fuer ein spaeteres Frontend (Karte, Kalender).
+Taegliche Harmonisierung der FIRMS-Hotspots (MODIS Terra/Aqua -> VIIRS) fuer Iberien, mit Punktgewichten, Fehlermodell
+und einem getrennten Aggregationsmodul. Die VIIRS-Referenz ist seit Schema-Version 2 das Mittel aus SNPP, NOAA-20 und NOAA-21.
+Datengrundlage fuer ein spaeteres Frontend (Karte, Kalender).
 
 - Aufbau, Funktionen, KPIs: `docs/pipeline_overview.html`
 - Alle Spalten und ihre Nutzung im Frontend: `docs/column_guide.html` (und `docs/data_dictionary.md`)
 - Iterationen und Hypothesen: `docs/iteration_log.md`, `data_analysis/experiments/hypothesis_results.json`
+- NOAA-20/21-Erweiterung: `docs/viirs_extension.md` (kurz) und `docs/viirs_extension.html` (Entstehung mit Zahlen)
+- Rohdaten, Herkunft, Pruefsummen: `docs/raw_sources.md`
 - Fachliche Begruendung: `docs/harmonisierung_bericht.html`
 
 ## Ausfuehren
@@ -24,11 +27,12 @@ Rueckgabewert 1, wenn eine KPI-Schwelle verfehlt wird.
     run_pipeline.py          Orchestrator: ingest, clean, daily_grid, calibrate, quantify_uncertainty,
                              harmonise_daily, weight_hotspots, test, validate
     pipeline_config.yaml     alle Parameter, Schwellen und KPI-Grenzen
-    pipeline/data_loading/   Einlesen, Bereinigen, Ortsmaske, Region, Klassen, abgeleitete Spalten
-    pipeline/algorithms/     Tagesraster, Kalibrierung, Harmonisierung, Gewichte, Fehlermodell, KPIs, Drift
+    pipeline/data_loading/   Einlesen, Bereinigen, gemeinsames Gebiet, Ortsmaske, Region, Klassen, abgeleitete Spalten (inkl. H3)
+    pipeline/algorithms/     Tagesraster (VIIRS-Mittel), Kalibrierung, Harmonisierung, Gewichte, Fehlermodell, KPIs (viirs_kpis.py: N1-N4), Drift
     pipeline/column_catalogue.py   eine Quelle fuer Schema und Dokumentation
     aggregation/             Roll-up, Unsicherheit, Flaechenabfragen, Klimaprofil, laufender Monat (nicht im Orchestrator)
-    ../data/raw, processed, harmonised   gemeinsamer Datenordner des Repositorys (nicht in Git)
+    ../data/raw/<produkt>/   FIRMS-CSVs, ein Ordner je Produkt: modis, viirs_snpp, viirs_noaa20, viirs_noaa21
+    ../data/processed, harmonised   gemeinsamer Datenordner des Repositorys (nicht in Git)
     ../data/harmonised/csv/  CSV-Kopien aller Ausgabetabellen, nur zum Ansehen (Stufe export_csv, bei jedem Lauf neu).
                              Das Produkt nutzt sie nicht: Postgres wird aus den Parquet-Dateien geladen.
     tests/, aggregation/tests/, data_analysis/experiments/, docs/
