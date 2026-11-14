@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" type="image/svg+xml" href="./assets/la-brasa-logo.svg" />
+    <title>La Brasa: Info</title>
+    <style>
+      :root { --bg: #121417; --tile: #1b1e22; --border: #2c3036; --text: #e6e8eb; --muted: #9ba2ab; --blue: #8ab8ec; }
+      @media (prefers-color-scheme: light) {
+        :root { --bg: #eceef1; --tile: #ffffff; --border: #cfd4da; --text: #15181c; --muted: #555d67; --blue: #1d64c4; }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 Inter, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+      header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 24px; border-bottom: 1px solid var(--border); }
+      header img { width: 48px; height: 48px; }
+      header strong { display: block; font-size: 17px; }
+      header span { color: var(--muted); font-size: 13px; }
+      header nav { margin-inline-start: auto; display: flex; gap: 12px; align-items: center; }
+      select { font: inherit; padding: 4px 6px; background: var(--tile); color: var(--text); border: 1px solid var(--border); border-radius: 3px; }
+      main { max-width: 780px; margin: 0 auto; padding: 28px 16px 64px; display: grid; gap: 14px; }
+      h1 { margin: 0 0 6px; font-size: 26px; font-weight: 600; }
+      h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+      section { padding: 16px 18px; border: 1px solid var(--border); border-radius: 3px; background: var(--tile); }
+      p { margin: 0 0 8px; }
+      ul { margin: 0; padding-inline-start: 20px; }
+      a { color: var(--blue); }
+      a:focus-visible, select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+      dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+      dt { color: var(--muted); }
+      dd { margin: 0; }
+      .note { color: var(--muted); font-size: 13px; }
+      [data-lang] { display: none; }
+      [data-lang].is-active { display: contents; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="./assets/la-brasa-logo.svg" alt="" />
+      <div>
+        <strong>La Brasa</strong>
+        <span data-lang="en">Satellite fire monitoring for Spain and Portugal</span>
+        <span data-lang="es">Seguimiento de incendios por satélite en España y Portugal</span>
+        <span data-lang="pt">Monitorização de incêndios por satélite em Espanha e Portugal</span>
+      </div>
+      <nav>
+        <label>
+          <span hidden>Language</span>
+          <select id="lang" aria-label="Language / Idioma">
+            <option value="en" lang="en">English</option>
+            <option value="es" lang="es">Español</option>
+            <option value="pt" lang="pt">Português</option>
+          </select>
+        </label>
+        <a href="./" data-lang="en">Back to the map</a>
+        <a href="./" data-lang="es">Volver al mapa</a>
+        <a href="./" data-lang="pt">Voltar ao mapa</a>
+      </nav>
+    </header>
+
+    <main>
+      <div data-lang="en">
+        <div>
+          <h1>About this service</h1>
+          <p>La Brasa shows where satellites have detected active fires in Spain and Portugal, how the current situation compares with earlier years, and how the fire season develops.</p>
+        </div>
+        <section>
+          <h2>Where the data comes from</h2>
+          <p>The hotspots are thermal anomalies detected by the MODIS (Terra, Aqua) and VIIRS (Suomi NPP, NOAA-20, NOAA-21) instruments and published by NASA FIRMS.</p>
+          <p>Because the satellite fleet changed over the years, each detection is weighted (harmonised) so that years stay comparable. Harmonised hotspots are expressed as MODIS Aqua equivalents.</p>
+        </section>
+        <section>
+          <h2>Terms used on the site</h2>
+          <dl>
+            <dt>Hotspot</dt><dd>A satellite pixel with an active fire at the time of the overpass.</dd>
+            <dt>FRP</dt><dd>Fire radiative power in megawatts, a measure of how intensely a fire burns.</dd>
+            <dt>Fire event</dt><dd>Hotspots that are close in space and time, probably the same fire.</dd>
+            <dt>H3 cell</dt><dd>A hexagon of a global grid; the map uses smaller cells as you zoom in.</dd>
+            <dt>Confidence</dt><dd>How certain the satellite product is that a detection is a fire.</dd>
+          </dl>
+        </section>
+        <section>
+          <h2>Limits</h2>
+          <ul>
+            <li>Satellites see a place only a few times a day; small or short fires can be missed.</li>
+            <li>Clouds and smoke can hide fires; hot industrial sites can appear as hotspots.</li>
+            <li>Hotspots are not burnt area. For mapped burnt areas, see EFFIS.</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Further information</h2>
+          <ul>
+            <li><a href="https://forest-fire.emergency.copernicus.eu/" target="_blank" rel="noopener noreferrer">European Forest Fire Information System (EFFIS)</a></li>
+            <li><a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Fire Information for Resource Management System (FIRMS)</a></li>
+            <li><a href="https://h3geo.org/" target="_blank" rel="noopener noreferrer">H3 hexagonal grid</a></li>
+          </ul>
+        </section>
+        <p class="note">The globe in the logo is an AI-generated image.</p>
+      </div>
+
+      <div data-lang="es">
+        <div>
+          <h1>Sobre este servicio</h1>
+          <p>La Brasa muestra dónde han detectado los satélites incendios activos en España y Portugal, cómo se compara la situación actual con años anteriores y cómo evoluciona la temporada de incendios.</p>
+        </div>
+        <section>
+          <h2>De dónde proceden los datos</h2>
+          <p>Los focos son anomalías térmicas detectadas por los instrumentos MODIS (Terra, Aqua) y VIIRS (Suomi NPP, NOAA-20, NOAA-21) y publicadas por NASA FIRMS.</p>
+          <p>Como la flota de satélites ha cambiado con los años, cada detección se pondera (armoniza) para que los años sigan siendo comparables. Los focos armonizados se expresan en equivalentes de MODIS Aqua.</p>
+        </section>
+        <section>
+          <h2>Términos usados en la web</h2>
+          <dl>
+            <dt>Foco</dt><dd>Un píxel del satélite con fuego activo en el momento de la pasada.</dd>
+            <dt>FRP</dt><dd>Potencia radiativa del fuego en megavatios, una medida de la intensidad con la que arde.</dd>
+            <dt>Incendio</dt><dd>Focos cercanos en el espacio y en el tiempo, probablemente el mismo fuego.</dd>
+            <dt>Celda H3</dt><dd>Un hexágono de una cuadrícula mundial; el mapa usa celdas más pequeñas al acercarse.</dd>
+            <dt>Confianza</dt><dd>La seguridad del producto de satélite de que una detección es un fuego.</dd>
+          </dl>
+        </section>
+        <section>
+          <h2>Limitaciones</h2>
+          <ul>
+            <li>Los satélites ven un lugar solo unas pocas veces al día; pueden pasar por alto incendios pequeños o breves.</li>
+            <li>Las nubes y el humo pueden ocultar incendios; las instalaciones industriales calientes pueden aparecer como focos.</li>
+            <li>Los focos no son superficie quemada. Para la superficie quemada cartografiada, consulta EFFIS.</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Más información</h2>
+          <ul>
+            <li><a href="https://forest-fire.emergency.copernicus.eu/" target="_blank" rel="noopener noreferrer">Sistema Europeo de Información sobre Incendios Forestales (EFFIS)</a></li>
+            <li><a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Fire Information for Resource Management System (FIRMS)</a></li>
+            <li><a href="https://h3geo.org/" target="_blank" rel="noopener noreferrer">Cuadrícula hexagonal H3</a></li>
+          </ul>
+        </section>
+        <p class="note">El globo del logotipo es una imagen generada por IA.</p>
+      </div>
+
+      <div data-lang="pt">
+        <div>
+          <h1>Sobre este serviço</h1>
+          <p>O La Brasa mostra onde os satélites detetaram incêndios ativos em Espanha e Portugal, como a situação atual se compara com anos anteriores e como evolui a época de incêndios.</p>
+        </div>
+        <section>
+          <h2>De onde vêm os dados</h2>
+          <p>Os focos são anomalias térmicas detetadas pelos instrumentos MODIS (Terra, Aqua) e VIIRS (Suomi NPP, NOAA-20, NOAA-21) e publicadas pela NASA FIRMS.</p>
+          <p>Como a frota de satélites mudou ao longo dos anos, cada deteção é ponderada (harmonizada) para que os anos continuem comparáveis. Os focos harmonizados são expressos em equivalentes ao MODIS Aqua.</p>
+        </section>
+        <section>
+          <h2>Termos usados no site</h2>
+          <dl>
+            <dt>Foco</dt><dd>Um píxel do satélite com fogo ativo no momento da passagem.</dd>
+            <dt>FRP</dt><dd>Potência radiativa do fogo em megawatts, uma medida da intensidade com que arde.</dd>
+            <dt>Incêndio</dt><dd>Focos próximos no espaço e no tempo, provavelmente o mesmo fogo.</dd>
+            <dt>Célula H3</dt><dd>Um hexágono de uma grelha mundial; o mapa usa células mais pequenas ao aproximar.</dd>
+            <dt>Confiança</dt><dd>A certeza do produto de satélite de que uma deteção é um fogo.</dd>
+          </dl>
+        </section>
+        <section>
+          <h2>Limitações</h2>
+          <ul>
+            <li>Os satélites veem um local apenas algumas vezes por dia; incêndios pequenos ou curtos podem não ser detetados.</li>
+            <li>Nuvens e fumo podem esconder incêndios; instalações industriais quentes podem aparecer como focos.</li>
+            <li>Focos não são área ardida. Para a área ardida cartografada, consulte o EFFIS.</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Mais informação</h2>
+          <ul>
+            <li><a href="https://forest-fire.emergency.copernicus.eu/" target="_blank" rel="noopener noreferrer">Sistema Europeu de Informação sobre Incêndios Florestais (EFFIS)</a></li>
+            <li><a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Fire Information for Resource Management System (FIRMS)</a></li>
+            <li><a href="https://h3geo.org/" target="_blank" rel="noopener noreferrer">Grelha hexagonal H3</a></li>
+          </ul>
+        </section>
+        <p class="note">O globo do logótipo é uma imagem gerada por IA.</p>
+      </div>
+    </main>
+
+    <script>
+      // Follows the language chosen in the mock (same browser storage); the select changes it for both.
+      (function () {
+        var KEY = "la-brasa:prefs";
+        var LANGS = { en: "en-GB", es: "es-ES", pt: "pt-PT" };
+        function read() {
+          try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return {}; }
+        }
+        function show(lang) {
+          document.documentElement.lang = LANGS[lang];
+          document.querySelectorAll("[data-lang]").forEach(function (el) {
+            el.classList.toggle("is-active", el.getAttribute("data-lang") === lang);
+          });
+          document.getElementById("lang").value = lang;
+        }
+        var prefs = read();
+        var browser = (navigator.language || "en").slice(0, 2);
+        var lang = LANGS[prefs.lang] ? prefs.lang : LANGS[browser] ? browser : "en";
+        show(lang);
+        document.getElementById("lang").addEventListener("change", function (e) {
+          var next = e.target.value;
+          var p = read();
+          p.lang = next;
+          try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (err) { /* storage blocked: only this page changes */ }
+          show(next);
+        });
+      })();
+    </script>
+  </body>
+</html>

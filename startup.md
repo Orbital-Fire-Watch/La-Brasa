@@ -69,6 +69,51 @@ Die Adresse steht im Terminal, meist `http://localhost:5173`. Das Terminal muss 
 - Der Vite-Proxy leitet `/api` an `localhost:8000` weiter, CORS ist im Dev-Betrieb nicht nötig.
 - Die Ereignisse berechnet das Backend beim Start (einige Sekunden, siehe `docker compose logs backend`: „Event index …“). Bis dahin warten die ersten Ereignis-Anfragen.
 
+## 5. Daten aktualisieren (neue FIRMS-Daten)
+
+Es gibt keinen Cronjob und keinen Button in der App. Neue Daten holt `POST /api/sync`, das Backend führt im
+Hintergrund `pipeline/sync_data.py` aus, den Stand zeigt `GET /api/sync`:
+
+```bash
+curl -X POST localhost:8000/api/sync     # starten
+curl localhost:8000/api/sync             # Status: state, step, new_rows, message
+```
+
+1. **Holen:** `pipeline/ingestion/fetch_firms.py` hängt die neuen NRT-Zeilen (MODIS, VIIRS SNPP, NOAA-20, NOAA-21)
+   an `data/raw/<produkt>/fire_nrt_*.csv` an.
+2. **Harmonisieren:** `harmonisation/run_pipeline.py --incremental` rechnet nur die Tage ab der ersten neuen NRT-Zeile
+   minus 3 Tage neu. Kalibrierung, Fehlermodell und Ortsmaske hängen nur am Archiv (2012–2021) und bleiben vom letzten
+   vollen Lauf. Keine Tests, keine KPIs. Ohne neue Zeilen passiert nichts. Dauert wenige Sekunden.
+3. **Laden:** `pipeline/load_to_db.py --incremental` ersetzt nur diese Tage (und `day_status`) in einer Transaktion.
+   Bricht die Harmonisierung ab, wird **nicht** geladen, die Datenbank behält den alten Stand.
+
+Voller Lauf mit Tests und KPIs, z. B. nach neuem Archiv-Download oder geänderter Config, nur von Hand:
+`.venv/bin/python run_pipeline.py --force` in `harmonisation/`, danach `python pipeline/load_to_db.py`.
+
+Voraussetzungen:
+
+| Was | Wie |
+|---|---|
+| FIRMS-Key | `FIRMS_MAP_KEY` in `.env` (kostenlos: https://firms.modaps.eosdis.nasa.gov/api/map_key/). Ohne Key antwortet `POST /api/sync` mit 501 |
+| Rohdaten | `data/raw/` ist nicht in Git. Archiv- und NRT-CSVs aus `harmonisation/docs/raw_sources.md` in dieselben Ordner legen |
+| Backend-Image | `docker compose up -d --build backend`. Das Image enthält `pipeline/` und `harmonisation/`, `data/` ist eingebunden |
+
+Von Hand, ohne Backend (gleiche Schritte): `.venv/bin/python pipeline/sync_data.py`, nur Abruf ohne Schreiben:
+`.venv/bin/python pipeline/ingestion/fetch_firms.py --dry-run`. Fortschritt im Betrieb: `docker compose logs -f backend`.
+
+Gut zu wissen:
+
+- Es läuft immer nur eine Aktualisierung. Ein `POST` währenddessen gibt die laufende zurück.
+- Der Endpunkt hat keine Anmeldung: Jeder, der die Seite erreicht, kann eine Aktualisierung starten.
+- **FIRMS-Key:** 5000 Abfragen je 10 Minuten, eine Aktualisierung braucht etwa 5 bis 15.
+- **Lücken:** FIRMS-NRT reicht nur etwa zwei Monate zurück, `fetch_firms.py` holt höchstens 31 Tage. Wurde länger nicht
+  aktualisiert, die Lücke mit einem neuen Archiv-Download füllen (`harmonisation/docs/raw_sources.md`).
+- **Archiv (alle paar Monate von Hand):** NRT ist vorläufig. Das endgültige Archiv erscheint mit einigen Monaten Verzug.
+  Dateien wie in `harmonisation/docs/raw_sources.md` ersetzen. Zeilen, die in beiden stehen, zählen einmal, das Archiv gewinnt.
+- `data/harmonised/*.parquet` und die JSON-Dateien dort sind in Git. Jede Aktualisierung ändert sie, `git pull` meldet dann
+  lokale Änderungen: vorher `git checkout -- data/harmonised` oder die Dateien aus Git nehmen.
+- Unter Linux schreibt der Container als root in `data/`. Die neuen Dateien gehören dann root.
+
 ## Nützliche Adressen und Befehle
 
 | Was | Wie |

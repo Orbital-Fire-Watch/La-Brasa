@@ -1,4 +1,5 @@
-"""Fire-API v3 endpoints: meta, regions, areas, calendar, daily, grid, hotspots, export.csv, events, by-region."""
+"""Fire-API v3 endpoints: meta, regions, areas, calendar, daily, daily/sensors, grid, hotspots, export.csv, events,
+by-region."""
 import datetime as dt
 from typing import Annotated
 
@@ -10,7 +11,7 @@ from dtos import (
     AreaRequest, AreaResponse, ByRegionRequest, ByRegionResponse, CalendarRequest, CalendarResponse, DailyRequest,
     DailyResponse, EventDetailResponse, EventId, EventsRequest, EventsResponse, ExportQuery, GridAnomalyResponse,
     GridByDayResponse, GridCountResponse, GridRequest, HotspotsRequest, HotspotsResponse, MetaResponse,
-    RegionsResponse,
+    RegionsResponse, SensorDailyRequest, SensorDailyResponse,
 )
 from errors import ERRORS_DOC
 from services.areas import register_area
@@ -20,7 +21,7 @@ from services.hotspots import build_hotspots, export_rows
 from services.meta import build_meta
 from services.regions import build_regions
 from services.scope import build_scope
-from services.series import build_by_region, build_calendar, build_daily
+from services.series import build_by_region, build_calendar, build_daily, build_sensor_daily
 
 router = APIRouter(prefix="/api")
 
@@ -56,6 +57,12 @@ def daily(body: DailyRequest):
         out = build_daily(conn, build_scope(conn, body))
         no_data = [v is None for v in out["fires"]]
         return {**out, **daily_event_counts(conn, body, out["start"], out["end"], no_data)}
+
+
+@router.post("/daily/sensors", response_model=SensorDailyResponse, responses=ERRORS_DOC, tags=["Kann"])
+def daily_sensors(body: SensorDailyRequest):
+    with connect() as conn:
+        return build_sensor_daily(conn, build_scope(conn, body), body.start, body.end)
 
 
 @router.post("/grid", response_model=GridAnomalyResponse | GridByDayResponse | GridCountResponse,

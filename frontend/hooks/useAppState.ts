@@ -1,7 +1,8 @@
 /**
  * All shareable view state lives in the URL (spec §7.1), e.g.
- *   /analysis?region=ES-OR&date=2025-08-14&lookback=7&metric=fires&conf=nominal
- * so "Bearbeiten", reload and sharing work without extra state management.
+ *   /?page=analysis&region=ES-OR&date=2025-08-14&lookback=7&metric=fires&conf=nominal
+ * so reload, "Edit" and sharing work without extra state management. The page is a query parameter, so the app
+ * works under any path.
  */
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { isIsoDate } from "../lib/dates";
@@ -11,15 +12,19 @@ export type Page = "select" | "analysis";
 export type MapView = "events" | "cells";
 export type CompareSetting = "all" | 5 | 10;
 
+/** How fire data is shown: harmonised (default), raw MODIS, raw VIIRS, or both side by side. */
+export type DisplayMode = "harmonised" | "modis" | "viirs" | "compare";
+export const DISPLAY_MODES: readonly DisplayMode[] = ["harmonised", "modis", "viirs", "compare"];
+
 export interface AppState {
   page: Page;
   /** region_id from /api/regions */
   region: string | null;
   /** area_id from POST /api/areas, or "local" when the backend has no /areas yet */
   area: string | null;
-  /** reference day D₀ chosen on page 1 */
+  /** reference day D₀ chosen on the start page */
   date: string | null;
-  /** current day D of the time slider on page 2 */
+  /** current day D of the time slider on the analysis page */
   d: string | null;
   lookback: Lookback;
   metric: Method;
@@ -28,19 +33,21 @@ export interface AppState {
   anomaly: boolean;
   compare: CompareSetting;
   event: string | null;
+  display: DisplayMode;
 }
 
-const PATHS: Record<Page, string> = { select: "/", analysis: "/analysis" };
+export type SetAppState = (patch: Partial<AppState>, opts?: { push?: boolean }) => void;
+
 const DEFAULTS = { lookback: 7, metric: "fires", conf: "nominal", view: "events", compare: "all" } as const;
 
 function parse(href: string): AppState {
-  const url = new URL(href);
-  const q = url.searchParams;
+  const q = new URL(href).searchParams;
   const lookback = Number(q.get("lookback"));
   const metric = q.get("metric") as Method | null;
   const compare = q.get("compare");
+  const display = q.get("display") as DisplayMode | null;
   return {
-    page: url.pathname.replace(/\/+$/, "").endsWith("/analysis") ? "analysis" : "select",
+    page: q.get("page") === "analysis" ? "analysis" : "select",
     region: q.get("region"),
     area: q.get("area"),
     date: isIsoDate(q.get("date")) ? q.get("date") : null,
@@ -52,11 +59,13 @@ function parse(href: string): AppState {
     anomaly: q.get("anomaly") === "1",
     compare: compare === "5" ? 5 : compare === "10" ? 10 : "all",
     event: q.get("event"),
+    display: display && DISPLAY_MODES.includes(display) ? display : "harmonised",
   };
 }
 
 function toUrl(s: AppState): string {
   const q = new URLSearchParams();
+  if (s.page === "analysis") q.set("page", "analysis");
   if (s.region) q.set("region", s.region);
   if (s.area) q.set("area", s.area);
   if (s.date) q.set("date", s.date);
@@ -64,6 +73,7 @@ function toUrl(s: AppState): string {
   if (s.lookback !== DEFAULTS.lookback) q.set("lookback", String(s.lookback));
   if (s.metric !== DEFAULTS.metric) q.set("metric", s.metric);
   if (s.conf !== DEFAULTS.conf) q.set("conf", s.conf);
+  if (s.display !== "harmonised") q.set("display", s.display);
   if (s.page === "analysis") {
     if (s.view !== DEFAULTS.view) q.set("view", s.view);
     if (s.anomaly) q.set("anomaly", "1");
@@ -71,7 +81,7 @@ function toUrl(s: AppState): string {
     if (s.event) q.set("event", s.event);
   }
   const query = q.toString();
-  return `${PATHS[s.page]}${query ? `?${query}` : ""}`;
+  return `${window.location.pathname}${query ? `?${query}` : ""}`;
 }
 
 const listeners = new Set<() => void>();
@@ -88,15 +98,14 @@ function subscribe(listener: () => void) {
 
 const getHref = () => window.location.href;
 
-export type SetAppState = (patch: Partial<AppState>, opts?: { push?: boolean }) => void;
-
 export function useAppState(): [AppState, SetAppState] {
   const href = useSyncExternalStore(subscribe, getHref);
   const state = useMemo(() => parse(href), [href]);
   const set = useCallback<SetAppState>((patch, opts) => {
-    const next = { ...parse(window.location.href), ...patch };
+    const prev = parse(window.location.href);
+    const next = { ...prev, ...patch };
     const url = toUrl(next);
-    if (opts?.push || next.page !== parse(window.location.href).page) window.history.pushState(null, "", url);
+    if (opts?.push || next.page !== prev.page) window.history.pushState(null, "", url);
     else window.history.replaceState(null, "", url);
     if (opts?.push || patch.page) window.scrollTo({ top: 0 });
     emit();

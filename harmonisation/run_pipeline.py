@@ -4,6 +4,7 @@ Aufruf:
     .venv/bin/python run_pipeline.py                 # alle Stufen, unveraenderte Stufen werden uebersprungen
     .venv/bin/python run_pipeline.py --force         # alles neu rechnen (prueft dabei den Determinismus)
     .venv/bin/python run_pipeline.py --stage clean daily_grid
+    .venv/bin/python run_pipeline.py --incremental   # nur neue NRT-Zeilen, ab ihrem ersten Tag - 3 (Sync der App)
     .venv/bin/python run_pipeline.py --config andere_config.yaml
 
 Stufen: ingest -> clean -> daily_grid -> calibrate -> quantify_uncertainty -> harmonise_daily
@@ -34,8 +35,7 @@ from pipeline.csv_export import csv_directory, export_tables_to_csv
 from pipeline.config import DEFAULT_CONFIG_PATH, PROJECT_ROOT, config_fingerprint, load_config, path_of, viirs_keys
 from pipeline.data_loading import clean_hotspots, schema_validation
 from pipeline.data_loading.assign_region import load_region_names
-from pipeline.data_loading.ingest_csv_to_parquet import ingest_all_sources
-from pipeline.data_loading.common_area import learn_common_area
+from pipeline.data_loading.ingest_csv_to_parquet import convert_csv_to_raw_parquet, ingest_all_sources, raw_parquet_path
 from pipeline.data_loading.static_source_mask import evaluate_mask_on_holdout
 from pipeline.io_utils import file_sha256, get_logger, read_json, read_parquet, write_json, write_parquet_deterministic
 
@@ -172,10 +172,10 @@ def run_stage_test(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_typed_archive_hotspots(config: dict[str, Any]) -> pd.DataFrame:
-    """Gueltige, eindeutige Archivzeilen mit bekanntem `type` im gemeinsamen Gebiet (Grundlage fuer die Pruefung der Ortsmaske)."""
+    """Gueltige, eindeutige Archivzeilen mit bekanntem `type` in den Untersuchungsregionen (Grundlage fuer die Pruefung der Ortsmaske)."""
     valid, _ = clean_hotspots.reject_invalid_rows(clean_hotspots.load_raw_hotspots(config), config)
     unique, _ = clean_hotspots.deduplicate_hotspots(valid, config)
-    inside, _ = clean_hotspots.restrict_to_common_area(unique, learn_common_area(unique, config), config)
+    inside, _ = clean_hotspots.restrict_to_study_regions(unique, config)
     return inside[inside["type"].notna()]
 
 
@@ -294,8 +294,11 @@ def check_determinism(state: dict[str, Any], signature: str, new_hashes: dict[st
 
 
 def git_commit() -> str | None:
-    """Aktueller Git-Stand, falls das Projekt in einem Repository mit Commits liegt."""
-    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, capture_output=True, text=True)
+    """Aktueller Git-Stand, falls das Projekt in einem Repository mit Commits liegt (im Backend-Image gibt es kein git)."""
+    try:
+        result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, capture_output=True, text=True)
+    except OSError:
+        return None
     return result.stdout.strip() if result.returncode == 0 else None
 
 
@@ -340,12 +343,68 @@ def run_pipeline(config: dict[str, Any], stages: list[str] | None = None, force:
     return state
 
 
+# Inkrementeller Lauf (Sync der App): neue NRT-Zeilen anhaengen statt alles neu zu rechnen.
+INCREMENTAL_MARGIN_DAYS = 3        # die letzten Tage vor der ersten neuen Zeile mit neu rechnen (Tage fuellen sich je Ueberflug)
+PENDING_LOAD = "incremental.json"  # in harmonised/: ab welchem Tag load_to_db.py --incremental die Datenbank ersetzt
+
+
+def ingest_new_nrt_rows(config: dict[str, Any], state: dict[str, Any]) -> pd.Timestamp | None:
+    """Liest die NRT-CSVs neu ein und gibt den fruehesten Tag der seit dem letzten Lauf angehaengten Zeilen zurueck.
+
+    Neu sind die Zeilen hinter der Zeilenzahl aus dem letzten Lauf: fetch_firms.py haengt nur hinten an,
+    und das Einlesen behaelt die Reihenfolge. Die Archive aendern sich dabei nicht.
+    """
+    report, first_new = state["ingest"]["report"], None
+    for source in config["sources"]:
+        if source["source"] != "nrt":
+            continue
+        target = raw_parquet_path(config, source)
+        done = report[source["name"]]["rows"]
+        rows = convert_csv_to_raw_parquet(source["csv"], target)
+        if rows < done:
+            raise SystemExit(f"{source['csv']} hat weniger Zeilen als beim letzten Lauf: voller Lauf noetig (run_pipeline.py --force)")
+        if rows > done:
+            first = pd.to_datetime(read_parquet(target)["acq_date"].iloc[done:]).min()
+            first_new = first if first_new is None else min(first_new, first)
+        report[source["name"]].update(rows=rows, csv_sha256=file_sha256(Path(source["csv"])))
+        get_logger().info("ingest   %-14s %8d Zeilen, davon %d neu", source["name"], rows, rows - done)
+    return first_new
+
+
+def run_incremental(config: dict[str, Any]) -> None:
+    """Rechnet nur die Tage ab (erste neue NRT-Zeile - 3 Tage) neu, alles davor bleibt.
+
+    Kalibrierfaktoren, Fehlermodell und Ortsmaske haengen nur am Archiv (2012-2021) und werden aus dem
+    letzten vollen Lauf uebernommen. Tagesstatus, Tageswerte und Gewichte sind billig und laufen ueber
+    die ganze Reihe, die Datenbank ersetzt aber nur die Tage ab dem Schnitt. Keine Tests, keine KPIs.
+    """
+    state_path = path_of(config, "harmonised", "pipeline_state.json")
+    state = read_json(state_path) if state_path.exists() else {}
+    if not state.get("weight_hotspots", {}).get("done"):
+        raise SystemExit("Noch kein voller Lauf: zuerst run_pipeline.py")
+    first_new = ingest_new_nrt_rows(config, state)
+    if first_new is None:
+        get_logger().info("keine neuen NRT-Zeilen, nichts zu rechnen")
+        return
+    since = first_new - pd.Timedelta(days=INCREMENTAL_MARGIN_DAYS)
+    pending_path = path_of(config, "harmonised", PENDING_LOAD)
+    if pending_path.exists():  # der letzte inkrementelle Lauf wurde noch nicht geladen
+        since = min(since, pd.Timestamp(read_json(pending_path)["since"]))
+    clean_hotspots.clean_hotspots_since(config, since)
+    run_stage_daily_grid(config)
+    run_stage_harmonise_daily(config)
+    run_stage_weight_hotspots(config)
+    write_json({"since": str(since.date())}, pending_path)
+    write_json(state, state_path)
+
+
 def parse_arguments() -> argparse.Namespace:
     """Liest die Kommandozeile."""
     parser = argparse.ArgumentParser(description="Taegliche Harmonisierungs-Pipeline FIRMS MODIS -> VIIRS")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Pfad zur pipeline_config.yaml")
     parser.add_argument("--stage", nargs="+", choices=ALL_STAGES, help="nur diese Stufen ausfuehren")
     parser.add_argument("--force", action="store_true", help="alle Stufen neu rechnen")
+    parser.add_argument("--incremental", action="store_true", help="nur neue NRT-Zeilen ab ihrem ersten Tag - 3 (ohne test und validate)")
     return parser.parse_args()
 
 
@@ -353,6 +412,10 @@ def main() -> int:
     """Einstiegspunkt der Kommandozeile. Gibt 1 zurueck, wenn eine KPI-Schwelle verfehlt wird."""
     arguments = parse_arguments()
     started = time.perf_counter()
+    if arguments.incremental:
+        run_incremental(load_config(arguments.config))
+        get_logger().info("fertig in %.1f s", time.perf_counter() - started)
+        return 0
     state = run_pipeline(load_config(arguments.config), arguments.stage, arguments.force)
     get_logger().info("fertig in %.1f s", time.perf_counter() - started)
     return 0 if state.get("validate", {}).get("report", {}).get("all_passed", True) else 1

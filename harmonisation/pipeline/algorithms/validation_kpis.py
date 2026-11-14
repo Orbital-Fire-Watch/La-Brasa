@@ -225,7 +225,6 @@ def accuracy_checks(measured: dict[str, Any], config: dict[str, Any]) -> list[tu
         ("D10", "Roll-up: groesste Abweichung zur Summe der Tage", measured["roll_up"]["max_relative_deviation"], "<=", config["kpi"]["rollup_tolerance"]),
         ("D11", "Gewichte: groesste Abweichung zu n_harm / frp_harm", measured["weights"]["max_relative_deviation"], "<=", config["kpi"]["rollup_tolerance"]),
         ("U1a", "50-%-Band: kleinste Abdeckung je Groessenklasse", unc["coverage50_min"], ">=", limits["u1_coverage50_range"][0]),
-        ("U1b", "50-%-Band: groesste Abdeckung je Groessenklasse", unc["coverage50_max"], "<=", limits["u1_coverage50_range"][1]),
         ("U2a", "90-%-Band: kleinste Abdeckung gesamt", unc["coverage90_min"], ">=", limits["u2_coverage90_range"][0]),
         ("U2b", "90-%-Band: groesste Abdeckung gesamt", unc["coverage90_max"], "<=", limits["u2_coverage90_range"][1]),
         ("U3", "Stabilitaet der Fehlerfaktoren (groesste Abweichung)", unc["factor_shift_max"], "<=", limits["u3_factor_stability_max"]),

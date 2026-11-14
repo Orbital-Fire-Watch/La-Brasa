@@ -7,7 +7,7 @@ import type {
   AreaResponse, CalendarMonth, CalendarResponse, Confidence, DailyResponse, ErrorCode, EventDetailResponse,
   EventFeature, EventProperties, EventSort, EventsResponse, ExportQuery, Features, Geometry, GridAnomalyResponse,
   GridByDayResponse, GridCountResponse, GridRequest, HotspotFeature, HotspotsResponse, Limits, MetaResponse, Metric,
-  RegionsResponse, Sensor,
+  RegionsResponse, Sensor, SensorDailyResponse, SyncStatus,
 } from "../api/types";
 import { addDays, daysBetween, daysInMonth, isIsoDate, isoFromParts, shiftYears, yearOf } from "../../lib/dates";
 import {
@@ -68,6 +68,7 @@ export class MockApi {
   private dailyCache = new Map<string, DailyResponse>();
   private eventStateCache = new Map<string, EventState | null>();
   private cellCache = new Map<number, string[]>();
+  private sync: SyncStatus = { state: "idle", step: null, started_at: null, finished_at: null, new_rows: null, message: null };
 
   constructor(private world: World, private features: Features) {}
 
@@ -176,7 +177,7 @@ export class MockApi {
   meta(): MetaResponse {
     const last = this.world.lastDate;
     return {
-      api_version: "3.0",
+      api_version: "3.1",
       data_version: `${last}.mock`,
       weight_version: "w1",
       first_date: this.world.firstDate,
@@ -194,6 +195,22 @@ export class MockApi {
 
   regions(): RegionsResponse {
     return this.world.regions;
+  }
+
+  // ---------------------------------------------------------------- data sync (api_version 3.1)
+
+  /** POST /api/sync: like the backend, a second POST while running returns the running sync. */
+  startSync(): SyncStatus {
+    if (this.sync.state !== "running") {
+      this.sync = { state: "running", step: "fetch", started_at: new Date().toISOString(), finished_at: null, new_rows: null, message: null };
+    }
+    return { ...this.sync };
+  }
+
+  /** GET /api/sync: the synthetic world never changes, so a running sync ends at the next poll without new rows. */
+  syncStatus(): SyncStatus {
+    if (this.sync.state === "running") this.sync = { ...this.sync, state: "succeeded", step: null, finished_at: new Date().toISOString(), new_rows: 0 };
+    return { ...this.sync };
   }
 
   // ---------------------------------------------------------------- 6.3
@@ -528,6 +545,29 @@ export class MockApi {
       for (const h of this.points(ed)) if (keep(h)) out.push([h, ev]);
     }
     return out;
+  }
+
+  /** POST /api/daily/sensors: raw detections and raw FRP per day and sensor family, from the same points as /api/hotspots. */
+  sensorDaily(body: { start?: string | null; end?: string | null; min_confidence?: Confidence } & AreaFields): SensorDailyResponse {
+    const f = this.resolveArea(body);
+    const start = body.start ? this.checkDate(body.start, "start") : this.world.firstDate;
+    const end = body.end ? this.checkDate(body.end, "end") : this.world.lastDate;
+    this.checkRange(start, end);
+    const n = daysBetween(start, end) + 1;
+    const families = { modis: { det: new Array<number>(n).fill(0), frp: new Array<number>(n).fill(0) }, viirs: { det: new Array<number>(n).fill(0), frp: new Array<number>(n).fill(0) } };
+    for (const [h] of this.collectPoints(f, body.min_confidence ?? "nominal", this.dayIndex(start), this.dayIndex(end), null, null)) {
+      const fam = h.sensor.startsWith("MODIS") ? families.modis : families.viirs;
+      const i = daysBetween(start, h.date);
+      fam.det[i] += 1;
+      fam.frp[i] += h.frp;
+    }
+    const measured = (prefix: string, day: string) => this.world.nActive[this.dayIndex(day)] > 0 &&
+      SENSORS.some((s) => s.id.startsWith(prefix) && s.from <= day && (s.to === null || s.to >= day));
+    const columns = (prefix: string, c: { det: number[]; frp: number[] }) => ({
+      detections: c.det.map((v, i) => (measured(prefix, addDays(start, i)) ? v : null)),
+      frp_sum: c.frp.map((v, i) => (measured(prefix, addDays(start, i)) ? r1(v) : null)),
+    });
+    return { start, end, families: { modis: columns("MODIS", families.modis), viirs: columns("VIIRS", families.viirs) } };
   }
 
   hotspots(body: {

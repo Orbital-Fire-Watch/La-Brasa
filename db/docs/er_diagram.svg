@@ -37,7 +37,7 @@
 <text x="576.1" y="88.0" fill="#5b6573">text</text>
 <text x="616.5" y="88.0" fill="#1d2127">region_name</text>
 <text x="576.1" y="108.0" fill="#5b6573">text</text>
-<text x="616.5" y="108.0" fill="#1d2127">country<tspan fill="#6b7280" font-style="italic">  ES, PT, FR</tspan></text>
+<text x="616.5" y="108.0" fill="#1d2127">country<tspan fill="#6b7280" font-style="italic">  ES, PT</tspan></text>
 <rect x="1002.6" y="24.0" width="185.0" height="140.0" rx="4" fill="#ffffff" stroke="#8b97a6"/>
 <path d="M1002.6,54.0 V28.0 Q1002.6,24.0 1006.6,24.0 H1183.6 Q1187.6,24.0 1187.6,28.0 V54.0 Z" fill="#1f3b57"/>
 <text x="1095.1" y="44.0" text-anchor="middle" font-weight="700" fill="#ffffff">calib_factors</text>

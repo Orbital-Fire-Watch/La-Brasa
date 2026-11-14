@@ -1,7 +1,7 @@
 """Stufe clean: Raw-Parquet bereinigen und anreichern -> data/processed/hotspots_clean.parquet.
 
-Reihenfolge: laden -> ungueltige Werte verwerfen -> Duplikate entfernen -> auf das gemeinsame
-Gebiet beschraenken -> statische Quellen filtern -> Spalten ableiten -> Spalten droppen. Jede verworfene Zeile landet mit Grund in
+Reihenfolge: laden -> ungueltige Werte verwerfen -> Duplikate entfernen -> Region zuordnen und auf die
+Untersuchungsregionen beschraenken -> statische Quellen filtern -> Spalten ableiten -> Spalten droppen. Jede verworfene Zeile landet mit Grund in
 rejected_hotspots.parquet, damit die Zeilenbilanz aufgeht. (Uebernommen aus Version 1 und erweitert.)
 """
 from __future__ import annotations
@@ -15,7 +15,6 @@ from pipeline.config import path_of
 from pipeline.data_loading import derive_hotspot_columns as derive
 from pipeline.data_loading import schema_validation
 from pipeline.data_loading.assign_region import assign_nuts2_region
-from pipeline.data_loading.common_area import is_inside_common_area, learn_common_area
 from pipeline.data_loading.classify_hotspots import add_confidence_class, add_frp_class, add_local_solar_hour
 from pipeline.data_loading.ingest_csv_to_parquet import raw_parquet_path
 from pipeline.data_loading.static_source_mask import flag_hotspots_in_masks, learn_static_masks, masks_as_table
@@ -66,13 +65,20 @@ def deduplicate_hotspots(hotspots: pd.DataFrame, config: dict[str, Any]) -> tupl
     return split_rejected(hotspots, duplicate, "duplicate")
 
 
-def restrict_to_common_area(hotspots: pd.DataFrame, area: pd.DataFrame, config: dict[str, Any]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Verwirft Erkennungen ausserhalb des Gebiets der Referenz-Downloads (Grund `outside_common_area`).
+def restrict_to_study_regions(hotspots: pd.DataFrame, config: dict[str, Any]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Ordnet die NUTS-2-Region zu und verwirft Erkennungen ausserhalb von `nuts.study_regions` (Grund `outside_study_regions`).
 
-    Betrifft praktisch nur NOAA-20 und NOAA-21, deren Downloads weiter reichen. Die Referenzsatelliten
-    liegen per Definition im Gebiet. Hintergrund in `common_area.learn_common_area`.
+    Warum: Die Downloads decken verschiedene Gebiete ab. MODIS und SNPP reichen nach Frankreich bis etwa
+    43,5 Grad Nord, NOAA-20/21 und die taegliche API (pipeline/ingestion/fetch_firms.py) sind groessere
+    Rechtecke. Ohne Angleichung meldeten NOAA-20/21 Feuer, die SNPP und MODIS gar nicht sehen koennen
+    (Voranalyse 09). Die Untersuchungsregionen (die Regionen der App) decken alle Downloads vollstaendig
+    ab, dort zaehlen alle Satelliten gleich. Die Regionen sind fest vorgegeben statt aus Daten gelernt:
+    Neue Downloads oder das taeglich wachsende NRT koennen das Gebiet nicht veraendern, und die Grenze ist
+    die exakte Regionsgrenze statt eines Rasters. Verworfen werden Frankreich, offenes Meer und Inseln
+    ausserhalb der Liste.
     """
-    return split_rejected(hotspots, ~pd.Series(is_inside_common_area(hotspots, area, config), index=hotspots.index), "outside_common_area")
+    hotspots = assign_nuts2_region(hotspots, config)
+    return split_rejected(hotspots, ~hotspots["region_id"].isin(config["nuts"]["study_regions"]), "outside_study_regions")
 
 
 def filter_static_sources(hotspots: pd.DataFrame, masks: dict[str, pd.DataFrame], config: dict[str, Any]) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -122,8 +128,7 @@ def drop_type_after_filter(hotspots: pd.DataFrame, config: dict[str, Any]) -> pd
 
 
 def enrich_hotspots(hotspots: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
-    """Ergaenzt alle abgeleiteten Spalten und droppt die vereinbarten Spalten."""
-    hotspots = assign_nuts2_region(hotspots, config)
+    """Ergaenzt alle abgeleiteten Spalten und droppt die vereinbarten Spalten. Die Region steht schon seit `restrict_to_study_regions`."""
     hotspots = add_frp_class(hotspots, config)
     hotspots = add_confidence_class(hotspots, config)
     hotspots = add_local_solar_hour(hotspots)
@@ -144,8 +149,7 @@ def clean_all_hotspots(config: dict[str, Any]) -> dict[str, Any]:
     raw = load_raw_hotspots(config)
     valid, rejected_invalid = reject_invalid_rows(raw, config)
     unique, rejected_duplicates = deduplicate_hotspots(valid, config)
-    area = learn_common_area(unique, config)
-    inside, rejected_area = restrict_to_common_area(unique, area, config)
+    inside, rejected_area = restrict_to_study_regions(unique, config)
     masks = learn_static_masks(inside[inside["type"].notna()], config)
     fires, rejected_static = filter_static_sources(inside, masks, config)
     mask = masks_as_table(masks)
@@ -157,7 +161,39 @@ def clean_all_hotspots(config: dict[str, Any]) -> dict[str, Any]:
     write_parquet_deterministic(mask, path_of(config, "processed", "static_mask.parquet"))
     balance = {"rows_read": len(raw), "rows_kept": len(clean), "rows_rejected": len(rejected),
                "rejected_by_reason": rejected["reject_reason"].value_counts().sort_index().to_dict(),
-               "mask_core_cells": int(mask["is_core"].sum()), "common_area_cells": len(area), "balanced": len(raw) == len(clean) + len(rejected)}
+               "mask_core_cells": int(mask["is_core"].sum()), "balanced": len(raw) == len(clean) + len(rejected)}
     get_logger().info("clean    gelesen %d = behalten %d + verworfen %d  (%s)", balance["rows_read"], balance["rows_kept"],
                       balance["rows_rejected"], "Bilanz ok" if balance["balanced"] else "BILANZ FALSCH")
     return balance
+
+
+def masks_from_table(mask: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Umkehrung von `masks_as_table`: die gespeicherte Maske wieder je Sensor."""
+    return {sensor: cells.drop(columns="sensor").reset_index(drop=True) for sensor, cells in mask.groupby("sensor")}
+
+
+def clean_hotspots_since(config: dict[str, Any], since: pd.Timestamp) -> int:
+    """Bereinigt nur die Tage ab `since` neu und ersetzt sie in hotspots_clean (Sync der App).
+
+    Gleiche Schritte wie `clean_all_hotspots`, aber mit der gespeicherten Ortsmaske: Sie lernt nur aus dem
+    Archiv und aendert sich durch neue NRT-Zeilen nicht. Alle Schritte wirken je Zeile oder je Tag, darum
+    ergibt das Fenster dieselben Zeilen wie ein voller Lauf. `obs_date` liegt nie nach `acq_date`
+    (Tageswechsel 6 Uhr Sonnenzeit), also reichen die Rohzeilen ab `since`.
+    rejected_hotspots.parquet bleibt beim Stand des letzten vollen Laufs.
+    """
+    raw = load_raw_hotspots(config)
+    raw = raw[pd.to_datetime(raw["acq_date"]) >= since]
+    valid, _ = reject_invalid_rows(raw, config)
+    unique, _ = deduplicate_hotspots(valid, config)
+    inside, _ = restrict_to_study_regions(unique, config)
+    masks = masks_from_table(read_parquet(path_of(config, "processed", "static_mask.parquet")))
+    fires, _ = filter_static_sources(inside, masks, config)
+    new = enrich_hotspots(fires, config)
+    new = new[new["obs_date"] >= since]
+    path = path_of(config, "processed", "hotspots_clean.parquet")
+    old = read_parquet(path)
+    clean = pd.concat([old[old["obs_date"] < since], new], ignore_index=True)
+    schema_validation.validate_clean_hotspots(clean, config)
+    write_parquet_deterministic(clean, path, SORT_KEY, ("acq_date", "obs_date"))
+    get_logger().info("clean    ab %s: %d Punkte neu bereinigt, %d insgesamt", since.date(), len(new), len(clean))
+    return len(new)

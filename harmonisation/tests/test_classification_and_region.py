@@ -1,13 +1,17 @@
 """Tests der abgeleiteten Spalten: FRP-Klasse, Konfidenzklasse, Sonnenzeit, Region."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from helpers import make_raw_hotspots
-from pipeline.data_loading.assign_region import assign_nuts2_region
+from pipeline.data_loading.assign_region import assign_nuts2_region, load_region_names
 from pipeline.data_loading.classify_hotspots import add_confidence_class, add_frp_class, add_local_solar_hour
+
+APP_MAP = Path(__file__).resolve().parents[2] / "backend" / "assets" / "nuts2_iberia.geojson"   # Regionen der Karte im Frontend
 
 
 def test_frp_class_boundaries(config: dict[str, Any]) -> None:
@@ -38,3 +42,10 @@ def test_region_assignment_at_known_points(config: dict[str, Any]) -> None:
     result = assign_nuts2_region(make_raw_hotspots(points, config), config)
     assert list(result["region_id"][:3]) == ["ES30", "PT17", "ES51"] and result["region_id"].isna()[3]
     assert list(result["country"][:3]) == ["ES", "PT", "ES"]
+
+
+def test_study_regions_match_the_app_map(config: dict[str, Any]) -> None:
+    """Die Untersuchungsregionen sind genau die Regionen der Karte im Frontend und stehen alle in der NUTS-Datei der Pipeline."""
+    map_ids = {feature["properties"]["NUTS_ID"] for feature in json.loads(APP_MAP.read_text(encoding="utf-8"))["features"]}
+    assert sorted(config["nuts"]["study_regions"]) == sorted(map_ids)
+    assert set(config["nuts"]["study_regions"]) <= set(load_region_names(config))

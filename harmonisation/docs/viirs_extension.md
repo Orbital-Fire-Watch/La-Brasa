@@ -13,7 +13,7 @@ Alle 42 Prüfungen sind erfüllt, keine Schwelle wurde gesenkt. Ausführlich mit
 | **Umbenennung** `n_snpp` → `n_viirs` usw. (Tabelle unten) | Die Referenz ist nicht mehr SNPP allein. `n_snpp` als Referenzname wäre irreführend. |
 | **Rohzahlen je Satellit bleiben** (`n_snpp`, `n_noaa20`, `n_noaa21`, …) | Zum Nachrechnen und für den Tooltip „gemessen mit …“. |
 | **Satellitenliste in der Config** (`satellites.viirs`, `satellites.column_key`) | Ein weiterer Satellit braucht keine Codeänderung, nur Config und Spaltenkatalog. |
-| **Gemeinsames Gebiet** (`common_area`): Alle Satelliten zählen nur in den 0,25°-Zellen, in denen Terra, Aqua oder SNPP je eine Erkennung hatten. | Die NOAA-Downloads reichen weiter als MODIS/SNPP (bis 44,8° N, 4,9° O). Sonst zählte NOAA in Randregionen Feuer, die die anderen nicht sehen. 52.941 NOAA-Zeilen fallen heraus (`outside_common_area`). |
+| **Untersuchungsregionen** (`nuts.study_regions`): Alle Satelliten zählen nur in den 21 NUTS-2-Regionen der App (Festland-Spanien mit Balearen, Portugal). | Die NOAA-Downloads reichen weiter als MODIS/SNPP (bis 44,8° N, 4,9° O). Sonst zählte NOAA in Randregionen Feuer, die die anderen nicht sehen. Die französischen Randregionen wären bei MODIS/SNPP abgeschnitten. 88.155 Zeilen fallen heraus (`outside_study_regions`). |
 | **Kalibrierung und Fehlermodell gegen SNPP allein** (`calibration.reference_satellites`) | Das Fehlermodell prüft Bänder auf 2012–2016 gegen 2017–2021. Mit dem ruhigeren Mittel ab 2018 hätten die Hälften verschieden viel Rauschen (U1b verfehlt). Der Faktor ändert sich dadurch kaum: Mit dem Mittel als Referenz wäre er +0,1 % größer. |
 | **Ortsmaske je Sensor** (`static_sources.mask_training_sensors`): VIIRS-Maske nur aus VIIRS, MODIS-Maske aus allen | MODIS-Pixel (1 km) verschmieren den Ort einer Anlage. Mit gemeinsamer Maske verlor NOAA-20 2,2 % echte Feuer, jetzt 1,9 %. |
 | **H3-Zelle je Hotspot** (`h3_cell`, Auflösung 8 ≈ 0,74 km², `grid.h3_resolution`) | Für Sechseck-Heatmaps und Nachbarschaftsabfragen. Gröbere Zellen ergeben sich mit `h3.cell_to_parent`. |
@@ -54,8 +54,8 @@ bis zum 28.02.2023 ist k = 2 (Gewicht 1/2). Ab dem 03.11.2026 liefert SNPP keine
   Je Jahr weicht die Summe der Reihe um −2,4 bis +4,6 % von SNPP allein ab (FRP −5 bis +20 %, 2023 mit NOAA-21 am stärksten).
 - **Genauigkeit vor 2012:** unverändert (D1 × 2,08, D3 × 1,46, D4 R² 0,59, Großfeuer-Kappa 0,67), weil gegen SNPP geprüft wird.
 - **Neue Tage:** 03.–13.11.2026 haben jetzt einen gemessenen Wert (vorher keiner).
-- **Zeilenbilanz:** 940.293 gelesen = 746.558 behalten + 193.735 verworfen (type 2: 134.022, type 3: 2.466, Ortsmaske: 4.306,
-  außerhalb des gemeinsamen Gebiets: 52.941). Das SNPP-Archiv ist jetzt die intakte Fassung aus dem ZIP, es gibt keine `invalid_value`-Zeile mehr.
+- **Zeilenbilanz:** 940.293 gelesen = 712.097 behalten + 228.196 verworfen (type 2: 133.317, type 3: 2.450, Ortsmaske: 4.274,
+  außerhalb der Untersuchungsregionen: 88.155). Das SNPP-Archiv ist jetzt die intakte Fassung aus dem ZIP, es gibt keine `invalid_value`-Zeile mehr.
 
 ## Was das Frontend beachten muss
 
@@ -72,7 +72,6 @@ bis zum 28.02.2023 ist k = 2 (Gewicht 1/2). Ab dem 03.11.2026 liefert SNPP keine
    Satelliten wären sie enger (N3: × 1,5 statt × 2,0), das ist noch nicht eingebaut.
 2. **Ausfall eines Satelliten:** Meldet einer an einem Tag nichts (z. B. NOAA-20 am 04.02.2024), zählt er als 0 im Mittel.
    Der Tag ist nur als `possible_gap` markiert (21 Tage insgesamt). Ihn aus dem Mittel zu nehmen, wäre genauer, braucht aber eine Regel.
-3. **Gemeinsames Gebiet** ist aus Daten gelernt (0,25°-Zellen). In Randzellen können NOAA-Punkte knapp außerhalb des SNPP-Gebiets mitzählen.
-4. **H3-Auflösung 8** ist ein Vorschlag. Das Team kann sie in `grid.h3_resolution` ändern.
-5. **NRT** von NOAA-20/21 wird später durch Archivdaten ersetzt (vorläufig: `is_provisional`).
+3. **H3-Auflösung 8** ist ein Vorschlag. Das Team kann sie in `grid.h3_resolution` ändern.
+4. **NRT** von NOAA-20/21 wird später durch Archivdaten ersetzt (vorläufig: `is_provisional`).
 6. Der Regressionstest gegen Version 1 wird übersprungen, weil Version 1 nicht im Repository liegt.

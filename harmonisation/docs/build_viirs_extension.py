@@ -150,7 +150,7 @@ def build_body(data: dict[str, Any], config: dict[str, Any]) -> str:
     passed = sum(kpi["passed"] for kpi in report["kpis"])
     values = {"passed": str(passed), "total": str(len(report["kpis"])), "median": de(level["median"], 3), "p10": de(level["p10"]), "p90": de(level["p90"]),
               "region_min": de(level["region_min"]), "region_min_id": level["region_min_id"], "rows_read": de(balance["rows_read"], 0),
-              "rows_kept": de(balance["rows_kept"], 0), "outside": de(balance["rejected_by_reason"].get("outside_common_area", 0), 0),
+              "rows_kept": de(balance["rows_kept"], 0), "outside": de(balance["rejected_by_reason"].get("outside_study_regions", 0), 0),
               "k1": de(k_days.get(1, 0), 0), "k2": de(k_days.get(2, 0), 0), "k3": de(k_days.get(3, 0), 0),
               "single": de(noise_rows[0][1], 1), "mean_err": de(noise_rows[0][2], 1), "month_mean": de(month[0]["error_mean"]),
               "last_date": str(pd.to_datetime(daily["date"]).max().date()), "schema": str(config["schema_version"]),
@@ -171,20 +171,20 @@ BODY = r"""
 <div class="tile"><b>{{median}}</b><span>VIIRS-Mittel / SNPP je Region und Jahr (Median). Kein Sprung beim Start von NOAA-20 und NOAA-21.</span></div>
 <div class="tile"><b>× {{single}} → × {{mean_err}}</b><span>typischer Tagesfehler gegen einen zurückgehaltenen Satelliten: einzeln gegen gemittelt</span></div>
 <div class="tile"><b>{{k3}}</b><span>Tage mit drei VIIRS-Satelliten, {{k2}} mit zwei, {{k1}} mit einem</span></div>
-<div class="tile"><b>{{rows_kept}}</b><span>Hotspots von {{rows_read}} gelesenen Zeilen, {{outside}} NOAA-Zeilen außerhalb des gemeinsamen Gebiets</span></div>
+<div class="tile"><b>{{rows_kept}}</b><span>Hotspots von {{rows_read}} gelesenen Zeilen, {{outside}} Zeilen außerhalb der Untersuchungsregionen</span></div>
 </div>
 
 <h2>Wie es entstand</h2>
 <ol class="steps">
 <li><strong>Analyse vor dem Umbau</strong> (<code>data_analysis/09_viirs_satellites.py</code>): fünf Regeln R1–R5 und die Prüfungen N1–N5 vorab festgelegt, dann gemessen.</li>
 <li><strong>Erster NOAA-Download angehalten:</strong> Im Nordosten fehlten die NOAA-Daten (Katalonien 0,44, Midi-Pyrénées 0,00, Aquitaine 0,01 der SNPP-Erkennungen). Ein Mittel hätte diese Regionen ab 2018 halbiert. Das Team hat neu heruntergeladen.</li>
-<li><strong>Zweiter Download zu groß:</strong> ein Rechteck bis 44,8° N und 4,9° O, MODIS und SNPP decken aber Frankreich nördlich von etwa 43,5° nicht ab. Lösung: ein gemeinsames Gebiet aus den Zellen, in denen MODIS oder SNPP je gemessen haben.</li>
+<li><strong>Zweiter Download zu groß:</strong> ein Rechteck bis 44,8° N und 4,9° O, MODIS und SNPP decken aber Frankreich nördlich von etwa 43,5° nicht ab. Lösung: Alle Satelliten zählen nur in den Untersuchungsregionen (Festland-Spanien mit Balearen, Portugal), die jeder Download ganz abdeckt.</li>
 <li><strong>Umbau der Pipeline:</strong> Satellitenliste in der Config, Mittel der aktiven Satelliten, Gewicht 1/k, neue und umbenannte Spalten, H3-Zelle, Datenbankschema Version {{schema}}.</li>
 <li><strong>Iteration 1:</strong> zwei Prüfungen verfehlt (U1b, N4b), Ursache gefunden, zwei Einstellungen geändert, danach alles erfüllt. Stopp laut Regel.</li>
 </ol>
 
 <h2>Analyse: Passen NOAA-20 und NOAA-21 zu SNPP?</h2>
-<p>Die Regeln standen vor der Messung fest. Verglichen wird nur an Tagen, an denen beide Satelliten liefern, und nur im gemeinsamen Gebiet. Archivzeilen zählen nur mit <code>type</code> = 0.</p>
+<p>Die Regeln standen vor der Messung fest. Verglichen wird nur an Tagen, an denen beide Satelliten liefern, und nur in den Untersuchungsregionen. Archivzeilen zählen nur mit <code>type</code> = 0.</p>
 [[rules]]
 <figure>
 [[chart]]
@@ -203,7 +203,7 @@ BODY = r"""
 <h2>Was sich in der Pipeline ändert</h2>
 <div class="scroll"><table class="wide"><thead><tr><th>Baustein</th><th>Änderung</th><th>Grund</th></tr></thead><tbody>
 <tr><td>Config</td><td><code>satellites.viirs: [SNPP, N20, N21]</code>, <code>column_key</code>, acht Quellen in <code>data/raw/&lt;produkt&gt;/</code></td><td>Kein Satellitenname mehr im Code. Ein weiterer Satellit braucht nur Config und Spaltenkatalog.</td></tr>
-<tr><td>Gemeinsames Gebiet</td><td><code>common_area.py</code>: nur 0,25°-Zellen mit Terra-, Aqua- oder SNPP-Erkennungen</td><td>Die Downloads decken verschiedene Gebiete ab. Ohne Angleichung stiege das Mittel in Randregionen.</td></tr>
+<tr><td>Untersuchungsregionen</td><td><code>nuts.study_regions</code>: nur die 21 NUTS-2-Regionen der App, per Punkt-in-Polygon</td><td>Die Downloads decken verschiedene Gebiete ab. Ohne Angleichung stiege das Mittel in Randregionen. Die Liste ist fest, neue Daten ändern das Gebiet nicht.</td></tr>
 <tr><td>Tagesraster</td><td><code>add_viirs_reference</code>: <code>n_viirs</code> = Mittel der aktiven VIIRS-Satelliten; <code>viirs_operating</code></td><td>Aktiv ohne Feuer zählt 0, nicht aktiv zählt nicht. Ab 03.11.2026 messen NOAA-20/21 allein weiter.</td></tr>
 <tr><td>Gewichte</td><td><code>weight_n</code> = 1/k für VIIRS, nur wenn der Satellit an dem Tag aktiv ist</td><td>Hält SUM(<code>weight_n</code>) = <code>n_harm</code> für jede Fläche exakt (D11, N2).</td></tr>
 <tr><td>Kalibrierung, Fehlermodell</td><td>gegen SNPP allein (<code>calibration.reference_satellites</code>)</td><td>Iteration 1: gleiches Rauschen der Referenz im ganzen Kalibrierfenster, sonst sind die Prüfhälften nicht vergleichbar.</td></tr>
@@ -242,7 +242,6 @@ BODY = r"""
 <ul>
 <li>Bänder gemessener Tage nutzen noch die Annahme für einen Satelliten. Mit drei Satelliten wären sie enger.</li>
 <li>Ein Satellit mit Ausfall zählt an dem Tag als 0 im Mittel und ist nur als <code>possible_gap</code> markiert.</li>
-<li>Das gemeinsame Gebiet ist aus Daten gelernt. In Randzellen können einzelne NOAA-Punkte knapp außerhalb des SNPP-Gebiets mitzählen.</li>
 <li>Die H3-Auflösung ist ein Vorschlag (<code>grid.h3_resolution</code>).</li>
 </ul>
 </main>

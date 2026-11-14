@@ -20,9 +20,14 @@ REGIONS_GEOJSON = Path(os.environ.get("REGIONS_GEOJSON", BACKEND_DIR / "assets" 
 CORS_ORIGINS = [o for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://localhost:8080").split(",") if o]
 STATEMENT_TIMEOUT_MS = int(os.environ.get("STATEMENT_TIMEOUT_MS", "10000"))
 
-# API scope: Spain and Portugal only. The data also contains three French border regions.
+# API scope: Spain and Portugal only. The harmonisation keeps only these regions (nuts.study_regions); the filter stays as a guard.
 API_COUNTRIES = ("ES", "PT")
 WEIGHT_VERSION = "w1"            # bump when the harmonisation method or its factors change
 MAP_BBOX = (-9.6, 35.9, 4.4, 43.9)
+
+# Data sync (POST /api/sync) runs pipeline/sync_data.py. It needs the FIRMS key and the pipeline code next to the
+# backend (repository layout; the backend image copies it, see backend/Dockerfile).
+PIPELINE_DIR = Path(os.environ.get("PIPELINE_DIR", BACKEND_DIR.parent / "pipeline"))
+SYNC_AVAILABLE = bool(os.environ.get("FIRMS_MAP_KEY", "").strip()) and (PIPELINE_DIR / "sync_data.py").is_file()
 ATTRIBUTION = ("Fire data: NASA FIRMS (MODIS, VIIRS), harmonised by La Brasa. "
                "Boundaries: Eurostat GISCO NUTS-2 2021, (C) EuroGeographics.")

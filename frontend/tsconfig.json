@@ -17,5 +17,5 @@
     "types": ["vite/client"],
     "noEmit": true
   },
-  "include": ["main.tsx", "App.tsx", "routes", "components", "hooks", "services", "lib", "vite.config.ts"]
+  "include": ["main.tsx", "App.tsx", "routes", "components", "hooks", "i18n", "services", "lib", "vite.config.ts"]
 }

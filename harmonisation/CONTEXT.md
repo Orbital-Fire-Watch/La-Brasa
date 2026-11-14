@@ -19,8 +19,8 @@ Die Abschnitte 1 bis 10 beschreiben die Vorgeschichte (Version 2 mit SNPP als ei
   NOAA-Download liegt in `Daten_Satellit/NASA_SPACEAPP/Data_new_false/` und wird nicht verwendet.
 - **VIIRS-Referenz = Mittel der aktiven VIIRS-Satelliten** (SNPP ab 20.01.2012, NOAA-20 ab 01.04.2018, NOAA-21 ab 01.03.2023):
   `n_viirs`, `frp_viirs`, `viirs_operating`. Gewicht je VIIRS-Punkt 1/k. Rohzahlen je Satellit bleiben (`n_snpp`, `n_noaa20`, `n_noaa21`).
-- **Gemeinsames Gebiet** (`common_area`): Alle Satelliten zählen nur in 0,25°-Zellen mit Terra-, Aqua- oder SNPP-Erkennungen
-  (die NOAA-Downloads reichen weiter).
+- **Untersuchungsregionen** (`nuts.study_regions`): Alle Satelliten zählen nur in den 21 NUTS-2-Regionen der App
+  (Festland-Spanien mit Balearen, Portugal). Die Downloads reichen verschieden weit, diese Regionen decken alle ganz ab.
 - **Kalibrierung und Fehlermodell gegen SNPP allein** (`calibration.reference_satellites`), Ortsmaske je Sensor
   (`static_sources.mask_training_sensors`). Beides aus Iteration 1 der Erweiterung.
 - **Neu:** `h3_cell` (H3, Auflösung 8) in `hotspots_harmonised`. `schema_version: 2` in Config und `manifest.json`.
@@ -33,7 +33,7 @@ Die Abschnitte 1 bis 10 beschreiben die Vorgeschichte (Version 2 mit SNPP als ei
 - **Ausführen:** `cd La-Brasa/harmonisation && .venv/bin/python run_pipeline.py` (≈ 90 s, 54 Tests).
   `.venv` neu anlegen mit `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` (enthält jetzt `h3`).
 - **Offene Punkte:** siehe `docs/viirs_extension.md`, Abschnitt „Offene Punkte“ (Bänder gemessener Tage, Ausfälle einzelner
-  Satelliten, Randzellen des gemeinsamen Gebiets, H3-Auflösung als Teamentscheidung).
+  Satelliten, H3-Auflösung als Teamentscheidung).
 
 ## 1. Projekt und Aufgabe
 

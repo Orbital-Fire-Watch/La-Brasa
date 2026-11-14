@@ -35,7 +35,7 @@ erDiagram
     regions {
         text region_id PK "NUTS-2 2021, e.g. ES11"
         text region_name
-        text country "ES, PT, FR"
+        text country "ES, PT"
     }
     activity_daily_harmonised {
         text region_id PK, FK

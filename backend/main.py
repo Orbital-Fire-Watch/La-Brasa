@@ -12,7 +12,7 @@ from fastapi.openapi.utils import get_openapi
 from core.config import CORS_ORIGINS
 from dtos import API_VERSION
 from errors import install_error_handlers
-from routes import data
+from routes import data, sync
 from services.events import warm_up
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -36,6 +36,7 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(data.router)
+app.include_router(sync.router)
 
 
 def _openapi_without_422():

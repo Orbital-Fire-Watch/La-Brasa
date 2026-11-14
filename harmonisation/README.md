@@ -27,7 +27,7 @@ Rueckgabewert 1, wenn eine KPI-Schwelle verfehlt wird.
     run_pipeline.py          Orchestrator: ingest, clean, daily_grid, calibrate, quantify_uncertainty,
                              harmonise_daily, weight_hotspots, test, validate
     pipeline_config.yaml     alle Parameter, Schwellen und KPI-Grenzen
-    pipeline/data_loading/   Einlesen, Bereinigen, gemeinsames Gebiet, Ortsmaske, Region, Klassen, abgeleitete Spalten (inkl. H3)
+    pipeline/data_loading/   Einlesen, Bereinigen, Region und Untersuchungsgebiet, Ortsmaske, Klassen, abgeleitete Spalten (inkl. H3)
     pipeline/algorithms/     Tagesraster (VIIRS-Mittel), Kalibrierung, Harmonisierung, Gewichte, Fehlermodell, KPIs (viirs_kpis.py: N1-N4), Drift
     pipeline/column_catalogue.py   eine Quelle fuer Schema und Dokumentation
     aggregation/             Roll-up, Unsicherheit, Flaechenabfragen, Klimaprofil, laufender Monat (nicht im Orchestrator)

@@ -1,7 +1,8 @@
 # La Brasa – Frontend
 
 React + TypeScript + Vite, map with MapLibre GL, H3 cells with `h3-js`, charts with d3 (SVG).
-Implements the Fire-API v3 specification (`/api/...`): page 1 "Auswahl" (`/`) and page 2 "Auswertung" (`/analysis`).
+Implements the Fire-API v3 specification (`/api/...`): start page (`/`), analysis page (`/?page=analysis`) and a
+plain info page (`/info.html`). Languages EN/ES/PT (`i18n/`). Design history and decisions: [DESIGN.md](DESIGN.md).
 
 Node 22 (`.nvmrc`; at least 20.19 for the dev tools vitest and ESLint).
 
@@ -36,8 +37,9 @@ When the backend changes its DTOs, regenerate the types: `npm run gen:types` (ba
 
 | Folder | Content |
 |---|---|
-| `routes/` | the two pages: `SelectionPage`, `AnalysisPage` |
-| `components/` | map (`map/FireMap`), charts (`charts/`), page building blocks (`selection/`, `analysis/`), `ui/` |
+| `routes/` | the two pages: `StartPage`, `AnalysisPage` |
+| `components/` | map (`map/OrbitalMap`, `map/MapTools`), charts (`charts/`), page building blocks (`start/`, `analysis/`), `Header`, `SensorCompare`, `ui/` |
+| `i18n/` | translations (`messages/en.ts` is the reference) and `Intl` formatters |
 | `hooks/` | URL state (`useAppState`), requests with abort/debounce/cache (`useApiQuery`), map, drawing, area selection |
 | `services/api/` | generated `schema.d.ts`, short type names, HTTP client, one function per endpoint |
 | `services/mock/` | mock API (world generator, endpoint handlers, worker) |

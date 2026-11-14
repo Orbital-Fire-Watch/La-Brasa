@@ -5,6 +5,7 @@ load_to_db.py - copy the harmonised Parquet tables into PostgreSQL.
 Run after harmonisation/run_pipeline.py:
     python pipeline/load_to_db.py                # replace all tables
     python pipeline/load_to_db.py --dry-run      # load and roll back: checks files, columns, constraints
+    python pipeline/load_to_db.py --incremental  # only the days from harmonised/incremental.json on (sync of the app)
     docker compose run --rm pipeline python load_to_db.py
 
 What it does:
@@ -26,6 +27,7 @@ POSTGRES_DB from the environment or .env, with host localhost and port 5432.
 Install: pip install -r pipeline/requirements.txt
 """
 import argparse
+import datetime as dt
 import json
 import os
 import sys
@@ -52,6 +54,10 @@ REGIONS_TABLE = "regions"
 REGIONS_SOURCE = "activity_daily_harmonised"
 REGION_COLUMNS = ["region_id", "region_name", "country"]
 BATCH_ROWS = 50_000
+# --incremental: run_pipeline.py --incremental names the first recomputed day here; deleted once loaded.
+PENDING_LOAD = "incremental.json"
+# Tables replaced from that day on (table -> date column); day_status is small and replaced whole.
+INCREMENTAL_TABLES = {"hotspots_harmonised": "obs_date", "activity_daily_harmonised": "date"}
 # Schema version of the harmonised tables that db/init/001_schema.sql describes.
 # 2 = VIIRS reference n_viirs / frp_viirs from SNPP, NOAA-20 and NOAA-21 (harmonisation/docs/viirs_extension.md).
 SCHEMA_VERSION = 2
@@ -181,6 +187,25 @@ def load_all(conn: psycopg.Connection, tables: dict[str, pa.Table]) -> dict[str,
         return {name: copy_table(cur, name, table) for name, table in ordered.items()}
 
 
+def load_since(conn: psycopg.Connection, harmonised_dir: Path, since: dt.date) -> dict[str, int]:
+    """Replace the rows from `since` on (and day_status whole) in one transaction. The other tables stay."""
+    tables = {name: pq.read_table(harmonised_dir / f"{name}.parquet") for name in [*INCREMENTAL_TABLES, "day_status"]}
+    with conn.transaction(), conn.cursor() as cur:
+        cur.execute("SET LOCAL TIME ZONE 'UTC'")
+        counts = {}
+        for name, table in tables.items():
+            check_no_nan(name, table)
+            check_columns(name, table, database_columns(cur, name))
+            if name in INCREMENTAL_TABLES:
+                column = INCREMENTAL_TABLES[name]
+                table = table.filter(pc.greater_equal(table[column], pa.scalar(since, pa.date32())))
+                cur.execute(sql.SQL("DELETE FROM {} WHERE {} >= %s").format(sql.Identifier(name), sql.Identifier(column)), (since,))
+            else:
+                cur.execute(sql.SQL("DELETE FROM {}").format(sql.Identifier(name)))
+            counts[name] = copy_table(cur, name, table)
+        return counts
+
+
 def analyze(conn: psycopg.Connection, names: Sequence[str]) -> None:
     """Refresh the planner statistics after a full reload."""
     conn.execute(sql.SQL("ANALYZE {}").format(sql.SQL(", ").join(map(sql.Identifier, names))))
@@ -197,11 +222,14 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--database-url")
     parser.add_argument("--dry-run", action="store_true", help="load everything, then roll back")
+    parser.add_argument("--incremental", action="store_true", help=f"only the days from harmonised/{PENDING_LOAD} on")
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.incremental:
+        return main_incremental(args)
     try:
         check_schema_version(args.data_dir / "harmonised")
         tables = read_tables(args.data_dir / "harmonised")
@@ -219,6 +247,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     for name, rows in counts.items():
         print(f"{name:<28} {rows:>9} rows")
     print("Dry run: nothing was written." if args.dry_run else "All tables replaced.")
+    return 0
+
+
+def main_incremental(args: argparse.Namespace) -> int:
+    harmonised_dir = args.data_dir / "harmonised"
+    pending = harmonised_dir / PENDING_LOAD
+    if not pending.exists():
+        print("Nothing new to load.")
+        return 0
+    since = dt.date.fromisoformat(json.loads(pending.read_text(encoding="utf-8"))["since"])
+    try:
+        check_schema_version(harmonised_dir)
+        with connect(args.database_url) as conn:
+            counts = load_since(conn, harmonised_dir, since)
+            analyze(conn, list(counts))
+    except (LoadError, psycopg.Error) as err:
+        print(f"Error: {err}", file=sys.stderr)
+        return 1
+    pending.unlink()
+    for name, rows in counts.items():
+        print(f"{name:<28} {rows:>9} rows")
+    print(f"Rows from {since} on replaced.")
     return 0
 
 

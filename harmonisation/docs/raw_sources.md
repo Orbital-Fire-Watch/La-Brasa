@@ -22,8 +22,9 @@ Die Pipeline liest sie über `sources` in `pipeline_config.yaml`. Die SHA-256-We
 - MODIS und SNPP: Download vom 13.11.2026 (Zeitstempel in den ZIPs 18:21 bzw. 18:24). Gebiet: Iberien mit einem Rand
   in Südwestfrankreich, **kein Rechteck** (in Frankreich nördlich von etwa 43,5° keine Daten).
 - NOAA-20 und NOAA-21: Download vom 14.11.2026 (Zeitstempel 13:34). Gebiet: Rechteck bis 44,8° N und 4,9° O, also
-  größer als MODIS/SNPP. Die Pipeline beschränkt alle Satelliten auf das gemeinsame Gebiet (`common_area` in der Config,
-  `pipeline/data_loading/common_area.py`). Dabei fallen 52.941 NOAA-Zeilen mit Grund `outside_common_area` heraus.
+  größer als MODIS/SNPP. Die Pipeline zählt alle Satelliten nur in den 21 Untersuchungsregionen (`nuts.study_regions` in der
+  Config, `clean_hotspots.restrict_to_study_regions`), die jeder Download ganz abdeckt. Dabei fallen 88.155 Zeilen mit Grund
+  `outside_study_regions` heraus (fast alle in Frankreich, davon 66.639 von NOAA-20/21).
 - Originale und ZIPs: `Daten_Satellit/NASA_SPACEAPP/Data_implemented/` (MODIS, SNPP) und `Data_new/` (NOAA-20/21).
   Die CSVs in `data/raw/` sind Kopien. Sie stimmen Byte für Byte mit den ZIPs überein (SHA-256 geprüft).
 
@@ -42,5 +43,18 @@ Die Pipeline liest sie über `sources` in `pipeline_config.yaml`. Die SHA-256-We
 1. Neues FIRMS-Produkt in einen eigenen Unterordner von `data/raw/` legen, Dateinamen nicht ändern.
 2. `sources` in `pipeline_config.yaml` anpassen. Für einen weiteren VIIRS-Satelliten zusätzlich `satellites.sensor_of`,
    `satellites.column_key` und `satellites.viirs` ergänzen und den Spaltenkatalog um seine Rohspalten erweitern.
-3. Download-Gebiet prüfen: Es muss das gemeinsame Gebiet mindestens abdecken (KPI N1c zeigt fehlende Abdeckung je Region).
+3. Download-Gebiet prüfen: Es muss alle Untersuchungsregionen ganz abdecken (KPI N1c zeigt fehlende Abdeckung je Region).
 4. `run_pipeline.py --force`, danach diese Tabelle aktualisieren.
+
+## NRT-Aktualisierung
+
+Seit dem 14.11.2026 hängt `pipeline/ingestion/fetch_firms.py` die neuen NRT-Zeilen über die FIRMS-API an die vier
+`fire_nrt_*.csv` an. Das läuft bei `POST /api/sync` (→
+`pipeline/sync_data.py`, siehe `startup.md` im Repository). Die Zeilen in der Tabelle oben sind damit nur der Stand des Downloads. Zeilenzahl und SHA-256 jedes Laufs stehen in `data/harmonised/manifest.json`.
+
+- Die API liefert ein **Rechteck** (`-10,0 35,9 5,0 44,9`), anders als die MODIS- und SNPP-Downloads. Es enthält alle
+  Untersuchungsregionen. NRT-Zeilen außerhalb fallen wie alle anderen mit Grund `outside_study_regions` heraus.
+- Spalten und Werte werden an die Download-Dateien angepasst (`bright_ti4` → `brightness`, `bright_ti5` → `bright_t31`,
+  Satellitennamen, `acq_time` vierstellig). Unbekannte Satellitennamen brechen den Abruf ab, statt Zeilen zu verwerfen.
+- Die API reicht nur etwa zwei Monate zurück, das Skript höchstens 31 Tage. Eine größere Lücke und das Archiv (SP) brauchen
+  weiterhin einen Download wie oben beschrieben.

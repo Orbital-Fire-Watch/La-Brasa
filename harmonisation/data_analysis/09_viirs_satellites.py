@@ -31,7 +31,6 @@ from common import CACHE, IBERIA, RAW, con, save
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline.config import load_config  # noqa: E402
 from pipeline.data_loading.assign_region import assign_nuts2_region  # noqa: E402
-from pipeline.data_loading.common_area import is_inside_common_area, learn_common_area  # noqa: E402
 from pipeline.data_loading.static_source_mask import flag_hotspots_in_mask, learn_static_mask  # noqa: E402
 
 VIIRS = CACHE / "iberia_viirs.parquet"
@@ -48,20 +47,18 @@ def factor_error(a, b, offset=OFFSET):
 
 
 def prepare():
-    """Liest alle sechs VIIRS-CSVs (Schema wie 00_prepare.py), beschraenkt sie auf das gemeinsame Gebiet und ordnet die Regionen zu.
+    """Liest alle sechs VIIRS-CSVs (Schema wie 00_prepare.py), ordnet die Regionen zu und beschraenkt sie auf die Untersuchungsregionen.
 
-    Gemeinsames Gebiet wie in der Pipeline (pipeline/data_loading/common_area.py): alle 0,25-Grad-Zellen
-    mit mindestens einer Erkennung von Terra, Aqua oder SNPP. Die NOAA-Downloads reichen weiter.
+    Gebiet wie in der Pipeline (clean_hotspots.restrict_to_study_regions): `nuts.study_regions`. Die NOAA-Downloads reichen weiter.
     """
     build = importlib.import_module("00_prepare").build
     files = [RAW / folder / f"fire_{kind}_{product}.csv" for folder, product in FILES.values() for kind in ("archive", "nrt")]
     build(files, VIIRS)
     df = pd.read_parquet(VIIRS)
-    modis = con().execute(f"SELECT latitude, longitude, sat AS satellite FROM '{IBERIA}' WHERE sensor = 'MODIS'").df()
-    area = learn_common_area(pd.concat([modis, df[["latitude", "longitude"]].assign(satellite=df.sat)], ignore_index=True), CONFIG)
-    inside = is_inside_common_area(df, area, CONFIG)
-    print("ausserhalb des gemeinsamen Gebiets:", df[~inside].groupby("sat").size().to_dict())
-    df = assign_nuts2_region(df[inside].reset_index(drop=True), CONFIG)
+    df = assign_nuts2_region(df, CONFIG)
+    inside = df["region_id"].isin(CONFIG["nuts"]["study_regions"])
+    print("ausserhalb der Untersuchungsregionen:", df[~inside].groupby("sat").size().to_dict())
+    df = df[inside].reset_index(drop=True)
     df["region_id"] = df["region_id"].astype(object)
     df["acq_date"] = pd.to_datetime(df["acq_date"])
     df.to_parquet(VIIRS, compression="zstd")

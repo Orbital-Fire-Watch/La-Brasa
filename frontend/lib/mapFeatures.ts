@@ -1,84 +1,69 @@
-/** Converts API responses into GeoJSON for the map, with colours and popup texts already attached. */
+/** GeoJSON for the mock's maps: same geometry as lib/mapFeatures, with translated popups and palette-aware colours. */
 import type * as GeoJSON from "geojson";
 import { cellToBoundary } from "h3-js";
-import { AGE_COLOR, ageClass, divergingScale, sequentialScale, type AgeClass } from "./colors";
-import { daysBetween, formatDate } from "./dates";
+import { ageClass, divergingScale, type AgeClass } from "./colors";
+import { daysBetween } from "./dates";
 import type { FireUnit } from "./fireUnits";
-import { formatCompact, formatInt, formatOne, formatSigned, relativeDays } from "./format";
+import type { AnomalyCell, GridCell, HotspotFeature } from "../services/api/types";
+import type { Fmt, Translate } from "../i18n/I18n";
 
-interface CellLike {
-  cell: string;
-  fires: number;
-  hotspots: number;
-  frp_sum: number;
-  first_seen?: string | null;
-  last_seen?: string | null;
+export interface PopupData {
+  title: string;
+  rows: [string, string][];
+  eventId?: string | null;
 }
 
-interface AnomalyLike {
-  cell: string;
-  value: number;
-  median: number;
-  diff: number;
-  rank: number;
+interface Tx {
+  t: Translate;
+  f: Fmt;
 }
 
-interface HotspotLike {
-  id: number;
-  geometry: { coordinates: [number, number] };
-  properties: {
-    time: string;
-    sensor: string;
-    confidence: string;
-    frp: number | null;
-    daynight: string;
-    weight: number;
-    province_id: string;
-    event_id: string | null;
-  };
-}
+const SENSOR: Record<string, string> = {
+  MODIS_TERRA: "MODIS Terra",
+  MODIS_AQUA: "MODIS Aqua",
+  VIIRS_SNPP: "VIIRS Suomi NPP",
+  VIIRS_NOAA20: "VIIRS NOAA-20",
+  VIIRS_NOAA21: "VIIRS NOAA-21",
+};
 
-/** cellToBoundary in GeoJSON format already returns a closed ring. */
 const hexagon = (cell: string): GeoJSON.Polygon => ({ type: "Polygon", coordinates: [cellToBoundary(cell, true)] });
+const popup = (data: PopupData) => JSON.stringify(data);
 
-const popup = (title: string, rows: [string, string][], eventId?: string | null) => JSON.stringify({ title, rows, eventId });
-
-function cellRows(c: CellLike): [string, string][] {
-  return [
-    ["Hotspots (harmonisiert)", formatOne(c.fires)],
-    ["FRP-Summe", `${formatCompact(c.frp_sum)} MW`],
-    ["Hotspots (roh)", formatInt(c.hotspots)],
-    ...(c.first_seen && c.last_seen ? ([["Zeitraum", `${formatDate(c.first_seen)} – ${formatDate(c.last_seen)}`]] as [string, string][]) : []),
+function cellRows(c: GridCell, { t, f }: Tx): [string, string][] {
+  const rows: [string, string][] = [
+    [t("pop.firesHarm"), f.one(c.fires)],
+    [t("pop.frpSum"), `${f.compact(c.frp_sum)} MW`],
+    [t("pop.raw"), f.int(c.hotspots)],
   ];
+  if (c.first_seen && c.last_seen) rows.push([t("pop.period"), t("pop.range", { start: f.date(c.first_seen), end: f.date(c.last_seen) })]);
+  return rows;
 }
 
-/** Grid coloured by value (page 1). */
-export function cellsByValue(cells: CellLike[], metric: "fires" | "frp_sum", max: number): GeoJSON.FeatureCollection {
-  const color = sequentialScale(max);
+export function cellsByValue(cells: GridCell[], metric: "fires" | "frp_sum", color: (v: number) => string, tx: Tx): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
     features: cells.map((c) => ({
       type: "Feature",
-      properties: { color: color(c[metric]), popup: popup("H3-Zelle", cellRows(c)) },
+      properties: { color: color(c[metric]), popup: popup({ title: tx.t("pop.cell"), rows: cellRows(c, tx) }) },
       geometry: hexagon(c.cell),
     })),
   };
 }
 
-/** Grid coloured by age relative to D, opacity by value (page 2, spec §7.7). */
-export function cellsByAge(cells: CellLike[], metric: "fires" | "frp_sum", max: number, date: string): GeoJSON.FeatureCollection {
+export function cellsByAge(
+  cells: GridCell[], metric: "fires" | "frp_sum", max: number, date: string, colors: Record<AgeClass, string>, tx: Tx,
+): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
     features: cells.map((c) => {
       const since = c.last_seen ? daysBetween(c.last_seen, date) : 0;
-      const age = ageClass(since);
       const share = max > 0 ? Math.log1p(c[metric]) / Math.log1p(max) : 1;
       return {
         type: "Feature",
         properties: {
-          color: AGE_COLOR[age],
+          color: colors[ageClass(since)],
           opacity: 0.35 + 0.55 * share,
-          popup: popup(`H3-Zelle · zuletzt ${relativeDays(since)}`, cellRows(c)),
+          popup: popup({ title: tx.t("pop.cellLastSeen", { when: tx.f.daysAgo(since) }), rows: cellRows(c, tx) }),
         },
         geometry: hexagon(c.cell),
       };
@@ -86,7 +71,7 @@ export function cellsByAge(cells: CellLike[], metric: "fires" | "frp_sum", max: 
   };
 }
 
-export function anomalyCells(cells: AnomalyLike[], maxAbsDiff: number, unit: string): GeoJSON.FeatureCollection {
+export function anomalyCells(cells: AnomalyCell[], maxAbsDiff: number, unit: string, { t, f }: Tx): GeoJSON.FeatureCollection {
   const color = divergingScale(maxAbsDiff);
   return {
     type: "FeatureCollection",
@@ -95,54 +80,49 @@ export function anomalyCells(cells: AnomalyLike[], maxAbsDiff: number, unit: str
       properties: {
         color: color(c.diff),
         opacity: 0.8,
-        popup: popup(c.diff > 0 ? "Mehr als üblich" : c.diff < 0 ? "Weniger als üblich" : "Wie üblich", [
-          ["Wert im Fenster", `${formatOne(c.value)} ${unit}`],
-          ["Median Vergleichsjahre", `${formatOne(c.median)} ${unit}`],
-          ["Abweichung", `${formatSigned(c.diff)} ${unit}`],
-          ["Platz", `${c.rank}`],
-        ]),
+        popup: popup({
+          title: t(c.diff > 0 ? "pop.more" : c.diff < 0 ? "pop.less" : "pop.same"),
+          rows: [
+            [t("pop.value"), `${f.one(c.value)} ${unit}`],
+            [t("pop.median"), `${f.one(c.median)} ${unit}`],
+            [t("pop.diff"), `${f.signed(c.diff)} ${unit}`],
+            [t("pop.rank"), f.int(c.rank)],
+          ],
+        }),
       },
       geometry: hexagon(c.cell),
     })),
   };
 }
 
-const SENSOR_LABEL: Record<string, string> = {
-  MODIS_TERRA: "MODIS Terra",
-  MODIS_AQUA: "MODIS Aqua",
-  VIIRS_SNPP: "VIIRS Suomi NPP",
-  VIIRS_NOAA20: "VIIRS NOAA-20",
-  VIIRS_NOAA21: "VIIRS NOAA-21",
-};
-
 export function hotspotPoints(
-  features: HotspotLike[], date: string, provinceName: (id: string) => string, eventsAvailable: boolean,
+  features: HotspotFeature[], date: string, regionName: (id: string) => string, colors: Record<AgeClass, string>, eventsAvailable: boolean,
+  { t, f }: Tx,
 ): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
-    features: features.map((f) => {
-      const day = f.properties.time.slice(0, 10);
+    features: features.map((h) => {
+      const day = h.properties.time.slice(0, 10);
       const since = daysBetween(day, date);
       return {
         type: "Feature",
-        id: f.id,
+        id: h.id,
         properties: {
-          color: AGE_COLOR[ageClass(since)],
-          popup: popup(
-            `Hotspot · ${relativeDays(since)}`,
-            [
-              ["Zeit (UTC)", `${formatDate(day)}, ${f.properties.time.slice(11, 16)}`],
-              ["Sensor", SENSOR_LABEL[f.properties.sensor] ?? f.properties.sensor],
-              ["Confidence", f.properties.confidence === "high" ? "hoch" : "nominal"],
-              ["FRP", f.properties.frp === null ? "–" : `${formatOne(f.properties.frp)} MW`],
-              ["Aufnahme", f.properties.daynight === "D" ? "Tag" : "Nacht"],
-              ["Gewicht", f.properties.weight.toLocaleString("de-DE", { maximumFractionDigits: 3 })],
-              ["Gebiet", provinceName(f.properties.province_id)],
+          color: colors[ageClass(since)],
+          popup: popup({
+            title: t("pop.hotspot", { when: f.daysAgo(since) }),
+            rows: [
+              [t("pop.time"), `${f.date(day)}, ${h.properties.time.slice(11, 16)}`],
+              [t("pop.sensor"), SENSOR[h.properties.sensor] ?? h.properties.sensor],
+              [t("pop.conf"), t(h.properties.confidence === "high" ? "pop.confHigh" : "pop.confNominal")],
+              ["FRP", h.properties.frp == null ? t("ui.na") : `${f.one(h.properties.frp)} MW`],
+              [t("pop.pass"), t(h.properties.daynight === "D" ? "pop.day" : "pop.night")],
+              [t("pop.area"), regionName(h.properties.province_id)],
             ],
-            eventsAvailable ? f.properties.event_id : null,
-          ),
+            eventId: eventsAvailable ? h.properties.event_id : null,
+          }),
         },
-        geometry: { type: "Point", coordinates: f.geometry.coordinates },
+        geometry: { type: "Point", coordinates: h.geometry.coordinates },
       };
     }),
   };
@@ -152,31 +132,46 @@ export function unitAge(u: FireUnit): AgeClass {
   return u.days_since_last > 2 ? "ended" : ageClass(u.days_since_last);
 }
 
-/** Event outlines plus centroid markers (outlines are tiny at low zoom). */
-export function eventShapes(units: FireUnit[]): { polygons: GeoJSON.FeatureCollection; points: GeoJSON.FeatureCollection } {
+export function eventShapes(units: FireUnit[], colors: Record<AgeClass, string>) {
   const maxFrp = Math.max(1, ...units.map((u) => u.frp_sum));
+  const polygons: GeoJSON.FeatureCollection = {
+    type: "FeatureCollection",
+    features: units.map((u) => {
+      const age = unitAge(u);
+      return {
+        type: "Feature",
+        properties: { id: u.id, color: colors[age], stroke: age === "ended" ? "#757575" : "#3f1d0b", opacity: age === "ended" ? 0.3 : 0.6 },
+        geometry: u.geometry,
+      };
+    }),
+  };
+  const points: GeoJSON.FeatureCollection = {
+    type: "FeatureCollection",
+    features: units.map((u) => {
+      const age = unitAge(u);
+      return {
+        type: "Feature",
+        properties: { id: u.id, color: colors[age], radius: 4 + 10 * Math.sqrt(u.frp_sum / maxFrp), opacity: age === "ended" ? 0.45 : 0.9 },
+        geometry: { type: "Point", coordinates: u.centroid },
+      };
+    }),
+  };
+  return { polygons, points };
+}
+
+/** Raw detections of one sensor family per H3 cell (MODIS or VIIRS view and the comparison maps). */
+export function rawCells(
+  cells: { cell: string; count: number; frpSum: number }[], color: (v: number) => string, title: string, { t, f }: Tx,
+): GeoJSON.FeatureCollection {
   return {
-    polygons: {
-      type: "FeatureCollection",
-      features: units.map((u) => {
-        const age = unitAge(u);
-        return {
-          type: "Feature",
-          properties: { id: u.id, color: AGE_COLOR[age], stroke: age === "ended" ? "#757575" : "#7f2704", opacity: age === "ended" ? 0.3 : 0.6 },
-          geometry: u.geometry,
-        };
-      }),
-    },
-    points: {
-      type: "FeatureCollection",
-      features: units.map((u) => {
-        const age = unitAge(u);
-        return {
-          type: "Feature",
-          properties: { id: u.id, color: AGE_COLOR[age], radius: 4 + 10 * Math.sqrt(u.frp_sum / maxFrp), opacity: age === "ended" ? 0.45 : 0.9 },
-          geometry: { type: "Point", coordinates: u.centroid },
-        };
-      }),
-    },
+    type: "FeatureCollection",
+    features: cells.map((c) => ({
+      type: "Feature",
+      properties: {
+        color: color(c.count),
+        popup: popup({ title, rows: [[t("cmp.detections"), f.int(c.count)], [t("pop.frpSum"), `${f.compact(c.frpSum)} MW`]] }),
+      },
+      geometry: hexagon(c.cell),
+    })),
   };
 }

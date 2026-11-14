@@ -2,21 +2,21 @@
  "drift": {
   "calibration_years_exceeding_limit": [],
   "latest_deviation_minutes": {
-   "Aqua": 107.8,
-   "N20": 11.8,
-   "N21": -5.8,
-   "SNPP": 8.2,
-   "Terra": -101.1
+   "Aqua": 109.8,
+   "N20": 10.3,
+   "N21": -4.5,
+   "SNPP": 8.4,
+   "Terra": -101.4
   },
-  "max_abs_deviation_minutes_in_window": 5.340000000000025
+  "max_abs_deviation_minutes_in_window": 5.369999999999848
  },
  "overall_factors": {
-  "k_count_aqua": 5.9810301716952825,
-  "k_count_pair": 2.995608469142399,
-  "k_count_terra": 6.001438463854414,
-  "k_frp_aqua": 1.1775097693473304,
-  "k_frp_pair": 0.6406097618654236,
-  "k_frp_terra": 1.4049622693686095
+  "k_count_aqua": 6.094175559627753,
+  "k_count_pair": 2.995320005651314,
+  "k_count_terra": 5.890563678671899,
+  "k_frp_aqua": 1.1690124542338636,
+  "k_frp_pair": 0.6329772169014504,
+  "k_frp_terra": 1.380428371624406
  },
  "regions_with_fallback": 4
 }

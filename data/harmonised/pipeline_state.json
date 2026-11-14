@@ -5,67 +5,66 @@
    "drift": {
     "calibration_years_exceeding_limit": [],
     "latest_deviation_minutes": {
-     "Aqua": 107.8,
-     "N20": 11.8,
-     "N21": -5.8,
-     "SNPP": 8.2,
-     "Terra": -101.1
+     "Aqua": 109.8,
+     "N20": 10.3,
+     "N21": -4.5,
+     "SNPP": 8.4,
+     "Terra": -101.4
     },
-    "max_abs_deviation_minutes_in_window": 5.340000000000025
+    "max_abs_deviation_minutes_in_window": 5.369999999999848
    },
    "overall_factors": {
-    "k_count_aqua": 5.9810301716952825,
-    "k_count_pair": 2.995608469142399,
-    "k_count_terra": 6.001438463854414,
-    "k_frp_aqua": 1.1775097693473304,
-    "k_frp_pair": 0.6406097618654236,
-    "k_frp_terra": 1.4049622693686095
+    "k_count_aqua": 6.094175559627753,
+    "k_count_pair": 2.995320005651314,
+    "k_count_terra": 5.890563678671899,
+    "k_frp_aqua": 1.1690124542338636,
+    "k_frp_pair": 0.6329772169014504,
+    "k_frp_terra": 1.380428371624406
    },
    "regions_with_fallback": 4
   },
-  "seconds": 0.18
+  "seconds": 0.1
  },
  "clean": {
   "done": true,
   "report": {
    "balanced": true,
-   "common_area_cells": 1106,
-   "mask_core_cells": 1004,
+   "mask_core_cells": 993,
    "rejected_by_reason": {
-    "outside_common_area": 52941,
-    "static_mask": 4306,
-    "type_2": 134022,
-    "type_3": 2466
+    "outside_study_regions": 88321,
+    "static_mask": 4293,
+    "type_2": 133317,
+    "type_3": 2450
    },
-   "rows_kept": 746558,
-   "rows_read": 940293,
-   "rows_rejected": 193735
+   "rows_kept": 712110,
+   "rows_read": 940491,
+   "rows_rejected": 228381
   },
-  "seconds": 11.38
+  "seconds": 10.16
  },
  "daily_grid": {
   "done": true,
   "report": {
-   "days": 9448,
+   "days": 9449,
    "days_by_basis_count": {
     "modis_pair_scaled": 3487,
     "terra_scaled": 549,
-    "viirs_measured": 5412
+    "viirs_measured": 5413
    },
    "days_by_basis_frp": {
     "aqua_scaled": 3487,
     "terra_scaled": 549,
-    "viirs_measured": 5412
+    "viirs_measured": 5413
    },
-   "possible_gap_days": 21,
-   "provisional_days": 105,
-   "regions": 23
+   "possible_gap_days": 18,
+   "provisional_days": 106,
+   "regions": 21
   },
-  "seconds": 0.92
+  "seconds": 0.54
  },
  "determinism": {
-  "checked": true,
-  "identical": true
+  "checked": false,
+  "identical": null
  },
  "export_csv": {
   "done": true,
@@ -73,8 +72,8 @@
    "exported": true,
    "tables": {
     "activity_daily_harmonised": {
-     "megabytes": 52.4,
-     "rows": 217304
+     "megabytes": 47.2,
+     "rows": 198429
     },
     "big_fire_day_quality": {
      "megabytes": 0.0,
@@ -82,19 +81,19 @@
     },
     "calib_factors": {
      "megabytes": 0.0,
-     "rows": 23
+     "rows": 21
     },
     "day_status": {
      "megabytes": 0.9,
-     "rows": 9448
+     "rows": 9449
     },
     "hotspots_harmonised": {
-     "megabytes": 176.8,
-     "rows": 746558
+     "megabytes": 168.7,
+     "rows": 712110
     },
     "quality_by_scale": {
      "megabytes": 0.1,
-     "rows": 625
+     "rows": 611
     },
     "strength_confusion": {
      "megabytes": 0.0,
@@ -102,22 +101,22 @@
     }
    }
   },
-  "seconds": 3.36
+  "seconds": 2.6
  },
  "harmonise_daily": {
   "done": true,
   "report": {
-   "big_fire_days": 7188,
+   "big_fire_days": 6802,
    "first_date": "2001-01-01",
-   "last_date": "2026-11-13",
-   "rows": 217304,
+   "last_date": "2026-11-14",
+   "rows": 198429,
    "rows_by_reliability": {
-    "converted_rough": 92376,
-    "converted_solid": 452,
-    "measured": 124476
+    "converted_rough": 84317,
+    "converted_solid": 439,
+    "measured": 113673
    }
   },
-  "seconds": 0.75
+  "seconds": 0.61
  },
  "ingest": {
   "done": true,
@@ -130,8 +129,8 @@
    },
    "modis_nrt": {
     "csv": "fire_nrt_M-C61_845369.csv",
-    "csv_sha256": "3952543f700eb4dbeac612bec6bddded50f1ae3c22b99091fb71d22442afa619",
-    "rows": 1201,
+    "csv_sha256": "b16234745fdc6c926e1a452a5718e44c97f52d6c79d700792c20b5857e2e0b26",
+    "rows": 1213,
     "unreadable_rows": 0
    },
    "noaa20_archive": {
@@ -142,8 +141,8 @@
    },
    "noaa20_nrt": {
     "csv": "fire_nrt_J1V-C2_848091.csv",
-    "csv_sha256": "500a69c2a8ef12498b1cabbcefce6af5fd20f677bea508ff42b27de23be81772",
-    "rows": 10938,
+    "csv_sha256": "5b9d9c828fdb1df094de56b3babfe8eaa270b922c6a63e639ea42b02688a9420",
+    "rows": 11005,
     "unreadable_rows": 0
    },
    "noaa21_archive": {
@@ -154,8 +153,8 @@
    },
    "noaa21_nrt": {
     "csv": "fire_nrt_J2V-C2_848092.csv",
-    "csv_sha256": "617c63cb3717893a25eb52344f417191649fd9a9bd98557c43229929e211951a",
-    "rows": 10185,
+    "csv_sha256": "303f6032c85664a1b5ebcb14bd9f20917971e6bb0875914ec97f8f98f9439281",
+    "rows": 10236,
     "unreadable_rows": 0
    },
    "snpp_archive": {
@@ -166,48 +165,48 @@
    },
    "snpp_nrt": {
     "csv": "fire_nrt_SV-C2_845370.csv",
-    "csv_sha256": "50114a0ac2832c3e5b9ca7eeb5635ab5fe19356c0efce555f407e3abf9e4f77e",
-    "rows": 8676,
+    "csv_sha256": "37c3516496d0179fcab9641fcd1a99bff439a61ca7983f2133e548f05fab75b0",
+    "rows": 8744,
     "unreadable_rows": 0
    }
   },
-  "seconds": 2.98
+  "seconds": 2.32
  },
  "output_hashes": {
-  "harmonised/activity_daily_harmonised.parquet": "e5c0afdbba5861bcf4a034b47fe32647c0f1ef6723e53973d783c7b218805124",
-  "harmonised/big_fire_day_quality.parquet": "64c5de2dc08fc2d7a6b12ebe75caa39a59ca0f621c24a37585424cdfc1e153e6",
-  "harmonised/calib_factors.parquet": "99e110e3ca2ba8e067f319efda34ae426dcfa404685be3e7a74b1faaa1a5501d",
-  "harmonised/calib_summary.json": "91d721c1b9b03d31c3b284ec025b3b9d90ddc41a7406d27ba3d3ef372f33023f",
-  "harmonised/day_status.parquet": "58635fe0bc47820b5b61a03cde336bb2c36f157a6bae8348309e463695233523",
-  "harmonised/hotspots_harmonised.parquet": "3466ed05bef0b4d3f53c8f63d42c4959b130f6eb4a688d9f3118af530169c4f1",
-  "harmonised/quality_by_scale.parquet": "d74933492b58070f8078f0c2c46a27dfabaace138fd05ff96e5be554c45005fc",
-  "harmonised/strength_confusion.parquet": "570b9cdcdeaa661efd4609849ed204bd8b30e12b63ce6fc276a10060981c3781",
-  "processed/activity_daily_raw.parquet": "5901228d484357671c74716227cacf2ff0ab74e0f760cc2b7e519fd94e3863be",
-  "processed/cv_units_nuts2.parquet": "3ca2550f404d800f9727b83cfbea61ce71f3c69d7b9db4d8b1a6c9880d172137",
-  "processed/daily_grid.parquet": "1cca4f8270c7ce9574aa6dd64f665c545df9e2e06a3090884400c8f66b562684",
-  "processed/drift_monitor.parquet": "df66a2929f815ed5b6da67c65baaca154d5a9fa47b407a2ca5cb22649124901d",
-  "processed/hotspots_clean.parquet": "4cf3a69265d447051cc0deaa3bfb81143176268807df2949a474bd94d81b4ada",
-  "processed/rejected_hotspots.parquet": "455ad7aa26a22b9467de01b31ebf91354b67f2f2ac5bc68c0a8e897bc77402ad",
-  "processed/satellite_coverage.parquet": "84803c22360115c6678266ee2cc98f242fd85edd110b0dec5e6c260ba6a588d0",
-  "processed/static_mask.parquet": "7ef2d0009d833f38f23037f1dfff5aded70d7393414b1ef2df8ba1116d2dd01e"
+  "harmonised/activity_daily_harmonised.parquet": "317f62d375103ef1c53a7e1ecd0ec8efb9b7ab3b7a8231f6c39b7f0fe5bdb4ec",
+  "harmonised/big_fire_day_quality.parquet": "f23736722aa9297111f7258c47258c187720b7691221bc322b3e4424cb0eb247",
+  "harmonised/calib_factors.parquet": "88a80fad7fa2093b52c59d135bd56de80bab748622c5c6c65ed1330d1d22dc7d",
+  "harmonised/calib_summary.json": "5e75a918bc6fcc36d77938070fc3472fd83f5360a051cdc69cdbbfe1063d7eff",
+  "harmonised/day_status.parquet": "9824f5c549774f8b4c3248a6a9347bd19aaefa2941e389cb42357b9d19023017",
+  "harmonised/hotspots_harmonised.parquet": "4bfc699ac085edb1222b1c74c627100d1b99ddd0f66c753462d7a00d1f02571d",
+  "harmonised/quality_by_scale.parquet": "813d575524a295260297bbe177f11fa6448f8c17e3a40e81aacb38486f323131",
+  "harmonised/strength_confusion.parquet": "153f27de5f93d3084d8af26d22c9ff4fea9a42d2be3091a4286e5538f2f03163",
+  "processed/activity_daily_raw.parquet": "861545f1f02fcc3ff5d6e8e2ae5d70fabce2773ae2e7433812810cabe93df7bb",
+  "processed/cv_units_nuts2.parquet": "de935d87a32bbf6f70e03ffca021d7e93ce443af8fb4b30c076fb913c96814c5",
+  "processed/daily_grid.parquet": "ee0b1e37fdbee319b34570ccc880013f6e21ca7cc0e96b1c2f71bf5e03b05ef5",
+  "processed/drift_monitor.parquet": "af12a903cf30cca367b8a69d248f4b2ac9183d7a16beb31792d8d9927a0a6dd7",
+  "processed/hotspots_clean.parquet": "2c9bb9d5f7fdc1b60f7c538341aec497d32c2c30e50eb6dc6de69b3217a8d337",
+  "processed/rejected_hotspots.parquet": "9c30a253d14ab7b015ae208b74124d6c332eacf7b26195aa4f323f7761a694c9",
+  "processed/satellite_coverage.parquet": "5375aba6e44bc7b120a71a4cca98504e2ed8673bfb930c42d2cb5847b52a5fd9",
+  "processed/static_mask.parquet": "030243602fb327788f068641a083eeeb4e67f05adb806a91f308bbd65b1c4f09"
  },
  "quantify_uncertainty": {
   "done": true,
   "report": {
-   "cells": 1092,
+   "cells": 1061,
    "cv_days": 3622,
-   "quality_rows": 625
+   "quality_rows": 611
   },
-  "seconds": 13.44
+  "seconds": 10.18
  },
- "signature": "8443453c5037c4c4",
+ "signature": "dc227b2d8995e875",
  "test": {
   "done": true,
   "report": {
    "passed": true,
-   "summary": "54 passed, 1 skipped in 49.59s"
+   "summary": "55 passed, 1 skipped in 35.82s"
   },
-  "seconds": 51.56
+  "seconds": 37.09
  },
  "validate": {
   "done": true,
@@ -215,15 +214,15 @@
    "all_passed": true,
    "failed": []
   },
-  "seconds": 4.26
+  "seconds": 5.83
  },
  "weight_hotspots": {
   "done": true,
   "report": {
-   "rows": 746558,
-   "rows_in_series": 647715,
-   "sum_weight_n": 587800.1136365294
+   "rows": 712110,
+   "rows_in_series": 617849,
+   "sum_weight_n": 564807.3283031095
   },
-  "seconds": 2.4
+  "seconds": 2.06
  }
 }

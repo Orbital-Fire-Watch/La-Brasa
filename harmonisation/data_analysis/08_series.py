@@ -5,23 +5,32 @@ Empfohlener Weg (siehe Report):
   * 2003-2011: (Aqua + Terra) x Faktor je Region
   * 11/2000-2002: nur Terra x Terra-Faktor je Region (Aqua startet 07/2002)
   Faktoren aus den stabilen Ueberlappungsjahren 2012-2021, nur type = 0.
+  Gebiet wie in der Pipeline: nur die Untersuchungsregionen (`nuts.study_regions` in pipeline_config.yaml).
 
 Geprueft wird:
   a) Sieht die Reihe am Uebergang 2011/2012 plausibel aus (kein Sprung)?
   b) Wie gut haette die umgerechnete MODIS-Reihe 2012-2026 VIIRS getroffen (Jahreswerte)?
   c) Was passiert OHNE Harmonisierung (MODIS roh + VIIRS roh aneinandergehaengt)?
 """
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 from common import IBERIA, con, save
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline.config import load_config  # noqa: E402
+
+STUDY_REGIONS = ", ".join(f"'{region}'" for region in load_config()["nuts"]["study_regions"])
 
 c = con()
 d = c.execute(f"""SELECT region_id r, year(acq_date) y, month(acq_date) m,
         COUNT(*) FILTER (sat='Aqua') aqua, COUNT(*) FILTER (sat='Terra') terra,
         COUNT(*) FILTER (sat='SNPP') snpp,
         SUM(frp) FILTER (sat='Aqua') frp_aqua, SUM(frp) FILTER (sat='SNPP') frp_snpp
-    FROM '{IBERIA}' WHERE source='archive' AND type=0 AND region_id IS NOT NULL
+    FROM '{IBERIA}' WHERE source='archive' AND type=0 AND region_id IN ({STUDY_REGIONS})
       AND acq_date BETWEEN '2001-01-01' AND '2025-12-31' GROUP BY ALL""").df().fillna(0)
 d["modis"] = d.aqua + d.terra
 cal = d[(d.y >= 2012) & (d.y <= 2021) & ((d.y > 2012) | (d.m >= 2))]

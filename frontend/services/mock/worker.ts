@@ -51,6 +51,7 @@ function route(a: MockApi, { method, path, query = {}, body = {} }: MockRequestM
   if (method === "GET") {
     if (path === "/api/meta") return a.meta();
     if (path === "/api/regions") return a.regions();
+    if (path === "/api/sync") return a.syncStatus();
     if (path === "/api/export.csv") return a.exportCsv(query as unknown as ExportQuery);
     const m = /^\/api\/events\/([^/]+)$/.exec(path);
     if (m) return a.eventDetail(decodeURIComponent(m[1]), query.date ?? null);
@@ -58,10 +59,12 @@ function route(a: MockApi, { method, path, query = {}, body = {} }: MockRequestM
     switch (path) {
       case "/api/calendar": return a.calendar(b);
       case "/api/daily": return a.daily(b);
+      case "/api/daily/sensors": return a.sensorDaily(b);
       case "/api/grid": return a.grid(b as never);
       case "/api/hotspots": return a.hotspots(b);
       case "/api/areas": return a.registerArea(b);
       case "/api/events": return a.events(b);
+      case "/api/sync": return a.startSync();
       case "/api/by-region": throw new MockApiError(501, "NOT_IMPLEMENTED", "by-region is not part of the mock.");
     }
   }

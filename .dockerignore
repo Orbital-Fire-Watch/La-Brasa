@@ -1,0 +1,18 @@
+# Build context of the backend image (repository root). Secrets and data never go into an image:
+# data/ is mounted at runtime (docker-compose.yml).
+.env
+.env.*
+!.env.example
+.git
+data
+frontend
+db
+docs
+notebooks
+Fixing_Folder
+harmonisation/data_analysis/cache
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/node_modules
+**/.DS_Store

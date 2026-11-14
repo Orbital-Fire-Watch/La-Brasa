@@ -75,9 +75,9 @@ HOTSPOT_BASE = (
     C("track", "double", "km", "Pixelbreite in Flugrichtung.", "nie leer", "Fußabdruck des Pixels zeichnen (zusammen mit scan)."),
     C("pixel_area_km2", "double", "km²", "Fläche des Pixels am Boden: scan × track.", "nie leer",
       "Punkt in echter Größe darstellen. Große Werte heißen Bildrand und damit gröbere Ortsangabe."),
-    C("region_id", "string", "–", "NUTS-2-Region des Punkts (Stand 2021), z. B. ES30.", "leer bei Punkten im offenen Meer",
+    C("region_id", "string", "–", "NUTS-2-Region des Punkts (Stand 2021), z. B. ES30. Nur Untersuchungsregionen (nuts.study_regions).", "nie leer",
       "Schneller Filter „Region wählen“, Verknüpfung zur Tagestabelle."),
-    C("country", "string", "–", "Land: die ersten zwei Zeichen von region_id (ES, PT, FR).", "leer wie region_id", "Filter nach Land."),
+    C("country", "string", "–", "Land: die ersten zwei Zeichen von region_id (ES, PT).", "nie leer", "Filter nach Land."),
 )
 
 HOTSPOT_WEIGHTS = (
@@ -111,7 +111,7 @@ def band_columns(value: str, unit: str, noun: str) -> tuple[Column, ...]:
 
 DAILY = (
     C("region_id", "string", "–", "NUTS-2-Region (Stand 2021).", "nie leer", "Auswahl der Region, Schlüssel zusammen mit date."),
-    C("country", "string", "–", "Land (ES, PT, FR).", "nie leer", "Filter und Gruppierung nach Land."),
+    C("country", "string", "–", "Land (ES, PT).", "nie leer", "Filter und Gruppierung nach Land."),
     C("region_name", "string", "–", "Klarname der Region, z. B. „Comunidad de Madrid“.", "nie leer", "Beschriftung in Auswahlliste, Karte und Diagramm."),
     C("date", "date", "–", "Tag (Zuordnung wie obs_date der Hotspots).", "nie leer, lückenlos ab 2001-01-01", "Zeitachse von Kalender und Verlauf."),
     C("n_aqua", "double", "Erkennungen", "Rohzahl Aqua (MODIS) an diesem Tag.", "0 = kein Feuer, leer = Aqua nicht in Betrieb", "Nur Tooltip „Rohdaten“ und Nachrechnen."),

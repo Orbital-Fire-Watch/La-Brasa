@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/areas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Areas */
+        post: operations["areas_api_areas_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/calendar": {
         parameters: {
             query?: never;
@@ -66,6 +83,23 @@ export interface paths {
         put?: never;
         /** Daily */
         post: operations["daily_api_daily_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/daily/sensors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Daily Sensors */
+        post: operations["daily_sensors_api_daily_sensors_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -123,23 +157,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/areas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Areas */
-        post: operations["areas_api_areas_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -164,8 +181,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Event Detail */
-        get: operations["event_detail_api_events__event_id__get"];
+        /** Event */
+        get: operations["event_api_events__event_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -191,16 +208,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status */
+        get: operations["status_api_sync_get"];
+        put?: never;
+        /** Start */
+        post: operations["start_api_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /** AnomalyCell */
         AnomalyCell: {
-            /**
-             * Cell
-             * @example 86392031fffffff
-             */
+            /** Cell */
             cell: string;
             /** Value */
             value: number;
@@ -224,10 +256,7 @@ export interface components {
         };
         /** AreaResponse */
         AreaResponse: {
-            /**
-             * Area Id
-             * @example a_7f3c9e2b41d0
-             */
+            /** Area Id */
             area_id: string;
             /** @description cleaned and clipped to ES + PT – show exactly this on the map */
             geometry: components["schemas"]["MultiPolygon"];
@@ -245,10 +274,7 @@ export interface components {
         };
         /** ByRegionItem */
         ByRegionItem: {
-            /**
-             * Id
-             * @example ES-OR
-             */
+            /** Id */
             id: string;
             /** Name */
             name: string;
@@ -466,10 +492,7 @@ export interface components {
              * @constant
              */
             type: "Feature";
-            /**
-             * Id
-             * @example e_3b91c04a7f2e
-             */
+            /** Id */
             id: string;
             /** Geometry */
             geometry: components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"];
@@ -487,10 +510,7 @@ export interface components {
              * @constant
              */
             type: "Feature";
-            /**
-             * Id
-             * @example e_3b91c04a7f2e
-             */
+            /** Id */
             id: string;
             /** Geometry */
             geometry: components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"];
@@ -557,10 +577,7 @@ export interface components {
                 number,
                 number
             ];
-            /**
-             * Province Id
-             * @example ES-OR
-             */
+            /** Province Id */
             province_id: string;
             /** Sensors */
             sensors: ("MODIS_TERRA" | "MODIS_AQUA" | "VIIRS_SNPP" | "VIIRS_NOAA20" | "VIIRS_NOAA21")[];
@@ -661,6 +678,22 @@ export interface components {
             active_previous_day: number;
         };
         /**
+         * FamilyColumns
+         * @description null = no satellite of this family operated that day (e.g. VIIRS before 2012-01-20); 0 = nothing detected.
+         */
+        FamilyColumns: {
+            /**
+             * Detections
+             * @description raw detections (not harmonised), as in /api/hotspots
+             */
+            detections: (number | null)[];
+            /**
+             * Frp Sum
+             * @description sum of the raw FRP in MW
+             */
+            frp_sum: (number | null)[];
+        };
+        /**
          * Features
          * @description What the backend can already do. Only set to true once real data is returned (§6.1).
          */
@@ -715,10 +748,7 @@ export interface components {
         };
         /** GridByDayCell */
         GridByDayCell: {
-            /**
-             * Cell
-             * @example 86392031fffffff
-             */
+            /** Cell */
             cell: string;
             /**
              * D
@@ -761,10 +791,7 @@ export interface components {
         };
         /** GridCell */
         GridCell: {
-            /**
-             * Cell
-             * @example 86392031fffffff
-             */
+            /** Cell */
             cell: string;
             /** Fires */
             fires: number;
@@ -917,10 +944,7 @@ export interface components {
             daynight: "D" | "N";
             /** Weight */
             weight: number;
-            /**
-             * Province Id
-             * @example ES-OR
-             */
+            /** Province Id */
             province_id: string;
             /** Event Id */
             event_id: string | null;
@@ -1000,15 +1024,9 @@ export interface components {
         };
         /** Landcover */
         Landcover: {
-            /**
-             * Code
-             * @example 312
-             */
+            /** Code */
             code: number;
-            /**
-             * Label
-             * @example Coniferous forest
-             */
+            /** Label */
             label: string;
         };
         /**
@@ -1041,21 +1059,14 @@ export interface components {
         };
         /** MetaResponse */
         MetaResponse: {
-            /**
-             * Api Version
-             * @example 3.0
-             */
+            /** Api Version */
             api_version: string;
             /**
              * Data Version
              * @description changes on every import → clear the cache
-             * @example 2026-11-14.1
              */
             data_version: string;
-            /**
-             * Weight Version
-             * @example w1
-             */
+            /** Weight Version */
             weight_version: string;
             /**
              * First Date
@@ -1157,10 +1168,7 @@ export interface components {
         };
         /** RegionProperties */
         RegionProperties: {
-            /**
-             * Id
-             * @example ES-OR
-             */
+            /** Id */
             id: string;
             /** Name */
             name: string;
@@ -1196,10 +1204,7 @@ export interface components {
         };
         /** RunningMonth */
         RunningMonth: {
-            /**
-             * Month
-             * @example 2026-11
-             */
+            /** Month */
             month: string;
             /**
              * Through
@@ -1217,6 +1222,65 @@ export interface components {
             fires: number;
             /** Frp Sum */
             frp_sum: number;
+        };
+        /** SensorDailyRequest */
+        SensorDailyRequest: {
+            /**
+             * Min Confidence
+             * @description §2 Confidence: 'nominal' = nominal + high, 'high' = high only
+             * @default nominal
+             * @enum {string}
+             */
+            min_confidence?: "nominal" | "high";
+            /**
+             * Region Id
+             * @description ID from /api/regions
+             */
+            region_id?: string | null;
+            /**
+             * Area Id
+             * @description ID from POST /api/areas
+             */
+            area_id?: string | null;
+            /**
+             * Geometry
+             * @description Interim solution until /api/areas exists
+             */
+            geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
+            /**
+             * Start
+             * @description default first_date from /api/meta
+             */
+            start?: string | null;
+            /**
+             * End
+             * @description default last_date from /api/meta
+             */
+            end?: string | null;
+        };
+        /**
+         * SensorDailyResponse
+         * @description Column-oriented like /api/daily: index i = day start + i.
+         */
+        SensorDailyResponse: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            families: components["schemas"]["SensorFamilies"];
+        };
+        /** SensorFamilies */
+        SensorFamilies: {
+            /** @description Terra + Aqua */
+            modis: components["schemas"]["FamilyColumns"];
+            /** @description Suomi NPP + NOAA-20 + NOAA-21 */
+            viirs: components["schemas"]["FamilyColumns"];
         };
         /** SensorInfo */
         SensorInfo: {
@@ -1236,6 +1300,34 @@ export interface components {
              */
             to: string | null;
         };
+        /** SyncStatus */
+        SyncStatus: {
+            /**
+             * State
+             * @description idle = no sync since the backend started
+             * @enum {string}
+             */
+            state: "idle" | "running" | "succeeded" | "failed";
+            /**
+             * Step
+             * @description step of the running sync, or the step a failed sync stopped at: fetch FIRMS, harmonisation, loading into the database
+             */
+            step: ("fetch" | "harmonise" | "load") | null;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * New Rows
+             * @description new hotspot rows from FIRMS, set once the sync succeeded
+             */
+            new_rows: number | null;
+            /**
+             * Message
+             * @description English error text, set when the sync failed
+             */
+            message: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -1244,114 +1336,622 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-type ErrorResponses = {
-    /** @description Bad Request */
-    400: {
-        headers: {
-            [name: string]: unknown;
-        };
-        content: {
-            "application/json": components["schemas"]["ErrorResponse"];
-        };
-    };
-    /** @description Not Found */
-    404: {
-        headers: {
-            [name: string]: unknown;
-        };
-        content: {
-            "application/json": components["schemas"]["ErrorResponse"];
-        };
-    };
-    /** @description Content Too Large */
-    413: {
-        headers: {
-            [name: string]: unknown;
-        };
-        content: {
-            "application/json": components["schemas"]["ErrorResponse"];
-        };
-    };
-    /** @description Internal Server Error */
-    500: {
-        headers: {
-            [name: string]: unknown;
-        };
-        content: {
-            "application/json": components["schemas"]["ErrorResponse"];
-        };
-    };
-    /** @description Not Implemented */
-    501: {
-        headers: {
-            [name: string]: unknown;
-        };
-        content: {
-            "application/json": components["schemas"]["ErrorResponse"];
-        };
-    };
-    /** @description Gateway Timeout */
-    504: {
-        headers: {
-            [name: string]: unknown;
-        };
-        content: {
-            "application/json": components["schemas"]["ErrorResponse"];
-        };
-    };
-};
-type Ok<T> = {
-    /** @description Successful Response */
-    200: {
-        headers: {
-            [name: string]: unknown;
-        };
-        content: {
-            "application/json": T;
-        };
-    };
-};
-type NoParams = {
-    query?: never;
-    header?: never;
-    path?: never;
-    cookie?: never;
-};
-type JsonBody<T> = {
-    content: {
-        "application/json": T;
-    };
-};
 export interface operations {
     meta_api_meta_get: {
-        parameters: NoParams;
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         requestBody?: never;
-        responses: Ok<components["schemas"]["MetaResponse"]> & ErrorResponses;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetaResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
     regions_api_regions_get: {
-        parameters: NoParams;
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         requestBody?: never;
-        responses: Ok<components["schemas"]["RegionsResponse"]> & ErrorResponses;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    areas_api_areas_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AreaRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
     calendar_api_calendar_post: {
-        parameters: NoParams;
-        requestBody: JsonBody<components["schemas"]["CalendarRequest"]>;
-        responses: Ok<components["schemas"]["CalendarResponse"]> & ErrorResponses;
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalendarRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
     daily_api_daily_post: {
-        parameters: NoParams;
-        requestBody: JsonBody<components["schemas"]["DailyRequest"]>;
-        responses: Ok<components["schemas"]["DailyResponse"]> & ErrorResponses;
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DailyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    daily_sensors_api_daily_sensors_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SensorDailyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SensorDailyResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
     grid_api_grid_post: {
-        parameters: NoParams;
-        requestBody: JsonBody<components["schemas"]["GridRequest"]>;
-        responses: Ok<components["schemas"]["GridAnomalyResponse"] | components["schemas"]["GridByDayResponse"] | components["schemas"]["GridCountResponse"]> & ErrorResponses;
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GridRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GridAnomalyResponse"] | components["schemas"]["GridByDayResponse"] | components["schemas"]["GridCountResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
     hotspots_api_hotspots_post: {
-        parameters: NoParams;
-        requestBody: JsonBody<components["schemas"]["HotspotsRequest"]>;
-        responses: Ok<components["schemas"]["HotspotsResponse"]> & ErrorResponses;
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HotspotsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HotspotsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
     export_csv_api_export_csv_get: {
         parameters: {
@@ -1382,19 +1982,141 @@ export interface operations {
                     "text/csv": unknown;
                 };
             };
-        } & ErrorResponses;
-    };
-    areas_api_areas_post: {
-        parameters: NoParams;
-        requestBody: JsonBody<components["schemas"]["AreaRequest"]>;
-        responses: Ok<components["schemas"]["AreaResponse"]> & ErrorResponses;
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
     events_api_events_post: {
-        parameters: NoParams;
-        requestBody: JsonBody<components["schemas"]["EventsRequest"]>;
-        responses: Ok<components["schemas"]["EventsResponse"]> & ErrorResponses;
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
-    event_detail_api_events__event_id__get: {
+    event_api_events__event_id__get: {
         parameters: {
             query: {
                 /** @description reference date D */
@@ -1407,11 +2129,296 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: Ok<components["schemas"]["EventDetailResponse"]> & ErrorResponses;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventDetailResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
     by_region_api_by_region_post: {
-        parameters: NoParams;
-        requestBody: JsonBody<components["schemas"]["ByRegionRequest"]>;
-        responses: Ok<components["schemas"]["ByRegionResponse"]> & ErrorResponses;
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ByRegionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ByRegionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    status_api_sync_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatus"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    start_api_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatus"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
     };
 }

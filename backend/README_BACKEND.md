@@ -9,8 +9,10 @@ backend/
 ├── core/                   config.py (Umgebung), db.py (Verbindung)
 ├── services/               scope.py (Gebiet + Confidence → SQL), meta.py, regions.py, series.py (daily, calendar,
 │                           by-region), grid.py (count + anomaly), hotspots.py (+ export), areas.py (gezeichnete
-│                           Gebiete, Tabelle areas), events.py (Ereignisse: Clustering + Index im Speicher)
-├── routes/                 data.py (alle Endpunkte)
+│                           Gebiete, Tabelle areas), events.py (Ereignisse: Clustering + Index im Speicher),
+│                           sync.py (Datenaktualisierung im Hintergrund: pipeline/sync_data.py)
+├── routes/                 data.py (Daten-Endpunkte, u. a. POST /api/daily/sensors: Rohdetektionen pro Tag und
+│                           Sensorfamilie MODIS/VIIRS, api_version 3.2), sync.py (POST/GET /api/sync)
 ├── assets/                 nuts2_iberia.geojson (echte NUTS-2-Grenzen, GISCO 2021)
 ├── tools/                  make_regions_asset.py
 ├── tests/test_api.py       Tests gegen die Datenbank, Erwartungswerte unabhängig per pandas aus den Parquet-Dateien

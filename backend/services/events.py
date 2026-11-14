@@ -13,7 +13,8 @@ How it works
   are split again into their groups as of D (a small local clustering of their points up to D). The younger
   group has its own id until the merge; afterwards that id is gone (EVENT_NOT_FOUND).
 - Everything is kept in memory as numpy arrays (no table, no schema change). The index is built in the
-  background when the backend starts and again when the data_version changes (checked every 30 s at most).
+  background when the backend starts and again when the data_version changes (checked every 30 s at most,
+  right away after a data sync: refresh_index).
 """
 import datetime as dt
 import hashlib
@@ -239,6 +240,11 @@ class _IndexHolder:
                 self._checked = now
             return self._index
 
+    def expire(self) -> None:
+        """The next get() checks the data_version, however recently it last did."""
+        with self._lock:
+            self._checked = float("-inf")
+
 
 _holder = _IndexHolder()
 
@@ -254,6 +260,12 @@ def warm_up() -> None:
             get_index(conn)
     except Exception:
         log.exception("Building the event index failed; the next events request tries again.")
+
+
+def refresh_index() -> None:
+    """After a data sync (services/sync.py): rebuild now, so later requests do not get the old events."""
+    _holder.expire()
+    warm_up()
 
 
 # ---------------------------------------------------------------------------- events as of day D

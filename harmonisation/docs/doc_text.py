@@ -85,7 +85,7 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-of
 
 STAGES = [
     ("ingest", "<code>data_loading/ingest_csv_to_parquet.py</code>", "8 FIRMS-CSVs (MODIS, SNPP, NOAA-20, NOAA-21)", "<code>raw/*.parquet</code>"),
-    ("clean", "<code>data_loading/clean_hotspots.py</code> mit <code>common_area.py</code>, <code>static_source_mask.py</code>, <code>assign_region.py</code>, "
+    ("clean", "<code>data_loading/clean_hotspots.py</code> mit <code>static_source_mask.py</code>, <code>assign_region.py</code>, "
      "<code>classify_hotspots.py</code>, <code>derive_hotspot_columns.py</code>", "<code>raw</code>, NUTS-2-Grenzen",
      "<code>processed/hotspots_clean</code>, <code>rejected_hotspots</code>, <code>static_mask</code>"),
     ("daily_grid", "<code>algorithms/daily_grid.py</code>", "<code>hotspots_clean</code>, <code>raw</code>",
@@ -113,16 +113,12 @@ FUNCTION_CATALOGUE = [
          "Solche Zeilen liefen sonst still in falsche Summen. Jede steht mit Grund in <code>rejected_hotspots</code>."),
         ("deduplicate_hotspots", "Entfernt doppelte Messungen (gleicher Satellit, Ort, Datum, Uhrzeit). Das Archiv gewinnt vor dem NRT.",
          "Duplikate entstehen nur bei überlappenden Downloads. Verschiedene Uhrzeiten bleiben: Überlappende Bildstreifen sind echte Einzelbeobachtungen."),
-        ("restrict_to_common_area", "Verwirft Erkennungen außerhalb des Gebiets, das die MODIS- und SNPP-Downloads abdecken.",
-         "Die NOAA-Downloads reichen weiter (bis 44,8° N, 4,9° O). Ohne Angleichung zählte NOAA-20/21 in Randregionen Feuer, die SNPP und MODIS nicht sehen können."),
+        ("restrict_to_study_regions", "Ordnet die Region zu und verwirft Erkennungen außerhalb der 21 Untersuchungsregionen (Festland-Spanien mit Balearen, Portugal).",
+         "Die Downloads reichen verschieden weit (NOAA bis 44,8° N, 4,9° O, MODIS/SNPP in Frankreich bis etwa 43,5° N). Die Untersuchungsregionen decken alle ganz ab, dort zählen alle Satelliten gleich."),
         ("filter_static_sources", "Behält nur Vegetationsfeuer. Archiv: <code>type</code> = 0. NRT: alles außerhalb der Ortsmaske seines Sensors.",
          "Statische Quellen sind keine Feueraktivität (32 % der SNPP-Nacht-Erkennungen). Zeilen mit und ohne <code>type</code> werden getrennt behandelt, sonst fiele das NRT weg."),
-        ("enrich_hotspots", "Ruft Region, Klassen und abgeleitete Spalten auf und droppt die vereinbarten Spalten.",
+        ("enrich_hotspots", "Ruft Klassen und abgeleitete Spalten auf und droppt die vereinbarten Spalten.",
          "Eine feste Reihenfolge an einer Stelle. Das Ergebnis hat genau das Schema des Spaltenkatalogs."),
-    ]),
-    ("pipeline.data_loading.common_area", "Gemeinsames Gebiet", [
-        ("learn_common_area", "Lernt das Gebiet der Referenz-Downloads: alle 0,25°-Zellen mit mindestens einer Erkennung von Terra, Aqua oder SNPP seit 2000.",
-         "FIRMS liefert genau das gewählte Download-Gebiet, und das ist für MODIS/SNPP kein Rechteck. Eine Zelle im Gebiet ohne jede Erkennung in 26 Jahren gibt es praktisch nicht."),
     ]),
     ("pipeline.data_loading.static_source_mask", "Ortsmaske für das NRT", [
         ("learn_static_mask", "Lernt aus dem Archiv Zellen von 0,005° mit mindestens 3 statischen Erkennungen und statischer Mehrheit, plus Nachbarzellen.",
@@ -431,7 +427,6 @@ OVERVIEW_BODY = r"""
 <li><strong>Genaue Tageswerte gibt es nur ab dem 20.01.2012.</strong> Davor ist jeder Tageswert eine Schätzung: MODIS meldet an etwa 60 % der Tage mit VIIRS-Feuer nichts.</li>
 <li><strong>Nur Iberien.</strong> Die Faktoren gelten nicht für andere Regionen.</li>
 <li><strong>Bänder für gemessene VIIRS-Werte sind eine Annahme</strong> (Zählrauschen mit Mindestfaktor). Seit 2023 lässt sich das Instrumentenrauschen mit drei Satelliten schätzen (Prüfung N3), die Bänder nutzen das noch nicht.</li>
-<li><strong>Das gemeinsame Gebiet ist aus den Daten gelernt</strong> (0,25°-Zellen mit MODIS- oder SNPP-Erkennungen). Am Rand einer Zelle können NOAA-Punkte knapp außerhalb des SNPP-Gebiets mitzählen.</li>
 <li><strong>Gewichte stellen keine verpassten Feuer wieder her.</strong> Auf kleinen Flächen und kurzen Zeiträumen ist die Summe entsprechend unsicher.</li>
 <li><strong>Ab 2022 gibt es ohne VIIRS keinen Wert,</strong> weil MODIS wegen der Bahndrift nicht mehr umgerechnet wird ({{none_days}} Tage ohne Wert; seit NOAA-20/21 reicht die Reihe bis zum letzten Datentag).</li>
 <li><strong>Ausfälle innerhalb des Produktfensters</strong> werden nur markiert (<code>possible_gap</code>: {{gap_days}} Tage), nicht korrigiert.</li>
@@ -484,7 +479,7 @@ REJECT_REASONS = {
     "static_mask": "statisch laut Ortsmaske, NRT",
     "duplicate": "Duplikat zwischen Archiv und NRT",
     "invalid_value": "ungültiger oder unlesbarer Wert",
-    "outside_common_area": "außerhalb des Gebiets von MODIS und SNPP (NOAA-Downloads reichen weiter)",
+    "outside_study_regions": "außerhalb der Untersuchungsregionen (Frankreich, Meer, Inseln außerhalb der Liste)",
 }
 
 ITERATIONS = [

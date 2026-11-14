@@ -114,15 +114,17 @@ def test_mask_from_any_viirs_satellite_filters_noaa_nrt(config: dict[str, Any]) 
     assert set(nrt["sensor"]) == {"VIIRS"}
 
 
-def test_noaa_rows_outside_common_area_are_rejected(config: dict[str, Any]) -> None:
-    """Das gemeinsame Gebiet lernt nur aus Terra, Aqua und SNPP. NOAA-Punkte ausserhalb fallen mit Grund heraus, innerhalb bleiben sie."""
-    from pipeline.data_loading.common_area import learn_common_area
-    rows = make_raw_hotspots([{"satellite": "SNPP", "latitude": 40.1, "longitude": -3.6}, {"satellite": "Aqua", "latitude": 41.1, "longitude": -5.1},
-                              {"satellite": "N20", "latitude": 40.2, "longitude": -3.7}, {"satellite": "N21", "latitude": 44.5, "longitude": 1.0},
-                              {"satellite": "N20", "latitude": 44.5, "longitude": 1.0}], config)
-    kept, rejected = clean_hotspots.restrict_to_common_area(rows, learn_common_area(rows, config), config)
-    assert kept["satellite"].tolist() == ["SNPP", "Aqua", "N20"]
-    assert rejected["satellite"].tolist() == ["N21", "N20"] and set(rejected["reject_reason"]) == {"outside_common_area"}
+def test_rows_outside_study_regions_are_rejected(config: dict[str, Any]) -> None:
+    """Jeder Satellit und jede Quelle zaehlt nur in den Untersuchungsregionen: Madrid, Lissabon und Mallorca bleiben,
+    Aquitanien (auch SNPP-NRT aus dem API-Rechteck), Atlantik und Kanaren fallen mit Grund heraus."""
+    rows = make_raw_hotspots([{"satellite": "N20", "latitude": 40.4, "longitude": -3.7}, {"satellite": "Aqua", "latitude": 38.72, "longitude": -9.14},
+                              {"satellite": "SNPP", "latitude": 39.6, "longitude": 2.9}, {"satellite": "Aqua", "latitude": 44.5, "longitude": 1.0},
+                              {"satellite": "SNPP", "latitude": 44.5, "longitude": 1.0, "source": "nrt", "type": None},
+                              {"satellite": "N21", "latitude": 40.0, "longitude": -12.0}, {"satellite": "N20", "latitude": 28.3, "longitude": -16.5}], config)
+    kept, rejected = clean_hotspots.restrict_to_study_regions(rows, config)
+    assert kept["region_id"].tolist() == ["ES30", "PT17", "ES53"]
+    assert rejected["country"].fillna("-").tolist() == ["FR", "FR", "-", "ES"] and rejected["region_id"].iloc[3] == "ES70"
+    assert set(rejected["reject_reason"]) == {"outside_study_regions"}
 
 
 def test_viirs_mask_ignores_modis_static_rows(config: dict[str, Any]) -> None:

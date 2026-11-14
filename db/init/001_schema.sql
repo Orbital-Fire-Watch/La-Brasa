@@ -11,7 +11,7 @@
 -- the VIIRS reference is the mean of the operating VIIRS satellites (SNPP, NOAA-20, NOAA-21),
 -- stored as n_viirs / frp_viirs; raw values per satellite stay available.
 
--- Regions that occur in the harmonised data (NUTS-2 2021; ES, PT and 3 FR regions)
+-- Regions that occur in the harmonised data (NUTS-2 2021; the ES and PT study regions, nuts.study_regions)
 CREATE TABLE regions (
   region_id   TEXT PRIMARY KEY,
   region_name TEXT NOT NULL,

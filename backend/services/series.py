@@ -1,4 +1,5 @@
-"""Daily and monthly series (POST /api/daily and /api/calendar) from one query, and POST /api/by-region."""
+"""Daily and monthly series (POST /api/daily and /api/calendar) from one query, raw daily counts per sensor family
+(POST /api/daily/sensors), and POST /api/by-region."""
 import calendar as cal
 import datetime as dt
 
@@ -42,6 +43,44 @@ def build_daily(conn, scope: Scope) -> dict:
             fires.append(round(f, 1)); hotspots.append(h); frp.append(round(p, 1))
     return {"start": first, "end": last, "fires": fires, "hotspots": hotspots, "frp_sum": frp,
             "n_sensors": n_sensors}
+
+
+# Sensor family -> day_status flags of its satellites (schema version 2). A family is measured on a day when at
+# least one of them operated.
+FAMILY_FLAGS = {
+    "modis": ("terra_operating", "aqua_operating"),
+    "viirs": ("snpp_operating", "noaa20_operating", "noaa21_operating"),
+}
+
+
+def build_sensor_daily(conn, scope: Scope, start: dt.date | None, end: dt.date | None) -> dict:
+    """Raw detections and raw FRP per day and family: the same points as /api/hotspots (in_series_n), unweighted."""
+    first, last = data_range(conn)
+    start, end = max(start or first, first), min(end or last, last)
+    if start > end:
+        raise ApiError(400, "INVALID_DATE_RANGE", f"The period lies outside the data ({first} to {last}).")
+    measured = {}
+    for r in conn.execute(
+        f"SELECT date, is_complete_day, {', '.join(f for flags in FAMILY_FLAGS.values() for f in flags)} "
+        "FROM day_status WHERE date BETWEEN %(start)s AND %(end)s", {"start": start, "end": end},
+    ).fetchall():
+        measured[r["date"]] = {fam: r["is_complete_day"] and any(r[f] for f in flags) for fam, flags in FAMILY_FLAGS.items()}
+    values = {(r["d"], r["fam"]): (int(r["n"]), float(r["frp"])) for r in conn.execute(
+        f"SELECT h.obs_date AS d, lower(h.sensor) AS fam, count(*) AS n, COALESCE(SUM(h.frp), 0) AS frp "
+        f"FROM hotspots_harmonised h WHERE {scope.where} AND h.in_series_n "
+        f"AND h.obs_date BETWEEN %(start)s AND %(end)s GROUP BY h.obs_date, lower(h.sensor)",
+        {**scope.params, "start": start, "end": end},
+    ).fetchall()}
+    families = {fam: {"detections": [], "frp_sum": []} for fam in FAMILY_FLAGS}
+    for i in range((end - start).days + 1):
+        day = start + dt.timedelta(days=i)
+        for fam, cols in families.items():
+            if not measured.get(day, {}).get(fam):
+                cols["detections"].append(None); cols["frp_sum"].append(None)
+            else:
+                n, frp = values.get((day, fam), (0, 0.0))
+                cols["detections"].append(n); cols["frp_sum"].append(round(frp, 1))
+    return {"start": start, "end": end, "families": families}
 
 
 def build_calendar(conn, scope: Scope) -> dict:

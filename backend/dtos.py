@@ -23,7 +23,7 @@ from typing import Annotated, Literal, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_core import PydanticCustomError
 
-API_VERSION = "3.0"
+API_VERSION = "3.2"        # 3.1: data sync (/api/sync), 3.2: raw counts per sensor family (/api/daily/sensors)
 
 # ---------------------------------------------------------------------------
 # Limits (§6.1 limits) – defined once so that /meta and the validation always agree
@@ -335,6 +335,48 @@ class DailyResponse(ResponseModel):
 
 
 # ===========================================================================
+# POST /api/daily/sensors (api_version 3.2): raw detections per day and sensor family
+# ===========================================================================
+
+class SensorDailyRequest(AreaSelector, WithConfidence):
+    start: dt.date | None = Field(None, description="default first_date from /api/meta")
+    end: dt.date | None = Field(None, description="default last_date from /api/meta")
+
+    @model_validator(mode="after")
+    def _check(self):
+        _check_range(self.start, self.end)
+        return self
+
+
+class FamilyColumns(ResponseModel):
+    """null = no satellite of this family operated that day (e.g. VIIRS before 2012-01-20); 0 = nothing detected."""
+    detections: list[NonNegInt | None] = Field(description="raw detections (not harmonised), as in /api/hotspots")
+    frp_sum: list[NonNegFloat | None] = Field(description="sum of the raw FRP in MW")
+
+
+class SensorFamilies(ResponseModel):
+    modis: FamilyColumns = Field(description="Terra + Aqua")
+    viirs: FamilyColumns = Field(description="Suomi NPP + NOAA-20 + NOAA-21")
+
+
+class SensorDailyResponse(ResponseModel):
+    """Column-oriented like /api/daily: index i = day start + i."""
+    start: dt.date
+    end: dt.date
+    families: SensorFamilies
+
+    @model_validator(mode="after")
+    def _same_length(self):
+        n = (self.end - self.start).days + 1
+        for fam in ("modis", "viirs"):
+            cols = getattr(self.families, fam)
+            for name in ("detections", "frp_sum"):
+                if len(getattr(cols, name)) != n:
+                    raise ValueError(f"{fam}.{name} has {len(getattr(cols, name))} values, expected {n} (start to end).")
+        return self
+
+
+# ===========================================================================
 # 6.6 POST /api/grid
 # ===========================================================================
 
@@ -616,6 +658,24 @@ class ByRegionResponse(ResponseModel):
     level: Literal["region", "province"]
     total_fires: NonNegFloat
     data: list[ByRegionItem]
+
+
+# ===========================================================================
+# Data sync: POST /api/sync, GET /api/sync (api_version 3.1)
+# ===========================================================================
+
+SyncState = Literal["idle", "running", "succeeded", "failed"]
+SyncStep = Literal["fetch", "harmonise", "load"]
+
+
+class SyncStatus(ResponseModel):
+    state: SyncState = Field(description="idle = no sync since the backend started")
+    step: SyncStep | None = Field(description="step of the running sync, or the step a failed sync stopped at: "
+                                              "fetch FIRMS, harmonisation, loading into the database")
+    started_at: dt.datetime | None
+    finished_at: dt.datetime | None
+    new_rows: NonNegInt | None = Field(description="new hotspot rows from FIRMS, set once the sync succeeded")
+    message: str | None = Field(description="English error text, set when the sync failed")
 
 
 # ===========================================================================

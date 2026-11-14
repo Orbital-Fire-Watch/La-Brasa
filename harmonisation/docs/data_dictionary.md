@@ -11,7 +11,7 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | Spalte | Typ | Einheit | Bedeutung | 0 und leer | Nutzung im Frontend |
 |---|---|---|---|---|---|
 | `region_id` | string | – | NUTS-2-Region (Stand 2021). | nie leer | Auswahl der Region, Schlüssel zusammen mit date. |
-| `country` | string | – | Land (ES, PT, FR). | nie leer | Filter und Gruppierung nach Land. |
+| `country` | string | – | Land (ES, PT). | nie leer | Filter und Gruppierung nach Land. |
 | `region_name` | string | – | Klarname der Region, z. B. „Comunidad de Madrid“. | nie leer | Beschriftung in Auswahlliste, Karte und Diagramm. |
 | `date` | date | – | Tag (Zuordnung wie obs_date der Hotspots). | nie leer, lückenlos ab 2001-01-01 | Zeitachse von Kalender und Verlauf. |
 | `n_aqua` | double | Erkennungen | Rohzahl Aqua (MODIS) an diesem Tag. | 0 = kein Feuer, leer = Aqua nicht in Betrieb | Nur Tooltip „Rohdaten“ und Nachrechnen. |
@@ -75,8 +75,8 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | `scan` | double | km | Pixelbreite quer zur Flugrichtung. | nie leer | Fußabdruck des Pixels zeichnen (zusammen mit track). |
 | `track` | double | km | Pixelbreite in Flugrichtung. | nie leer | Fußabdruck des Pixels zeichnen (zusammen mit scan). |
 | `pixel_area_km2` | double | km² | Fläche des Pixels am Boden: scan × track. | nie leer | Punkt in echter Größe darstellen. Große Werte heißen Bildrand und damit gröbere Ortsangabe. |
-| `region_id` | string | – | NUTS-2-Region des Punkts (Stand 2021), z. B. ES30. | leer bei Punkten im offenen Meer | Schneller Filter „Region wählen“, Verknüpfung zur Tagestabelle. |
-| `country` | string | – | Land: die ersten zwei Zeichen von region_id (ES, PT, FR). | leer wie region_id | Filter nach Land. |
+| `region_id` | string | – | NUTS-2-Region des Punkts (Stand 2021), z. B. ES30. Nur Untersuchungsregionen (nuts.study_regions). | nie leer | Schneller Filter „Region wählen“, Verknüpfung zur Tagestabelle. |
+| `country` | string | – | Land: die ersten zwei Zeichen von region_id (ES, PT). | nie leer | Filter nach Land. |
 | `in_series_n` | boolean | – | Wahr, wenn der Satellit des Punkts an diesem Tag zur Basis der Anzahl gehört und in Betrieb ist. | nie leer | Karte ohne Sensor-Doppelte: nur Punkte mit in_series_n = wahr zeigen (ab 2012 nur VIIRS, davor MODIS). Ab 2018 kann dasselbe Feuer als Punkt von SNPP und von NOAA-20/21 erscheinen (andere Überflugzeit), Filter nach satellite möglich. |
 | `in_series_frp` | boolean | – | Wahr, wenn der Punkt in die harmonisierte FRP-Summe eingeht. | nie leer | Wie in_series_n, für Darstellungen der Stärke. |
 | `weight_n` | double | VIIRS-Äquivalente | Beitrag des Punkts zur harmonisierten Anzahl: 1/k bei VIIRS (k = an dem Tag aktive VIIRS-Satelliten, 1 bis 3), Regionsfaktor bei MODIS, 0 außerhalb der Reihe. | 0 = zählt nicht mit | Harmonisierte Anzahl einer beliebigen Fläche: SUM(weight_n). Nicht als Eigenschaft des Punkts anzeigen. |
@@ -305,5 +305,5 @@ Erzeugt aus `pipeline/column_catalogue.py`. Dieselbe Quelle prüft das Schema de
 | `scan` | double | km | Pixelbreite quer zur Flugrichtung. | nie leer | Fußabdruck des Pixels zeichnen (zusammen mit track). |
 | `track` | double | km | Pixelbreite in Flugrichtung. | nie leer | Fußabdruck des Pixels zeichnen (zusammen mit scan). |
 | `pixel_area_km2` | double | km² | Fläche des Pixels am Boden: scan × track. | nie leer | Punkt in echter Größe darstellen. Große Werte heißen Bildrand und damit gröbere Ortsangabe. |
-| `region_id` | string | – | NUTS-2-Region des Punkts (Stand 2021), z. B. ES30. | leer bei Punkten im offenen Meer | Schneller Filter „Region wählen“, Verknüpfung zur Tagestabelle. |
-| `country` | string | – | Land: die ersten zwei Zeichen von region_id (ES, PT, FR). | leer wie region_id | Filter nach Land. |
+| `region_id` | string | – | NUTS-2-Region des Punkts (Stand 2021), z. B. ES30. Nur Untersuchungsregionen (nuts.study_regions). | nie leer | Schneller Filter „Region wählen“, Verknüpfung zur Tagestabelle. |
+| `country` | string | – | Land: die ersten zwei Zeichen von region_id (ES, PT). | nie leer | Filter nach Land. |

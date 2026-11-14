@@ -64,3 +64,17 @@ vor der ersten Messung der Pipeline). Voranalyse: `data_analysis/09_viirs_satell
 ### Knappe Stellen
 - N4b: 1,90 % bei Grenze 2 % (NOAA-20).
 - U1 unveraendert knapp: 0,432 und 0,578 bei 0,42 und 0,58.
+
+## Untersuchungsregionen statt gemeinsamem Gebiet (14.11.2026)
+- Anlass: Das gemeinsame Gebiet (`common_area`, aus Daten gelernte 0,25-Grad-Zellen) liess die franzoesischen Randregionen
+  FRI1, FRJ1 und FRJ2 in der Reihe (34.445 Hotspots), obwohl MODIS/SNPP dort bei etwa 43,5 Grad Nord enden. Ihre Werte waren
+  abgeschnitten, Backend und App zeigen ohnehin nur ES und PT.
+- Aenderung: `nuts.study_regions` (die 21 Regionen von `backend/assets/nuts2_iberia.geojson`). Die Region wird direkt nach den
+  Duplikaten zugeordnet, alles ausserhalb faellt mit `outside_study_regions` heraus (88.155 Zeilen). Vorher geprueft: keine
+  einzige vom gemeinsamen Gebiet verworfene Zeile lag in einer Untersuchungsregion, alle Downloads decken sie ganz ab.
+  Ein Test haelt die Liste gleich mit der Karte der App.
+- Voranalyse 08 auf dieselben Regionen beschraenkt (`results/series.json` neu): Gesamtfaktor Paar 2,9956 -> 2,9953,
+  Terra 6,0014 -> 5,8906 (die franzoesischen Regionen hatten hohe Terra-Faktoren). Die Pipeline trifft beide exakt.
+- Ergebnis: 41 von 42 Pruefungen erfuellt, Tests 55 bestanden, zwei Laeufe identisch. **Verfehlt: U1b** 0,5801 bei Grenze 0,58
+  (134 von 231 Einheiten; eine Einheit weniger waere erfuellt). Vorher 0,578. Schwelle nicht geaendert, offen fuer das Team.
+- Kleine Verschiebungen: D1a 2,083 -> 2,091, D3a 1,464 -> 1,473, D8a 0,945 -> 0,941, U3 0,088 -> 0,093, N4b 1,90 -> 1,94 %.

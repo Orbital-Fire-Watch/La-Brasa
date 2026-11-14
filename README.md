@@ -68,8 +68,8 @@ TEST_DATABASE_URL=postgresql://labrasa:change-me@localhost:5432/labrasa .venv/bi
 
 ## Open points
 
-- `pipeline/ingestion/fetch_firms.py` and `pipeline/update_daily.py` are not implemented yet
-  (planned: fetch NRT -> `harmonisation/run_pipeline.py` -> `load_to_db.py`).
+- New FIRMS data is fetched on demand: `POST /api/sync` (status: `GET /api/sync`)
+  runs `pipeline/sync_data.py` (fetch NRT -> `harmonisation/run_pipeline.py` -> `load_to_db.py`). See `startup.md`.
 - The database is plain PostgreSQL 17. `postgis/postgis` has no image for Apple Silicon;
   if spatial queries are needed later, use a multi-arch PostGIS image.
 

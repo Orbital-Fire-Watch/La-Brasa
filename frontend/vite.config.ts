@@ -12,6 +12,8 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1100,    // MapLibre alone is about 1.1 MB (300 KB gzip) and cannot be split further
     rollupOptions: {
+      // The app and the plain info page it links to (lib/uiConfig.ts INFO_PAGE_URL)
+      input: { main: "index.html", info: "info.html" },
       output: {
         // Libraries in their own files: they change less often than the app, so browsers keep them cached
         manualChunks(id) {
