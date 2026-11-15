@@ -15,8 +15,10 @@
       body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 Inter, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
       header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 24px; border-bottom: 1px solid var(--border); }
       header img { width: 48px; height: 48px; }
-      header strong { display: block; font-size: 17px; }
-      header span { color: var(--muted); font-size: 13px; }
+      header strong { font-size: 24px; line-height: 1.2; letter-spacing: 0.01em; }
+      header .home { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; border-radius: 3px; }
+      header .home:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+      header .home:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
       header nav { margin-inline-start: auto; display: flex; gap: 12px; align-items: center; }
       select { font: inherit; padding: 4px 6px; background: var(--tile); color: var(--text); border: 1px solid var(--border); border-radius: 3px; }
       main { max-width: 780px; margin: 0 auto; padding: 28px 16px 64px; display: grid; gap: 14px; }
@@ -37,13 +39,10 @@
   </head>
   <body>
     <header>
+      <a class="home" href="./" aria-label="La Brasa">
       <img src="./assets/la-brasa-logo.svg" alt="" />
-      <div>
-        <strong>La Brasa</strong>
-        <span data-lang="en">Satellite fire monitoring for Spain and Portugal</span>
-        <span data-lang="es">Seguimiento de incendios por satélite en España y Portugal</span>
-        <span data-lang="pt">Monitorização de incêndios por satélite em Espanha e Portugal</span>
-      </div>
+      <strong>La Brasa</strong>
+      </a>
       <nav>
         <label>
           <span hidden>Language</span>

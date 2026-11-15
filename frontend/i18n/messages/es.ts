@@ -2,9 +2,8 @@
 import type { Messages } from "../types";
 
 export const es: Messages = {
-  "brand.tagline": "Seguimiento de incendios por satélite en España y Portugal",
-
   "header.nav": "Ayuda y ajustes",
+  "header.home": "La Brasa, volver a la página de inicio",
   "header.info": "Información",
   "header.accessibility": "Accesibilidad",
   "header.language": "Idioma",
