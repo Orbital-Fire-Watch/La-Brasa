@@ -2,18 +2,25 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { errorMessage, useI18n } from "../../i18n/I18n";
+import { useTour } from "../../hooks/useTour";
+import type { TourTarget } from "../../lib/tour";
 
-/** Collapsible tile with a heading (EFFIS-style). No shadow, quiet metal surface (mock.css). */
-export function Tile({ title, children, defaultOpen = true, aside, className }: {
-  title: string; children: ReactNode; defaultOpen?: boolean; aside?: ReactNode; className?: string;
+/**
+ * Collapsible tile with a heading (EFFIS-style). No shadow, quiet metal surface (mock.css).
+ * `tour` names the tile for the tutorial: it is highlighted there and kept open while the tutorial talks about it.
+ */
+export function Tile({ title, children, defaultOpen = true, aside, className, tour }: {
+  title: string; children: ReactNode; defaultOpen?: boolean; aside?: ReactNode; className?: string; tour?: TourTarget;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [userOpen, setOpen] = useState(defaultOpen);
+  const { isTarget } = useTour();
+  const open = userOpen || (tour !== undefined && isTarget(tour));
   const bodyId = useId();
   return (
-    <section className={`ow-tile ${className ?? ""}`} data-open={open}>
+    <section className={`ow-tile ${className ?? ""}`} data-open={open} data-tour={tour}>
       <header className="ow-tile__head">
         <h2 className="ow-tile__title">
-          <button type="button" className="ow-tile__toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((o) => !o)}>
+          <button type="button" className="ow-tile__toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(!open)}>
             <svg viewBox="0 0 12 12" aria-hidden="true" className="ow-tile__chevron"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
             {title}
           </button>

@@ -13,6 +13,8 @@ import { AnalysisPage } from "./routes/AnalysisPage";
 import { StartPage } from "./routes/StartPage";
 import { PrefsProvider } from "./hooks/usePrefs";
 import { SyncContextProvider, useSyncController } from "./hooks/useSync";
+import { TourProvider } from "./hooks/useTour";
+import { TourOverlay } from "./components/tour/TourOverlay";
 
 function Pages() {
   const [state] = useAppState();
@@ -45,7 +47,10 @@ function Pages() {
   return (
     <SyncContextProvider value={sync}>
       <AppDataContext.Provider value={data}>
-        {state.page === "analysis" ? <AnalysisPage /> : <StartPage />}
+        <TourProvider>
+          {state.page === "analysis" ? <AnalysisPage /> : <StartPage />}
+          <TourOverlay />
+        </TourProvider>
       </AppDataContext.Provider>
     </SyncContextProvider>
   );

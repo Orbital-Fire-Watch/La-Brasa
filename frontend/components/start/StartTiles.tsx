@@ -22,7 +22,7 @@ export function SettingsTile(p: {
 }) {
   const { t, f } = useI18n();
   return (
-    <Tile title={t("settings.title")}>
+    <Tile title={t("settings.title")} tour="settings">
       <div className="ow-form">
         <div className="ow-field">
           <label className="ow-field__label" htmlFor="ow-date">{t("settings.date")}</label>
@@ -160,7 +160,7 @@ export function RegionTile({ regions, selectedId, path, onSelect }: {
   );
 
   return (
-    <Tile title={t("area.title")}>
+    <Tile title={t("area.title")} tour="area">
       <AreaPath path={path} onSelect={onSelect} />
       <button type="button" className="ow-tree__item ow-tree__item--all" aria-pressed={selectedId === null} onClick={() => onSelect(null)}>
         <span>{t("area.all")}</span>
@@ -240,7 +240,7 @@ const TOOLS: { mode: Exclude<DrawMode, "none">; icon: string }[] = [
 export function DrawBar({ mode, onMode, onClear, busy }: { mode: DrawMode; onMode: (m: DrawMode) => void; onClear: (() => void) | null; busy: boolean }) {
   const { t } = useI18n();
   return (
-    <div className="ow-drawbar">
+    <div className="ow-drawbar" data-tour="drawbar">
       {(mode !== "none" || busy) && (
         <p className="ow-drawbar__hint" aria-live="polite">
           {busy ? t("draw.registering") : `${t(`draw.${mode as Exclude<DrawMode, "none">}.hint`)} ${t("draw.esc")}`}
@@ -278,7 +278,7 @@ export interface InfoBox {
 
 export function InfoBoxes({ boxes, visible }: { boxes: InfoBox[]; visible: boolean }) {
   return (
-    <div className="ow-infoboxes" data-visible={visible} aria-hidden={!visible} aria-live="polite">
+    <div className="ow-infoboxes" data-visible={visible} aria-hidden={!visible} aria-live="polite" data-tour="infoboxes">
       {boxes.map((b, i) => (
         <article key={b.id} className="ow-infobox" style={{ transitionDelay: visible ? `${i * 60}ms` : "0ms" }}>
           <p className="ow-infobox__label">{b.label}</p>
