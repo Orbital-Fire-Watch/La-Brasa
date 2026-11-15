@@ -7,6 +7,9 @@ import type { FireUnit } from "./fireUnits";
 import type { AnomalyCell, GridCell, HotspotFeature } from "../services/api/types";
 import type { Fmt, Translate } from "../i18n/I18n";
 
+
+/** Outline of fires probably hidden under clouds (the warning colour of the cloud note). */
+export const HIDDEN_COLOR = "#e3b341";
 export interface PopupData {
   title: string;
   rows: [string, string][];
@@ -132,7 +135,8 @@ export function unitAge(u: FireUnit): AgeClass {
   return u.days_since_last > 2 ? "ended" : ageClass(u.days_since_last);
 }
 
-export function eventShapes(units: FireUnit[], colors: Record<AgeClass, string>) {
+/** `hidden`: fires probably hidden under clouds on D (lib/clouds.ts), drawn dashed and faint. */
+export function eventShapes(units: FireUnit[], colors: Record<AgeClass, string>, hidden: (u: FireUnit) => boolean = () => false) {
   const maxFrp = Math.max(1, ...units.map((u) => u.frp_sum));
   const polygons: GeoJSON.FeatureCollection = {
     type: "FeatureCollection",
@@ -140,7 +144,7 @@ export function eventShapes(units: FireUnit[], colors: Record<AgeClass, string>)
       const age = unitAge(u);
       return {
         type: "Feature",
-        properties: { id: u.id, color: colors[age], stroke: age === "ended" ? "#757575" : "#3f1d0b", opacity: age === "ended" ? 0.3 : 0.6 },
+        properties: { id: u.id, color: colors[age], stroke: age === "ended" ? "#757575" : "#3f1d0b", opacity: hidden(u) ? 0.15 : age === "ended" ? 0.3 : 0.6, hidden: hidden(u) },
         geometry: u.geometry,
       };
     }),
@@ -151,7 +155,10 @@ export function eventShapes(units: FireUnit[], colors: Record<AgeClass, string>)
       const age = unitAge(u);
       return {
         type: "Feature",
-        properties: { id: u.id, color: colors[age], radius: 4 + 10 * Math.sqrt(u.frp_sum / maxFrp), opacity: age === "ended" ? 0.45 : 0.9 },
+        properties: {
+          id: u.id, color: colors[age], radius: 4 + 10 * Math.sqrt(u.frp_sum / maxFrp), opacity: hidden(u) ? 0.3 : age === "ended" ? 0.45 : 0.9,
+          ...(hidden(u) ? { ring: HIDDEN_COLOR, ringWidth: 2 } : {}),
+        },
         geometry: { type: "Point", coordinates: u.centroid },
       };
     }),

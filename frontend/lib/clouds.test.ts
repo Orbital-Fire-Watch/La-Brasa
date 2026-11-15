@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cloudAt, cloudDays, isCloudy, probablyHidden } from "./clouds";
+import { cloudAt, cloudDays, isCloudy, probablyHiddenFire } from "./clouds";
 
 const series = {
   start: "2025-08-01",
@@ -22,18 +22,21 @@ describe("clouds", () => {
     expect(isCloudy(cloudAt(series, "2025-08-02"), 0.2)).toBe(true);    // the threshold is a parameter
   });
 
-  it("marks a cloudy empty day between two fire days as probably hidden", () => {
-    const daily = { ...series, fires: [2, 0, 3, 0, 1] };
-    expect(probablyHidden(daily, "2025-08-02", 0.2)).toBe(true);
-    expect(probablyHidden(daily, "2025-08-02", 0.7)).toBe(false);    // not cloudy enough at night
-    expect(probablyHidden({ ...daily, fires: [0, 0, 3, 0, 1] }, "2025-08-02", 0.2)).toBe(false);   // no fire the day before
-    expect(probablyHidden(daily, "2025-08-05", 0.2)).toBe(false);    // last day: no day after yet
+  it("marks a fire seen the day before and after, cloudy in between, as probably hidden", () => {
+    const fire = { days_since_last: 1, cloud: { day: 0.9, night: 0.6 }, seenNextDay: true };
+    expect(probablyHiddenFire(fire, 0.5)).toBe(true);
+    expect(probablyHiddenFire(fire, 0.7)).toBe(false);                               // night not cloudy enough
+    expect(probablyHiddenFire({ ...fire, seenNextDay: false }, 0.5)).toBe(false);    // not seen again
+    expect(probablyHiddenFire({ ...fire, seenNextDay: null }, 0.5)).toBe(false);     // newest day: no day after yet
+    expect(probablyHiddenFire({ ...fire, days_since_last: 0 }, 0.5)).toBe(false);    // seen today
   });
 
   it("lists the cloud cover of every day of a range", () => {
-    const days = cloudDays({ ...series, fires: [2, 0, 3, 0, 1] }, "2025-08-01", "2025-08-04", 0.2);
+    const days = cloudDays(series, "2025-08-01", "2025-08-04", 0.2);
     expect(days.map((d) => d?.cover ?? null)).toEqual([0.8, 0.2, 0.1, null]);
-    expect(days.map((d) => d?.hidden ?? null)).toEqual([false, true, false, null]);
+    expect(days.map((d) => d?.cloudy ?? null)).toEqual([true, true, false, null]);
+    const withFires = cloudDays(series, "2025-08-01", "2025-08-03", 0.5, [null, 0.6, 0.4]);
+    expect(withFires.map((d) => d?.hiddenFire)).toEqual([false, true, false]);   // a fire hidden only where cloudy enough
     expect(days[3]).toBeNull();                                       // no cloud data that day
   });
 });

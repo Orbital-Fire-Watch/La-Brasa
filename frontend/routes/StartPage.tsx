@@ -31,6 +31,7 @@ import { useAppState } from "../hooks/useAppState";
 import { ageColors, valueScale } from "../lib/palette";
 import { usePrefs } from "../hooks/usePrefs";
 import { useRegionName, useSelectionInfo } from "../hooks/useSelectionInfo";
+import { useTour } from "../hooks/useTour";
 import { compareSensors, FAMILY_NAME, familyCells, familyFeatures, type SensorFamily } from "../lib/sensors";
 import { ytdStat } from "../lib/ytd";
 
@@ -58,6 +59,7 @@ export function StartPage() {
   const { prefs } = usePrefs();
   const { t, f } = useI18n();
   const regionName = useRegionName();
+  const tour = useTour();
   const { selection, withArea } = useSelection(state, setState);
   const info = useSelectionInfo(selection);
   const date = clampDate(state.date ?? meta.last_date, meta.first_date, meta.last_date);
@@ -212,6 +214,9 @@ export function StartPage() {
     [selection],
   );
   const ramp = valueScale(prefs.palette, legendMax);
+  // The tutorial zooms the map itself and keeps drawing off; it also shows the info boxes while it talks about them.
+  const mapFit = tour.fit ?? fitTo;
+  const activeDrawMode: DrawMode = tour.active ? "none" : drawMode;
   const methodLong = t(`method.${method}.long`);
   const gridLong = t(`method.${gridMetric}.long`);
 
@@ -228,20 +233,23 @@ export function StartPage() {
         regions={finestRegions}
         onRegionClick={(id) => selectRegion(id)}
         selection={selection.kind === "all" ? null : selection.geometry}
-        fitTo={fitTo}
+        fitTo={mapFit}
         cells={rawFamily ? rawLayers?.layers[rawFamily]?.cells ?? null : cellsFc}
         hotspots={rawFamily ? rawLayers?.layers[rawFamily]?.points ?? null : pointsFc}
         onView={setView}
         onMoveStart={reveal.onMoveStart}
         onMoveEnd={reveal.onMoveEnd}
-        drawMode={drawMode}
+        drawMode={activeDrawMode}
         maxVertices={meta.limits.geometry_max_vertices}
         onDrawComplete={(g) => void applyGeometry(g)}
         onDrawCancel={() => setDrawMode("none")}
       />
 
+      {/* Free part of the map between the floating elements: what the tutorial highlights as "the map". */}
+      <div className="ow-tour-maparea" data-tour="map" aria-hidden="true" />
+
       {compare && (
-        <div className="ow-compare">
+        <div className="ow-compare" data-tour="compare">
           {(["modis", "viirs"] as const).map((fam) => (
             <OrbitalMap key={fam} className="ow-compare__map" fullscreen="map" fitPadding={FIT_PADDING_COMPARE}
               initialBbox={selection.bbox ?? meta.bbox} attribution={meta.attribution} ariaLabel={t("cmp.mapAria", { family: FAMILY_NAME[fam] })}
@@ -255,8 +263,8 @@ export function StartPage() {
         </div>
       )}
 
-      <div className="ow-exitslot">
-        <ExitButton info={info} isArea={selection.kind === "area"} escapeEnabled={drawMode === "none"}
+      <div className="ow-exitslot" data-tour="exit">
+        <ExitButton info={info} isArea={selection.kind === "area"} escapeEnabled={activeDrawMode === "none"}
           onExit={(target) => setState(target)} />
       </div>
 
@@ -271,7 +279,7 @@ export function StartPage() {
         <SettingsTile date={date} minDate={meta.first_date} maxDate={meta.last_date} onDate={(d) => setState({ date: d, d: null })}
           conf={conf} onConf={(c) => setState({ conf: c })} method={method} onMethod={(m) => setState({ metric: m })} eventsAvailable={eventsAvailable} />
         <RegionTile regions={regions} selectedId={state.region} path={info.path} onSelect={selectRegion} />
-        <Tile title={t("cal.title")}>
+        <Tile title={t("cal.title")} tour="calendar">
           <p className="ow-small ow-muted ow-tile__lead">{t("cal.perMonth", { method: methodLong })}</p>
           {heatQuery.status === "loading" && <Loading height={180} />}
           {heatQuery.status === "error" && <ErrorNote error={heatQuery.error} onRetry={heatQuery.reload} />}
@@ -285,16 +293,16 @@ export function StartPage() {
         <FrequentTile metric={gridMetric} conf={conf} onPick={pickCell} />
       </aside>
 
-      <InfoBoxes boxes={boxes} visible={reveal.visible && boxes.length > 0 && !compare} />
+      <InfoBoxes boxes={boxes} visible={(reveal.visible || tour.isTarget("infoboxes")) && boxes.length > 0 && !compare} />
 
       <div className="ow-bottom">
         <DisplaySwitch value={display} onChange={(d) => setState({ display: d })} />
-        {!compare && <DrawBar mode={drawMode} onMode={setDrawMode} busy={busy} onClear={state.area ? () => setState({ area: null }) : null} />}
+        {!compare && <DrawBar mode={activeDrawMode} onMode={setDrawMode} busy={busy} onClear={state.area ? () => setState({ area: null }) : null} />}
       </div>
 
       <div className="ow-corner">
         {display !== "harmonised" ? (
-          <section className="ow-legend" aria-label={t("legend.aria")}>
+          <section className="ow-legend" aria-label={t("legend.aria")} data-tour="legend">
             <h2 className="ow-legend__title">
               {rawPoints ? t("legend.byAge") : compare ? t("cmp.legend") : t("cmp.legendFamily", { family: FAMILY_NAME[rawFamily ?? "modis"] })}
               <Tip text={t("legend.tip", { zoom: HOTSPOT_MIN_ZOOM, res: rawResolution })} label={t("legend.about")} />
@@ -311,7 +319,7 @@ export function StartPage() {
             {raw.data?.truncated && <p className="ow-small">{t("cmp.truncated", { returned: raw.data.returned, total: raw.data.total })}</p>}
           </section>
         ) : (
-        <section className="ow-legend" aria-label={t("legend.aria")}>
+        <section className="ow-legend" aria-label={t("legend.aria")} data-tour="legend">
           <h2 className="ow-legend__title">
             {showPoints ? t("legend.byAge") : t("legend.perCell", { metric: gridLong })}
             <Tip text={t("legend.tip", { zoom: HOTSPOT_MIN_ZOOM, res: resolution })} label={t("legend.about")} />
@@ -333,7 +341,7 @@ export function StartPage() {
         </section>
         )}
 
-        <section className="ow-selection" aria-label={t("sel.title")}>
+        <section className="ow-selection" aria-label={t("sel.title")} data-tour="selection">
           <p className="ow-selection__label">{t("sel.title")}</p>
           <p className="ow-selection__name">{info.name}</p>
           <p className="ow-selection__detail">{info.detail}</p>
@@ -350,7 +358,8 @@ export function StartPage() {
           {areaError && <p className="ow-error" role="alert">{areaError}</p>}
         </section>
 
-        <button type="button" className="ow-btn ow-btn--primary ow-btn--block" onClick={() => setState({ page: "analysis", date, d: null }, { push: true })}>
+        <button type="button" className="ow-btn ow-btn--primary ow-btn--block" data-tour="analysis"
+          onClick={() => setState({ page: "analysis", date, d: null }, { push: true })}>
           {t("start.analysis")}
         </button>
       </div>

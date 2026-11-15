@@ -31,6 +31,7 @@ from core.config import API_COUNTRIES
 from core.db import connect
 from errors import ApiError
 from services.areas import contains, inline_area, stored_area
+from services.clouds import cell_of, cells_on_day, lower_pass
 from services.meta import data_version
 from services.scope import SENSOR_SQL, region_exists
 
@@ -335,8 +336,11 @@ class GroupTable:
 def _table(ix: EventIndex, g: Groups, mask: np.ndarray | None) -> GroupTable:
     p, starts = g.points, g.bounds[:-1]
     if len(starts) == 0:
-        empty = np.zeros(0)
-        return GroupTable(*(empty for _ in range(11)))
+        # No events (e.g. a day without any hotspot). The dtypes must match the filled case: _selected() combines
+        # last and in_area with `&`, which fails on float arrays.
+        no_int, no_float, no_bool = np.zeros(0, np.int64), np.zeros(0), np.zeros(0, bool)
+        return GroupTable(start=no_int, last=no_int, hotspots=no_int, frp_sum=no_float, area_km2=no_float,
+                          in_area=no_bool, has_high=no_bool, west=no_float, east=no_float, south=no_float, north=no_float)
     counts = np.diff(g.bounds)
     group_of_point = np.repeat(np.arange(len(starts)), counts)
     pairs = np.unique(group_of_point.astype(np.int64) * len(ix.cell_names) + ix.cell[p])
@@ -495,8 +499,67 @@ def list_events(conn, body) -> dict:
         shown = shown[np.lexsort((ids, -values[shown]))]                # always descending, ties by id
     top = shown[: body.limit]
     features = [feature(ix, int(groups.roots[g]), state(ix, int(groups.roots[g]), groups.members(int(g))), d) for g in top]
+    add_cloud_check(conn, ix, groups, top, d, features)
     return {"type": "FeatureCollection", "date": body.date, "lookback_days": lookback, "features": features,
             "summary": summary, "total": len(shown), "returned": len(features), "truncated": len(shown) > len(features)}
+
+
+def _next_day_cells(ix: EventIndex, d: int) -> set[str] | None:
+    """H3 cells with points on d + 1; None when d is the newest day (no day after it yet)."""
+    if len(ix.day) == 0 or d + 1 > int(ix.day.max()):
+        return None
+    return {ix.cell_names[c] for c in np.unique(ix.cell[ix.day == d + 1])}
+
+
+def add_cloud_check(conn, ix: EventIndex, groups, top: np.ndarray, d: int, features: list[dict]) -> None:
+    """For events last seen the day before D: cloud cover at the event on D (0.25° cell of its centroid) and
+    whether it was seen again on D + 1 (a point in one of its cells or a direct neighbour, the clustering rule).
+    The frontend calls such an event "probably hidden under clouds" when D was cloudy (frontend/lib/clouds.ts)."""
+    gap = [(g, f) for g, f in zip(top, features) if f["properties"]["days_since_last"] == 1]
+    if not gap:
+        return
+    next_cells = _next_day_cells(ix, d)
+    clouds = cells_on_day(conn, dt.date.fromordinal(d), sorted({cell_of(*f["properties"]["centroid"]) for _, f in gap}))
+    for g, f in gap:
+        props = f["properties"]
+        props["cloud_day"], props["cloud_night"] = clouds.get(cell_of(*props["centroid"]), (None, None))
+        if next_cells is not None:
+            props["seen_next_day"] = _seen_again(ix, groups.members(int(g)), next_cells)
+
+
+def _seen_again(ix: EventIndex, pts: np.ndarray, next_cells: set[str]) -> bool:
+    """A point on the next day in one of the event's cells or a direct neighbour (the clustering rule)."""
+    cells = {ix.cell_names[c] for c in np.unique(ix.cell[pts])}
+    return any(n in next_cells for c in cells for n in h3.grid_disk(c, RING))
+
+
+def hidden_fires(conn, body) -> dict:
+    """POST /api/events/hidden: for every day from start to end, the fires the map draws dashed on that day
+    (add_cloud_check: last seen the day before, seen again the day after), reduced to the cloud cover of the most
+    covered one. One value per day, so the time slider can mark the days without asking /api/events for each."""
+    ix = get_index(conn)
+    mask = scope_mask(conn, ix, body)
+    high_only = body.min_confidence == "high"
+    first, last = body.start.toordinal(), body.end.toordinal()
+    candidates: list[tuple[dt.date, str]] = []
+    for d in range(first, last + 1):
+        next_cells = _next_day_cells(ix, d)
+        if next_cells is None:
+            continue
+        groups = groups_as_of(ix, _events_on(ix, d - 1, d - 1), d)
+        table = _table(ix, groups, mask)
+        for g in np.flatnonzero(_selected(table, d - 1, high_only) & (table.last == d - 1)):
+            pts = groups.members(int(g))
+            if _seen_again(ix, pts, next_cells):
+                centroid = (round(float(ix.lon[pts].mean()), COORD_DIGITS), round(float(ix.lat[pts].mean()), COORD_DIGITS))
+                candidates.append((dt.date.fromordinal(d), cell_of(*centroid)))
+    low = lower_pass(conn, sorted(set(candidates)))
+    cover: dict[dt.date, float] = {}
+    for key in candidates:
+        if key in low:
+            cover[key[0]] = max(cover.get(key[0], 0.0), low[key])
+    days = [body.start + dt.timedelta(days=i) for i in range(last - first + 1)]
+    return {"start": body.start, "end": body.end, "cover": [None if d not in cover else round(cover[d], 2) for d in days]}
 
 
 def _group(ix: EventIndex, event: str, d: int) -> tuple[int, np.ndarray]:

@@ -10,13 +10,13 @@ from core.db import connect
 from dtos import (
     AreaRequest, AreaResponse, ByRegionRequest, ByRegionResponse, CalendarRequest, CalendarResponse, DailyRequest,
     DailyResponse, EventDetailResponse, EventId, EventsRequest, EventsResponse, ExportQuery, GridAnomalyResponse,
-    GridByDayResponse, GridCountResponse, GridRequest, HotspotsRequest, HotspotsResponse, MetaResponse,
-    RegionsResponse, SensorDailyRequest, SensorDailyResponse,
+    GridByDayResponse, GridCountResponse, GridRequest, HiddenFiresRequest, HiddenFiresResponse, HotspotsRequest,
+    HotspotsResponse, MetaResponse, RegionsResponse, SensorDailyRequest, SensorDailyResponse,
 )
 from errors import ERRORS_DOC
 from services.areas import register_area
 from services.clouds import daily_clouds
-from services.events import daily_event_counts, event_detail, get_index, list_events
+from services.events import daily_event_counts, event_detail, get_index, hidden_fires, list_events
 from services.grid import build_grid
 from services.hotspots import build_hotspots, export_rows
 from services.meta import build_meta
@@ -110,6 +110,13 @@ def export_csv(q: Annotated[ExportQuery, Query()]):
 def events(body: EventsRequest):
     with connect() as conn:
         return list_events(conn, body)
+
+
+@router.post("/events/hidden", response_model=HiddenFiresResponse, responses=ERRORS_DOC, tags=["Kann"])
+def events_hidden(body: HiddenFiresRequest):
+    """Days on which a fire was probably hidden under clouds (time slider of the analysis page)."""
+    with connect() as conn:
+        return hidden_fires(conn, body)
 
 
 @router.get("/events/{event_id}", response_model=EventDetailResponse, responses=ERRORS_DOC, tags=["Soll"])

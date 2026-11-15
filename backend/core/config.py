@@ -19,6 +19,7 @@ def database_url() -> str:
 REGIONS_GEOJSON = Path(os.environ.get("REGIONS_GEOJSON", BACKEND_DIR / "assets" / "nuts2_iberia.geojson"))
 CORS_ORIGINS = [o for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://localhost:8080").split(",") if o]
 STATEMENT_TIMEOUT_MS = int(os.environ.get("STATEMENT_TIMEOUT_MS", "10000"))
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 # API scope: Spain and Portugal only. The harmonisation keeps only these regions (nuts.study_regions); the filter stays as a guard.
 API_COUNTRIES = ("ES", "PT")

@@ -60,6 +60,32 @@ def _means(conn, cells: tuple[str, ...], newest: dt.date) -> dict[dt.date, tuple
     return _cache[key]
 
 
+def cell_of(lon: float, lat: float) -> str:
+    return f"{math.floor(lat / CELL_DEG)}_{math.floor(lon / CELL_DEG)}"
+
+
+def cells_on_day(conn, day: dt.date, cells: list[str]) -> dict[str, tuple]:
+    """cell_id -> (cloud_day, cloud_night) on one day; {} without the table."""
+    if not cells or conn.execute("SELECT to_regclass('cloud_daily') AS t").fetchone()["t"] is None:
+        return {}
+    rows = conn.execute("SELECT cell_id, cloud_day, cloud_night FROM cloud_daily WHERE date = %s AND cell_id = ANY(%s)",
+                        (day, cells)).fetchall()
+    return {r["cell_id"]: (_rounded(r["cloud_day"]), _rounded(r["cloud_night"])) for r in rows}
+
+
+def lower_pass(conn, pairs: list[tuple[dt.date, str]]) -> dict[tuple[dt.date, str], float]:
+    """(day, cell_id) -> the lower of cloud_day and cloud_night; pairs without both values are left out."""
+    if not pairs or conn.execute("SELECT to_regclass('cloud_daily') AS t").fetchone()["t"] is None:
+        return {}
+    rows = conn.execute(
+        "SELECT c.date, c.cell_id, least(c.cloud_day, c.cloud_night) AS low FROM cloud_daily c "
+        "JOIN unnest(%s::date[], %s::text[]) AS p(date, cell_id) USING (date, cell_id) "
+        "WHERE c.cloud_day IS NOT NULL AND c.cloud_night IS NOT NULL",
+        ([d for d, _ in pairs], [c for _, c in pairs]),
+    ).fetchall()
+    return {(r["date"], r["cell_id"]): float(r["low"]) for r in rows}
+
+
 def _rounded(value) -> float | None:
     return None if value is None else round(float(value), 2)
 

@@ -3,6 +3,7 @@
  * so the H3 fallback works while /api/events is not available.
  */
 import { cellToBoundary, cellArea } from "h3-js";
+import type { DayCloud } from "./clouds";
 import { daysBetween } from "./dates";
 import { bboxOfPoints, type AreaGeometry, type BBox, type Position } from "./geo";
 
@@ -24,6 +25,9 @@ export interface FireUnit {
   trend: "growing" | "stable" | "shrinking" | null;
   province_id: string | null;
   centroid: Position;
+  /** events last seen the day before D only: cloud cover at the fire on D and whether it was seen again on D + 1 */
+  cloud: DayCloud | null;
+  seenNextDay: boolean | null;
 }
 
 interface EventLike {
@@ -44,6 +48,9 @@ interface EventLike {
     centroid: Position;
     province_id: string;
     trend?: "growing" | "stable" | "shrinking" | null;
+    cloud_day?: number | null;
+    cloud_night?: number | null;
+    seen_next_day?: boolean | null;
   };
 }
 
@@ -66,6 +73,9 @@ export function eventsToUnits(features: EventLike[]): FireUnit[] {
     trend: f.properties.trend ?? null,
     province_id: f.properties.province_id,
     centroid: f.properties.centroid,
+    cloud: f.properties.cloud_day == null && f.properties.cloud_night == null
+      ? null : { day: f.properties.cloud_day ?? null, night: f.properties.cloud_night ?? null },
+    seenNextDay: f.properties.seen_next_day ?? null,
   }));
 }
 
@@ -108,6 +118,8 @@ export function cellsToUnits(cells: CellLike[], date: string, windowStart: strin
       frp_sum: c.frp_sum,
       area_km2: null,
       trend: null,
+      cloud: null,
+      seenNextDay: null,
       province_id: null,
       centroid: [lons.reduce((a, b) => a + b, 0) / lons.length, lats.reduce((a, b) => a + b, 0) / lats.length],
     };

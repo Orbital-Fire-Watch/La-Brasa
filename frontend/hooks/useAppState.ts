@@ -36,7 +36,8 @@ export interface AppState {
   display: DisplayMode;
 }
 
-export type SetAppState = (patch: Partial<AppState>, opts?: { push?: boolean }) => void;
+/** push: new history entry; replace: never a new entry, also when the page changes (tutorial steps). */
+export type SetAppState = (patch: Partial<AppState>, opts?: { push?: boolean; replace?: boolean }) => void;
 
 const DEFAULTS = { lookback: 7, metric: "fires", conf: "nominal", view: "events", compare: "all" } as const;
 
@@ -105,10 +106,24 @@ export function useAppState(): [AppState, SetAppState] {
     const prev = parse(window.location.href);
     const next = { ...prev, ...patch };
     const url = toUrl(next);
-    if (opts?.push || next.page !== prev.page) window.history.pushState(null, "", url);
+    if (!opts?.replace && (opts?.push || next.page !== prev.page)) window.history.pushState(null, "", url);
     else window.history.replaceState(null, "", url);
-    if (opts?.push || patch.page) window.scrollTo({ top: 0 });
+    if (opts?.push || next.page !== prev.page) window.scrollTo({ top: 0 });
     emit();
   }, []);
   return [state, set];
+}
+
+/** Back to the start page with no selection: a new history entry with an empty query string. */
+export function goHome(): void {
+  window.history.pushState(null, "", window.location.pathname);
+  window.scrollTo({ top: 0 });
+  emit();
+}
+
+/** Replaces the whole view state with a saved query string, e.g. "?region=ES11" (end of the tutorial). */
+export function replaceAppSearch(search: string): void {
+  window.history.replaceState(null, "", `${window.location.pathname}${search}`);
+  window.scrollTo({ top: 0 });
+  emit();
 }

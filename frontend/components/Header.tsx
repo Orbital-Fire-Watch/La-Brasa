@@ -1,21 +1,19 @@
 /** Top bar of both pages: logo top left; language, info page and accessibility menu top right. */
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { BRAND, INFO_PAGE_URL } from "../lib/uiConfig";
 import { useI18n } from "../i18n/I18n";
 import { LOCALE_CODES, LOCALES, type Locale } from "../i18n/locales";
 import type { MessageKey } from "../i18n/types";
 import { usePrefs, type Palette, type TextSize, type Theme } from "../hooks/usePrefs";
+import { goHome, useAppState } from "../hooks/useAppState";
+import { useTour } from "../hooks/useTour";
 import { SyncButton } from "./map/MapTools";
 
 export function Logo({ size = "normal" }: { size?: "normal" | "large" }) {
-  const { t } = useI18n();
   return (
     <div className={`ow-logo ow-logo--${size}`}>
       <img className="ow-logo__img" src={BRAND.logoUrl} alt="" />
-      <div className="ow-logo__text">
-        <span className="ow-logo__name">{BRAND.name}</span>
-        <span className="ow-logo__tagline">{t("brand.tagline")}</span>
-      </div>
+      <span className="ow-logo__name">{BRAND.name}</span>
     </div>
   );
 }
@@ -127,14 +125,47 @@ function LanguageSelect() {
   );
 }
 
+/** Opens the guided tutorial again; only on the start page, where the tutorial begins. */
+function TutorialButton() {
+  const { t } = useI18n();
+  const tour = useTour();
+  const [state] = useAppState();
+  if (!tour.available || state.page !== "select") return null;
+  return (
+    <button type="button" className="ow-headbtn" onClick={tour.start} aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.8-2.5 2.2-2.5 3.9M12 16.8v.3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+      <span>{t("tour.button")}</span>
+    </button>
+  );
+}
+
+/** The logo as a link back to the start page (empty query); a plain link still works with modifier keys. */
+function HomeLink() {
+  const { t } = useI18n();
+  const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    goHome();
+  };
+  return (
+    <a className="ow-home" href={window.location.pathname} aria-label={t("header.home")} onClick={onClick}>
+      <Logo />
+    </a>
+  );
+}
+
 export function Header({ children, floating = false }: { children?: ReactNode; floating?: boolean }) {
   const { t } = useI18n();
   return (
     <header className={`ow-header ${floating ? "ow-header--floating" : ""}`}>
-      <Logo />
+      <HomeLink />
       <div className="ow-header__middle">{children}</div>
       <nav className="ow-header__actions" aria-label={t("header.nav")}>
         <SyncButton />
+        <TutorialButton />
         <LanguageSelect />
         <a className="ow-headbtn" href={INFO_PAGE_URL}>
           <svg viewBox="0 0 24 24" aria-hidden="true">

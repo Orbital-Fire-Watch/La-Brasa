@@ -29,29 +29,31 @@ export const isCloudy = (c: DayCloud | null, threshold: number): boolean =>
   c !== null && c.day !== null && c.night !== null && c.day >= threshold && c.night >= threshold;
 
 /**
- * Cloudy day without fires between two days with fires: the fire probably burned on, hidden under the clouds.
- * In the data (2012–2026) such a day stays empty 3 times as often as a clear one (docs/cloud_cover_plan.md).
+ * A fire last seen the day before, seen again the day after, and cloudy at its location in between: it probably
+ * burned on, hidden under the clouds. In the data (2012–2026) a day between two fire days stays empty about
+ * 3 times as often under clouds as under a clear sky (docs/cloud_cover_plan.md).
  */
-export function probablyHidden(series: CloudSeries & { fires: (number | null)[] }, date: string, threshold: number): boolean {
-  const i = daysBetween(series.start, date);
-  const fires = (k: number) => series.fires[k] ?? null;
-  return isCloudy(cloudAt(series, date), threshold) && fires(i) === 0 && (fires(i - 1) ?? 0) > 0 && (fires(i + 1) ?? 0) > 0;
-}
+export const probablyHiddenFire = (u: { days_since_last: number; cloud: DayCloud | null; seenNextDay: boolean | null }, threshold: number): boolean =>
+  u.days_since_last === 1 && u.seenNextDay === true && isCloudy(u.cloud, threshold);
 
 export interface DayCloudInfo extends DayCloud {
   /** the lower of the two passes: both were covered at least this much (null if one is missing) */
   cover: number | null;
   cloudy: boolean;
-  hidden: boolean;
+  /** at least one fire in the selection was probably hidden under clouds that day (dashed on the map) */
+  hiddenFire: boolean;
 }
 
-/** Cloud cover of every day from start to end (null = no cloud data), for the strip under the time slider. */
-export function cloudDays(series: CloudSeries & { fires: (number | null)[] }, start: string, end: string, threshold: number): (DayCloudInfo | null)[] {
+/**
+ * Cloud cover of every day from start to end (null = no cloud data), for the strip under the time slider.
+ * `hiddenCover`: POST /api/events/hidden, per day the cloud cover at the most covered fire seen the day before and after.
+ */
+export function cloudDays(series: CloudSeries, start: string, end: string, threshold: number, hiddenCover?: (number | null)[] | null): (DayCloudInfo | null)[] {
   return Array.from({ length: daysBetween(start, end) + 1 }, (_, k) => {
     const date = addDays(start, k);
     const c = cloudAt(series, date);
     if (!c) return null;
     const cover = c.day !== null && c.night !== null ? Math.min(c.day, c.night) : null;
-    return { ...c, cover, cloudy: isCloudy(c, threshold), hidden: probablyHidden(series, date, threshold) };
+    return { ...c, cover, cloudy: isCloudy(c, threshold), hiddenFire: (hiddenCover?.[k] ?? -1) >= threshold };
   });
 }

@@ -14,7 +14,7 @@ import { CONFIG } from "../../lib/config";
 import { worldWithout, type AreaGeometry, type BBox, type PolygonGeometry } from "../../lib/geo";
 import type { RegionFeature } from "../../services/api/types";
 import { useI18n } from "../../i18n/I18n";
-import type { PopupData } from "../../lib/mapFeatures";
+import { HIDDEN_COLOR, type PopupData } from "../../lib/mapFeatures";
 
 export interface MapView {
   bbox: BBox;
@@ -106,14 +106,19 @@ function addLayers(map: MlMap) {
     paint: { "fill-color": ["get", "color"], "fill-opacity": ["coalesce", ["get", "opacity"], 0.55] },
   }, labels);
   map.addLayer({
-    id: "events-line", type: "line", source: "events",
+    id: "events-line", type: "line", source: "events", filter: ["!=", ["get", "hidden"], true],
     paint: { "line-color": ["get", "stroke"], "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 12, 1.5] },
+  });
+  // fires probably hidden under clouds on D (lib/clouds.ts probablyHiddenFire): dashed, a dash pattern cannot depend on the feature
+  map.addLayer({
+    id: "events-hidden", type: "line", source: "events", filter: ["==", ["get", "hidden"], true],
+    paint: { "line-color": HIDDEN_COLOR, "line-width": 2, "line-dasharray": [2, 1.5] },
   });
   map.addLayer({
     id: "event-points", type: "circle", source: "event-points", maxzoom: 10,
     paint: {
       "circle-color": ["get", "color"], "circle-radius": ["get", "radius"], "circle-opacity": ["coalesce", ["get", "opacity"], 0.85],
-      "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
+      "circle-stroke-color": ["coalesce", ["get", "ring"], "#ffffff"], "circle-stroke-width": ["coalesce", ["get", "ringWidth"], 1],
     },
   });
   map.addLayer({ id: "events-selected", type: "line", source: "events", filter: ["==", ["get", "id"], ""], paint: { "line-color": BLUE, "line-width": 3 } });

@@ -2,7 +2,7 @@
  * Analysis page: header blocks with year-to-date figures (EFFIS style), then collapsible tiles for the short-term analysis,
  * the map with time slider and fire list, the season curve and the year overview.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { RingCalendar } from "../components/charts/RingCalendar";
 import { SeasonChart } from "../components/charts/SeasonChart";
 import { YearHeatmap } from "../components/charts/YearHeatmap";
@@ -11,6 +11,7 @@ import { useApiQuery } from "../hooks/useApiQuery";
 import { useAppData } from "../hooks/useAppData";
 import type { CompareSetting } from "../hooks/useAppState";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { usePlayback, usePlaybackClock } from "../hooks/usePlayback";
 import { useSelection } from "../hooks/useSelection";
 import { climatology, periodCells, seasonPhase, valueAt, windowAnomaly, type PeriodMode } from "../lib/analysis";
 import { divergingScale } from "../lib/colors";
@@ -32,7 +33,7 @@ import { SensorCompare } from "../components/SensorCompare";
 import { OrbitalMap, type MapView } from "../components/map/OrbitalMap";
 import { Empty, ErrorNote, Loading, Spinner, Tile, Tip } from "../components/ui/Elements";
 import { CLOUDY_THRESHOLD, fineResolutionForZoom } from "../lib/uiConfig";
-import { cloudDays } from "../lib/clouds";
+import { cloudDays, probablyHiddenFire } from "../lib/clouds";
 import { useI18n } from "../i18n/I18n";
 import { anomalyCells, cellsByAge, eventShapes, hotspotPoints } from "../lib/mapFeatures";
 import { useAppState } from "../hooks/useAppState";
@@ -40,8 +41,15 @@ import { ageColors } from "../lib/palette";
 import { usePrefs } from "../hooks/usePrefs";
 import { useRegionName, useSelectionInfo } from "../hooks/useSelectionInfo";
 import { compareSensors } from "../lib/sensors";
+import { useTour } from "../hooks/useTour";
 
 const FALLBACK_RESOLUTION = 6;
+
+/** Selected event on the shown day: in the list, not started yet, already over, outside the list, or not known. */
+type EventPhase = "shown" | "upcoming" | "ended" | "outside" | "unknown";
+
+const isEventGone = (q: { status: string; error?: unknown }) =>
+  q.status === "error" && q.error instanceof ApiError && q.error.code === "EVENT_NOT_FOUND";
 const MIN_ANOMALY_WINDOW_DAYS = 7;
 
 export function AnalysisPage() {
@@ -50,6 +58,7 @@ export function AnalysisPage() {
   const { prefs } = usePrefs();
   const { t, f } = useI18n();
   const regionName = useRegionName();
+  const tour = useTour();
   const colors = ageColors(prefs.palette);
   const { selection, withArea } = useSelection(state, setState);
   const info = useSelectionInfo(selection);
@@ -67,7 +76,10 @@ export function AnalysisPage() {
   const sliderMin = clampDate(addDays(D0, -SLIDER_RANGE_DAYS), meta.first_date, meta.last_date);
   const sliderMax = clampDate(addDays(D0, SLIDER_RANGE_DAYS), meta.first_date, meta.last_date);
   const D = clampDate(state.d ?? D0, sliderMin, sliderMax);
-  const qD = useDebouncedValue(D, 300);
+  // Playback steps one day at a time and waits for the data itself, so it skips the debounce meant for dragging.
+  const playback = usePlayback();
+  const debouncedD = useDebouncedValue(D, 300);
+  const qD = playback.playing ? D : debouncedD;
   const qStart = clampDate(addDays(qD, -(L - 1)), meta.first_date, qD);
   // Labels and the export query are derived here, before the memos below: the React Compiler cannot tell that
   // these helpers leave their (string) arguments alone and would otherwise skip the memoised values.
@@ -75,7 +87,12 @@ export function AnalysisPage() {
   const DLabel = f.date(D);
   const qDLabel = f.date(qD);
   const windowLabel = t("lookback", { count: L });
-  const cmpStart = clampDate(addDays(qD, -29), meta.first_date, qD);
+  // The raw MODIS / VIIRS comparison loads 30 days of raw hotspots (several MB) per day. During playback it stays on
+  // the day shown when Play was pressed instead of loading every frame, and follows the slider again once paused.
+  const [cmpPlayD, setCmpPlayD] = useState(qD);
+  const cmpD = playback.playing ? cmpPlayD : qD;
+  const cmpDLabel = f.date(cmpD);
+  const cmpStart = clampDate(addDays(cmpD, -29), meta.first_date, cmpD);
   const exportQuery: ExportQuery | null = selection.kind === "area" && !selection.exportParams.area_id
     ? null
     : { ...selection.exportParams, start: addDays(D, -(L - 1)) < meta.first_date ? meta.first_date : addDays(D, -(L - 1)), end: D, min_confidence: conf };
@@ -122,24 +139,46 @@ export function AnalysisPage() {
   };
 
   const selectedUnit = units.find((u) => u.id === state.event) ?? null;
+  // The slider and playback can move to days before the selected event's start or after its end, where the backend
+  // does not know it (EVENT_NOT_FOUND); its dates then tell which of the two it is. They come from the event as of the
+  // last slider day (one request per event, also when it was opened from a link), else from the list.
+  const lifespan = useApiQuery(
+    eventsAvailable && state.event ? `event|${v}|${state.event}|${sliderMax}` : null,
+    (signal) => fireApi.eventDetail(state.event as string, sliderMax, signal),
+  );
+  const lifespanUnit = useMemo(
+    () => (lifespan.status === "success" && lifespan.data.id === state.event ? eventsToUnits([lifespan.data])[0] : null),
+    [lifespan.status, lifespan.data, state.event],
+  );
+  const [lastSelected, setLastSelected] = useState<FireUnit | null>(null);
+  if (selectedUnit && selectedUnit !== lastSelected) setLastSelected(selectedUnit);
+  const knownUnit = lifespanUnit ?? selectedUnit ?? (lastSelected && lastSelected.id === state.event ? lastSelected : null);
+  const eventPhase: EventPhase | null = !state.event ? null
+    : selectedUnit ? "shown"
+      : !knownUnit ? "unknown"
+        : qD < knownUnit.first_seen ? "upcoming"
+          : qD > knownUnit.last_seen ? "ended"
+            : "outside";
+  // Before its start and after its end the map shows the normal layers; the view stays on the event.
+  const eventOnMap = eventsAvailable && (eventPhase === "shown" || eventPhase === "outside" || eventPhase === "unknown");
   const detail = useApiQuery(
-    eventsAvailable && state.event ? `event|${v}|${state.event}|${qD}` : null,
+    eventsAvailable && state.event && (eventPhase === "outside" || eventPhase === "unknown") ? `event|${v}|${state.event}|${qD}` : null,
     (signal) => fireApi.eventDetail(state.event as string, qD, signal),
   );
-  const detailGone = detail.status === "error" && detail.error instanceof ApiError && detail.error.code === "EVENT_NOT_FOUND";
   const [fit, setFit] = useState<{ bbox: [number, number, number, number]; key: string } | null>(null);
   const selectUnit = (u: FireUnit | null, zoom = true) => {
+    playback.stop();
     setState({ event: u?.id ?? null });
     if (u && zoom) setFit({ bbox: u.bbox, key: `${u.id}|${Date.now()}` });
   };
 
   // ---- raw MODIS / VIIRS, 30 days up to D (summed up from /api/hotspots, see sensors.ts)
-  const raw = useApiQuery(`raw|${v}|${selection.key}|${conf}|${cmpStart}|${qD}`, (signal) =>
-    withArea((sel) => fireApi.hotspots({ ...sel, start: cmpStart, end: qD, limit: meta.limits.hotspots_max, min_confidence: conf, raw: true }, signal)),
+  const raw = useApiQuery(`raw|${v}|${selection.key}|${conf}|${cmpStart}|${cmpD}`, (signal) =>
+    withArea((sel) => fireApi.hotspots({ ...sel, start: cmpStart, end: cmpD, limit: meta.limits.hotspots_max, min_confidence: conf, raw: true }, signal)),
   );
   const comparison = useMemo(
-    () => (raw.data ? compareSensors(raw.data.features, cmpStart, qD, meta, raw.data) : null),
-    [raw.data, cmpStart, qD, meta],
+    () => (raw.data ? compareSensors(raw.data.features, cmpStart, cmpD, meta, raw.data) : null),
+    [raw.data, cmpStart, cmpD, meta],
   );
 
   // ---- short-term cards
@@ -190,9 +229,9 @@ export function AnalysisPage() {
       : fireApi.grid({ ...sel, mode: "count", start: qStart, end: qD, bbox: debView?.bbox, resolution, min_confidence: conf }, signal))),
   );
   const pointsQuery = useApiQuery(
-    debView && (showPoints || (eventsAvailable && state.event)) ? `hotspots|${v}|${selection.key}|${conf}|${qStart}|${qD}|${state.event ?? bboxKey}` : null,
+    debView && (showPoints || eventOnMap) ? `hotspots|${v}|${selection.key}|${conf}|${qStart}|${qD}|${eventOnMap ? state.event : bboxKey}` : null,
     (signal) => withArea((sel) => fireApi.hotspots(
-      state.event && eventsAvailable
+      eventOnMap && state.event
         ? { ...sel, start: qStart, end: qD, event_id: state.event, limit: meta.limits.hotspots_max, min_confidence: conf }
         : { ...sel, start: qStart, end: qD, bbox: debView?.bbox, limit: meta.limits.hotspots_default, min_confidence: conf },
       signal,
@@ -205,14 +244,32 @@ export function AnalysisPage() {
     if (!state.anomaly && isGridCount(g)) return cellsByAge(g.cells, gridMetric, g.max[gridMetric], qD, colors, { t, f });
     return null;
   }, [mapGrid.data, showPoints, state.anomaly, gridMetric, qD, colors, t, f]);
-  const shapes = useMemo(() => (mapMode === "events" && !state.anomaly ? eventShapes(units, colors) : null), [mapMode, state.anomaly, units, colors]);
+  const isHidden = useCallback((u: FireUnit) => probablyHiddenFire(u, CLOUDY_THRESHOLD), []);
+  const hiddenFires = useMemo(() => units.filter(isHidden).length, [units, isHidden]);
+  const shapes = useMemo(() => (mapMode === "events" && !state.anomaly ? eventShapes(units, colors, isHidden) : null), [mapMode, state.anomaly, units, colors, isHidden]);
   const pointsFc = useMemo(
     () => (pointsQuery.data ? hotspotPoints(pointsQuery.data.features, qD, (id) => regionById.get(id)?.properties.name ?? id, colors, eventsAvailable, { t, f }) : null),
     [pointsQuery.data, qD, regionById, colors, eventsAvailable, t, f],
   );
   const anomalyData = mapGrid.data && isGridAnomaly(mapGrid.data) ? mapGrid.data : null;
   const mapLoading = mapGrid.status === "loading" || pointsQuery.status === "loading" || unitsQuery.status === "loading";
-  const mapError = [mapGrid, pointsQuery, unitsQuery].find((q) => q.status === "error");
+  // A selected event missing on this day (e.g. merged into another one) is explained in the list, not a map error,
+  // so it neither shows an error note nor stops playback.
+  const detailGone = isEventGone(detail) || isEventGone(pointsQuery);
+  const mapError = [mapGrid, pointsQuery, unitsQuery].find((q) => q.status === "error" && !isEventGone(q));
+  usePlaybackClock({
+    playing: playback.playing, stop: playback.stop, speed: playback.speed,
+    value: D, max: sliderMax, ready: !mapLoading, failed: !!mapError, onStep: (d) => setState({ d }),
+  });
+  // Play runs over the whole slider: a new run starts at its first day, a paused run continues where it was.
+  const togglePlayback = () => {
+    if (playback.playing) return playback.pause();
+    if (playback.status === "stopped" || D >= sliderMax) setState({ d: sliderMin });
+    setCmpPlayD(qD);
+    playback.play();
+  };
+  // Before its start and after its end the selected event stays in the list, with a note instead of an error.
+  const shownUnit = eventPhase === "upcoming" || eventPhase === "ended" ? knownUnit : selectedUnit;
   const selectionFit = useMemo(() => (selection.bbox ? { bbox: selection.bbox, key: `sel|${selection.key}` } : null), [selection.bbox, selection.key]);
 
   // ---- season curve and year overview
@@ -231,6 +288,7 @@ export function AnalysisPage() {
   );
   const minYear = method === "events" ? EVENTS_COMPARABLE_FROM_YEAR : undefined;
   const pickDate = (end: string) => {
+    playback.stop();
     const d = end > meta.last_date ? meta.last_date : end;
     if (d < sliderMin || d > sliderMax) setState({ date: d, d: null, event: null });
     else setState({ d });
@@ -239,7 +297,15 @@ export function AnalysisPage() {
     if (!dailyData) return null;
     return Array.from({ length: daysBetween(sliderMin, sliderMax) + 1 }, (_, i) => valueAt(dailyData, seriesKey, addDays(sliderMin, i)));
   }, [dailyData, seriesKey, sliderMin, sliderMax]);
-  const sliderClouds = useMemo(() => (dailyData ? cloudDays(dailyData, sliderMin, sliderMax, CLOUDY_THRESHOLD) : null), [dailyData, sliderMin, sliderMax]);
+  const hidden = useApiQuery(
+    eventsAvailable ? `hidden|${v}|${selection.key}|${conf}|${sliderMin}|${sliderMax}` : null,
+    (signal) => withArea((sel) => fireApi.hiddenFires({ ...sel, start: sliderMin, end: sliderMax, min_confidence: conf }, signal)),
+  );
+  const hiddenCover = hidden.status === "success" ? hidden.data.cover : null;
+  const sliderClouds = useMemo(
+    () => (dailyData ? cloudDays(dailyData, sliderMin, sliderMax, CLOUDY_THRESHOLD, hiddenCover) : null),
+    [dailyData, sliderMin, sliderMax, hiddenCover],
+  );
   const fmt = (x: number) => f.method(method, x);
   const methodLong = t(`method.${method}.long`);
   const gridLong = t(`method.${gridMetric}.long`);
@@ -278,7 +344,7 @@ export function AnalysisPage() {
       {daily.status === "error" && <div className="ow-content"><ErrorNote error={daily.error} onRetry={daily.reload} /></div>}
 
       <main className="ow-content">
-        <Tile title={t("an.short", { date: DLabel })}>
+        <Tile title={t("an.short", { date: DLabel })} tour="short">
           <div className="ow-cards">
             <WeekCard anomaly={week} method={method} unit={unitOf(method)} loading={daily.status === "loading"} />
             <ActiveCard active={active} previous={previous} fresh={fresh} kind={kind} loading={unitsQuery.status === "loading"} />
@@ -288,7 +354,7 @@ export function AnalysisPage() {
           </div>
         </Tile>
 
-        <Tile title={t("an.mapTitle", { window: windowLabel, date: qDLabel })}
+        <Tile title={t("an.mapTitle", { window: windowLabel, date: qDLabel })} tour="maptile"
           aside={
             <div className="ow-tile__controls">
               <Segmented label={t("an.lookback")} value={L} size="small" onChange={(l) => setState({ lookback: l })}
@@ -321,7 +387,7 @@ export function AnalysisPage() {
                 ariaLabel={t("an.mapAria")}
                 countries={countries}
                 selection={selection.kind === "all" ? null : selection.geometry}
-                fitTo={fit ?? selectionFit}
+                fitTo={tour.fit ?? fit ?? selectionFit}
                 cells={cellsFc}
                 events={shapes?.polygons}
                 eventPoints={shapes?.points}
@@ -341,7 +407,7 @@ export function AnalysisPage() {
                 <section className="ow-legend ow-legend--inmap" aria-label={t("legend.aria")}>
                   <h3 className="ow-legend__title">
                     {state.anomaly ? t("legend.unusual", { metric: gridLong })
-                      : showPoints || state.event ? t("legend.byAge")
+                      : showPoints || eventOnMap ? t("legend.byAge")
                         : t(mapMode === "events" ? "legend.eventsByAge" : "legend.cellsByAge")}
                     <Tip label={t("legend.about")}
                       text={state.anomaly
@@ -354,13 +420,16 @@ export function AnalysisPage() {
                   ) : (
                     <ul className="ow-agelegend">
                       {ageLegend.map((a) => <li key={a}><span className="ow-swatch" style={{ background: colors[a] }} />{t(`age.${a}`)}</li>)}
+                      {hiddenFires > 0 && <li><span className="ow-swatch ow-swatch--hidden" />{t("legend.hidden")}</li>}
                     </ul>
                   )}
                   {pointsQuery.data?.truncated && <p className="ow-small">{t("legend.truncated", { returned: pointsQuery.data.returned, total: pointsQuery.data.total })}</p>}
                   {mapError && mapError.status === "error" && <ErrorNote error={mapError.error} onRetry={mapError.reload} />}
                 </section>
               </OrbitalMap>
-              <TimeSlider value={D} anchor={D0} min={sliderMin} max={sliderMax} onChange={(d) => setState({ d })} bars={sliderBars} barsLabel={methodLong} clouds={sliderClouds} />
+              <TimeSlider value={D} anchor={D0} min={sliderMin} max={sliderMax} onChange={(d) => { playback.stop(); setState({ d }); }}
+                bars={sliderBars} barsLabel={methodLong} clouds={sliderClouds} hiddenFires={hiddenFires}
+                playback={{ playing: playback.playing, onToggle: togglePlayback, speed: playback.speed, onSpeed: playback.setSpeed }} />
             </div>
 
             <aside className="ow-maplayout__list" aria-labelledby="ow-list-title">
@@ -368,19 +437,26 @@ export function AnalysisPage() {
                 {t(kind === "event" ? "list.events" : "list.cells")}
                 <Tip text={t(kind === "event" ? "list.helpEvents" : "list.helpCells")} />
               </h3>
-              {selectedUnit && (
+              {shownUnit && (
                 <div className="ow-selected">
-                  <p className="ow-selected__name">{nameOf(selectedUnit)}</p>
+                  <p className="ow-selected__name">{nameOf(shownUnit)}</p>
                   <p className="ow-small ow-muted">
-                    {t("list.selected", { start: f.date(selectedUnit.first_seen), end: f.date(selectedUnit.last_seen), frp: f.compact(selectedUnit.frp_sum) })}
+                    {t("list.selected", { start: f.date(shownUnit.first_seen), end: f.date(shownUnit.last_seen), frp: f.compact(shownUnit.frp_sum) })}
                   </p>
+                  {(eventPhase === "upcoming" || eventPhase === "ended") && (
+                    <p className="ow-small ow-selected__phase" role="status">
+                      {eventPhase === "upcoming"
+                        ? t("list.upcoming", { date: f.date(shownUnit.first_seen) })
+                        : t("list.ended", { date: f.date(shownUnit.last_seen) })}
+                    </p>
+                  )}
                   <div className="ow-selected__actions">
-                    <button type="button" className="ow-btn ow-btn--small" onClick={() => setFit({ bbox: selectedUnit.bbox, key: `${selectedUnit.id}|${Date.now()}` })}>{t("list.zoom")}</button>
+                    <button type="button" className="ow-btn ow-btn--small" onClick={() => setFit({ bbox: shownUnit.bbox, key: `${shownUnit.id}|${Date.now()}` })}>{t("list.zoom")}</button>
                     <button type="button" className="ow-btn ow-btn--small ow-btn--ghost" onClick={() => selectUnit(null)}>{t("list.close")}</button>
                   </div>
                 </div>
               )}
-              {state.event && !selectedUnit && unitsQuery.status === "success" && (
+              {state.event && !shownUnit && unitsQuery.status === "success" && (
                 <Empty>
                   {t(detailGone ? "list.gone" : "list.notInWindow")}{" "}
                   <button type="button" className="ow-btn ow-btn--small" onClick={() => selectUnit(null)}>{t("list.clear")}</button>
@@ -399,11 +475,12 @@ export function AnalysisPage() {
           </div>
         </Tile>
 
-        <Tile title={t("cmp.analysisTitle", { date: qDLabel })}>
+        <Tile title={t("cmp.analysisTitle", { date: cmpDLabel })}
+          aside={playback.playing ? <span className="ow-small ow-muted">{t("cmp.playbackNote")}</span> : undefined}>
           <SensorCompare data={comparison} loading={raw.status === "loading"} error={raw.status === "error" ? raw.error : null} onRetry={raw.reload} />
         </Tile>
 
-        <Tile title={t("an.seasonTitle", { metric: methodLong })} aside={<Tip text={t("an.seasonHelp")} label={t("an.aboutSeason")} />}>
+        <Tile title={t("an.seasonTitle", { metric: methodLong })} tour="season" aside={<Tip text={t("an.seasonHelp")} label={t("an.aboutSeason")} />}>
           {method === "events" && <p className="ow-note">{t("an.eventsNote", { year: String(EVENTS_COMPARABLE_FROM_YEAR) })}</p>}
           {daily.status === "loading" && <Loading height={260} />}
           {dailyData && (
@@ -414,7 +491,7 @@ export function AnalysisPage() {
           )}
         </Tile>
 
-        <Tile title={t(heatMode === "week" ? "an.yearTitleWeek" : "an.yearTitleMonth", {
+        <Tile tour="year" title={t(heatMode === "week" ? "an.yearTitleWeek" : "an.yearTitleMonth", {
           metric: rawYear ? (yearDisplay === "compare" ? t("cmp.title") : t(`display.${yearDisplay}`)) : methodLong,
         })}
           aside={

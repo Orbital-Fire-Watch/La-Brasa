@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import get_args
 
 import h3
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -23,7 +24,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from core.db import connect  # noqa: E402
 from dtos import Sensor  # noqa: E402
 from main import app  # noqa: E402
-from services.events import cluster, event_id  # noqa: E402
+from services.events import Groups, _selected, _table, cluster, event_id  # noqa: E402
 from services.scope import SENSOR_SQL  # noqa: E402
 
 PARQUET = Path(__file__).resolve().parents[2] / "data" / "harmonised"
@@ -152,6 +153,29 @@ def test_daily_clouds_of_one_cell():
     if 0 <= k < len(r["fires"]):
         assert r["cloud_day"][k] == pytest.approx(row["cloud_day"], abs=0.006)
         assert r["cloud_night"][k] == pytest.approx(row["cloud_night"], abs=0.006)
+
+
+@pytest.mark.skipif(not CLOUDS.exists(), reason="no cloud data (pipeline/ingestion/fetch_clouds.py)")
+def test_events_cloud_check_only_for_events_seen_the_day_before(meta):
+    date = (pd.Timestamp(meta["last_date"]) - pd.Timedelta(days=120)).date().isoformat()   # a day with a day after it
+    r = post("/api/events", {"date": date, "lookback_days": 7, "limit": 200})
+    checked = [f["properties"] for f in r["features"] if f["properties"]["days_since_last"] == 1]
+    others = [f["properties"] for f in r["features"] if f["properties"]["days_since_last"] != 1]
+    assert all(p["cloud_day"] is None and p["seen_next_day"] is None for p in others)
+    assert all(p["seen_next_day"] is not None and p["cloud_day"] is not None for p in checked)
+
+
+@pytest.mark.skipif(not CLOUDS.exists(), reason="no cloud data (pipeline/ingestion/fetch_clouds.py)")
+def test_hidden_fire_days_match_events(meta):
+    end = pd.Timestamp(meta["last_date"]) - pd.Timedelta(days=120)
+    days = [(end - pd.Timedelta(days=k)).date().isoformat() for k in range(9, -1, -1)]
+    r = post("/api/events/hidden", {"region_id": "ES12", "start": days[0], "end": days[-1]})
+    assert len(r["cover"]) == len(days)
+    for day, cover in zip(days, r["cover"]):                         # the same fires the map draws dashed that day
+        ev = post("/api/events", {"region_id": "ES12", "date": day, "lookback_days": 7, "limit": 200})
+        lows = [min(p["cloud_day"], p["cloud_night"]) for p in (f["properties"] for f in ev["features"])
+                if p["days_since_last"] == 1 and p["seen_next_day"] and p["cloud_day"] is not None and p["cloud_night"] is not None]
+        assert cover == (max(lows) if lows else None)
 
 
 def test_confidence_high_is_subset(hot):
@@ -444,3 +468,10 @@ def test_by_region_shares_add_up(hot):
 def test_errors(path, body, status, code):
     r = post(path, body, status)
     assert r["error"]["code"] == code and r["error"]["message"]
+
+
+def test_no_events_on_a_day_without_hotspots():
+    # Regression: an empty table had float columns, so _selected() failed with a TypeError (500 on /api/events
+    # for every day after a day without hotspots, e.g. near the end of the data).
+    empty = _table(None, Groups(points=np.zeros(0, np.int64), bounds=np.zeros(1, np.int64), roots=np.zeros(0, np.int64)), None)
+    assert _selected(empty, 0, high_only=True).sum() == 0

@@ -1,6 +1,5 @@
 """La Brasa Fire-API v3. Run from the backend folder:  uvicorn main:app --reload --port 8000
 Docs: http://localhost:8000/docs   Contract: dtos.py   Spec: docs/Fire-API_Spezifikation_v3.md"""
-import logging
 import threading
 from contextlib import asynccontextmanager
 
@@ -10,12 +9,13 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.utils import get_openapi
 
 from core.config import CORS_ORIGINS
+from core.logs import setup_logging
 from dtos import API_VERSION
 from errors import install_error_handlers
 from routes import data, sync
 from services.events import warm_up
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+setup_logging()
 
 
 @asynccontextmanager

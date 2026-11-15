@@ -599,6 +599,39 @@ class EventProperties(ResponseModel):
     sensors: list[Sensor]
     trend: Trend | None = Field(None, description="Could-have")
     landcover: Landcover | None = Field(None, description="Could-have")
+    cloud_day: Share | None = Field(
+        None, description="only for events last seen the day before D (POST /api/events): share of the sky covered at "
+                          "the VIIRS day pass on D at the event (0.25° cell of its centroid); null = no cloud data")
+    cloud_night: Share | None = Field(None, description="the same at the night pass")
+    seen_next_day: bool | None = Field(
+        None, description="only for events last seen the day before D: points on D + 1 in its cells or their direct "
+                          "neighbours; null when D is the newest day")
+
+
+class HiddenFiresRequest(AreaSelector, WithConfidence):
+    start: dt.date
+    end: dt.date
+
+    @model_validator(mode="after")
+    def _check(self):
+        _check_range(self.start, self.end, max_days=2 * LOOKBACK_DAYS_MAX + 1)
+        return self
+
+
+class HiddenFiresResponse(ResponseModel):
+    """Column-oriented: index i = day start + i."""
+    start: dt.date
+    end: dt.date
+    cover: list[Share | None] = Field(
+        description="per day: cloud cover of the most covered fire in the area that was seen the day before and the day "
+                    "after but not on the day (the lower of the two VIIRS passes at the fire); null = no such fire. "
+                    "The frontend marks the day when it reaches its cloudy threshold (frontend/lib/clouds.ts)")
+
+    @model_validator(mode="after")
+    def _same_length(self):
+        if len(self.cover) != (self.end - self.start).days + 1:
+            raise ValueError("cover must have one value per day from start to end.")
+        return self
 
 
 class EventFeature(ResponseModel):
