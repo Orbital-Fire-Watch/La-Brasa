@@ -27,6 +27,12 @@ def data_version(conn, last: dt.date | None = None) -> str:
     return f"{last.isoformat()}.{n}"
 
 
+def forecast_available(conn) -> bool:
+    """True once forecast_daily has rows; False also when db/init/003_forecast.sql has not run yet."""
+    row = conn.execute("SELECT to_regclass('forecast_daily') IS NOT NULL AS ok").fetchone()
+    return bool(row["ok"]) and conn.execute("SELECT EXISTS (SELECT 1 FROM forecast_daily) AS ok").fetchone()["ok"]
+
+
 def build_meta(conn) -> dict:
     first, last = data_range(conn)
     sensors = []
@@ -58,7 +64,8 @@ def build_meta(conn) -> dict:
         "sensors": sensors,
         "confidence_levels": ["nominal", "high"],
         "features": {"areas": True, "daily": True, "events": True, "anomaly": True,
-                     "anomaly_window": True, "grid_by_day": False, "landcover": False},
+                     "anomaly_window": True, "grid_by_day": False, "landcover": False,
+                     "forecast": forecast_available(conn)},
         "limits": LIMITS,
         "attribution": ATTRIBUTION,
     }

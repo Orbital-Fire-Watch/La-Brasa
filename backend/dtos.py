@@ -171,6 +171,7 @@ class Features(ResponseModel):
     anomaly_window: bool
     grid_by_day: bool
     landcover: bool
+    forecast: bool = Field(description="forecast_daily has rows (/forecast/*)")
 
 
 class Limits(ResponseModel):
@@ -681,6 +682,46 @@ class SyncStatus(ResponseModel):
 
 
 # ===========================================================================
+# Forecast (docs/forecast_backend_frontend.md, section 3; computed in forecast/, only passed on here)
+# ===========================================================================
+
+RiskClass = Literal["low", "normal", "elevated", "high", "very_high"]
+ForecastSource = Literal["model", "climatology"]
+
+
+class ForecastDay(ResponseModel):
+    region_id: str
+    target_date: dt.date
+    lead_days: int
+    p_big_fire_day: float
+    p_big_fire_day_lo: float
+    p_big_fire_day_hi: float
+    p_fire_day: float
+    p_clim_big_fire_day: float
+    p_clim_fire_day: float
+    risk_ratio: float
+    risk_class: RiskClass
+    source: ForecastSource
+    model_version: str
+
+
+class ForecastDailyResponse(ResponseModel):
+    issue_date: dt.date
+    days: list[ForecastDay]
+
+
+class ForecastStatusResponse(ResponseModel):
+    last_run_utc: dt.datetime
+    ok: bool
+    issue_date: dt.date
+    issue_date_age_days: int
+    model_version: str
+    weather_used: bool
+    weather_provider: str | None
+    warnings: list[str]
+
+
+# ===========================================================================
 # 8. Errors
 # ===========================================================================
 
@@ -688,7 +729,7 @@ ErrorCode = Literal[
     "INVALID_REQUEST", "INVALID_DATE_RANGE", "AREA_CONFLICT", "GEOMETRY_INVALID",
     "AREA_OUTSIDE_REGION", "LIMIT_TOO_HIGH", "RESOLUTION_OUT_OF_RANGE",
     "REGION_NOT_FOUND", "AREA_NOT_FOUND", "EVENT_NOT_FOUND",
-    "GEOMETRY_TOO_COMPLEX", "INTERNAL_ERROR", "NOT_IMPLEMENTED", "QUERY_TIMEOUT",
+    "GEOMETRY_TOO_COMPLEX", "INTERNAL_ERROR", "NOT_IMPLEMENTED", "QUERY_TIMEOUT", "FORECAST_NOT_AVAILABLE",
 ]
 
 
