@@ -491,6 +491,7 @@ a { color: var(--ow-blue); }
 
 .ow-selected { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--ow-blue); border-radius: var(--ow-radius); background: var(--ow-blue-soft); }
 .ow-selected__name { font-weight: 600; }
+.ow-selected__phase { color: var(--ow-text); font-style: italic; }
 .ow-selected__actions { display: flex; gap: 6px; }
 
 .ow-list { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }

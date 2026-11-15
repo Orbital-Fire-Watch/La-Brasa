@@ -44,6 +44,12 @@ import { compareSensors } from "../lib/sensors";
 import { useTour } from "../hooks/useTour";
 
 const FALLBACK_RESOLUTION = 6;
+
+/** Selected event on the shown day: in the list, not started yet, already over, outside the list, or not known. */
+type EventPhase = "shown" | "upcoming" | "ended" | "outside" | "unknown";
+
+const isEventGone = (q: { status: string; error?: unknown }) =>
+  q.status === "error" && q.error instanceof ApiError && q.error.code === "EVENT_NOT_FOUND";
 const MIN_ANOMALY_WINDOW_DAYS = 7;
 
 export function AnalysisPage() {
@@ -81,7 +87,12 @@ export function AnalysisPage() {
   const DLabel = f.date(D);
   const qDLabel = f.date(qD);
   const windowLabel = t("lookback", { count: L });
-  const cmpStart = clampDate(addDays(qD, -29), meta.first_date, qD);
+  // The raw MODIS / VIIRS comparison loads 30 days of raw hotspots (several MB) per day. During playback it stays on
+  // the day shown when Play was pressed instead of loading every frame, and follows the slider again once paused.
+  const [cmpPlayD, setCmpPlayD] = useState(qD);
+  const cmpD = playback.playing ? cmpPlayD : qD;
+  const cmpDLabel = f.date(cmpD);
+  const cmpStart = clampDate(addDays(cmpD, -29), meta.first_date, cmpD);
   const exportQuery: ExportQuery | null = selection.kind === "area" && !selection.exportParams.area_id
     ? null
     : { ...selection.exportParams, start: addDays(D, -(L - 1)) < meta.first_date ? meta.first_date : addDays(D, -(L - 1)), end: D, min_confidence: conf };
@@ -128,11 +139,32 @@ export function AnalysisPage() {
   };
 
   const selectedUnit = units.find((u) => u.id === state.event) ?? null;
+  // The slider and playback can move to days before the selected event's start or after its end, where the backend
+  // does not know it (EVENT_NOT_FOUND); its dates then tell which of the two it is. They come from the event as of the
+  // last slider day (one request per event, also when it was opened from a link), else from the list.
+  const lifespan = useApiQuery(
+    eventsAvailable && state.event ? `event|${v}|${state.event}|${sliderMax}` : null,
+    (signal) => fireApi.eventDetail(state.event as string, sliderMax, signal),
+  );
+  const lifespanUnit = useMemo(
+    () => (lifespan.status === "success" && lifespan.data.id === state.event ? eventsToUnits([lifespan.data])[0] : null),
+    [lifespan.status, lifespan.data, state.event],
+  );
+  const [lastSelected, setLastSelected] = useState<FireUnit | null>(null);
+  if (selectedUnit && selectedUnit !== lastSelected) setLastSelected(selectedUnit);
+  const knownUnit = lifespanUnit ?? selectedUnit ?? (lastSelected && lastSelected.id === state.event ? lastSelected : null);
+  const eventPhase: EventPhase | null = !state.event ? null
+    : selectedUnit ? "shown"
+      : !knownUnit ? "unknown"
+        : qD < knownUnit.first_seen ? "upcoming"
+          : qD > knownUnit.last_seen ? "ended"
+            : "outside";
+  // Before its start and after its end the map shows the normal layers; the view stays on the event.
+  const eventOnMap = eventsAvailable && (eventPhase === "shown" || eventPhase === "outside" || eventPhase === "unknown");
   const detail = useApiQuery(
-    eventsAvailable && state.event ? `event|${v}|${state.event}|${qD}` : null,
+    eventsAvailable && state.event && (eventPhase === "outside" || eventPhase === "unknown") ? `event|${v}|${state.event}|${qD}` : null,
     (signal) => fireApi.eventDetail(state.event as string, qD, signal),
   );
-  const detailGone = detail.status === "error" && detail.error instanceof ApiError && detail.error.code === "EVENT_NOT_FOUND";
   const [fit, setFit] = useState<{ bbox: [number, number, number, number]; key: string } | null>(null);
   const selectUnit = (u: FireUnit | null, zoom = true) => {
     playback.stop();
@@ -141,12 +173,12 @@ export function AnalysisPage() {
   };
 
   // ---- raw MODIS / VIIRS, 30 days up to D (summed up from /api/hotspots, see sensors.ts)
-  const raw = useApiQuery(`raw|${v}|${selection.key}|${conf}|${cmpStart}|${qD}`, (signal) =>
-    withArea((sel) => fireApi.hotspots({ ...sel, start: cmpStart, end: qD, limit: meta.limits.hotspots_max, min_confidence: conf, raw: true }, signal)),
+  const raw = useApiQuery(`raw|${v}|${selection.key}|${conf}|${cmpStart}|${cmpD}`, (signal) =>
+    withArea((sel) => fireApi.hotspots({ ...sel, start: cmpStart, end: cmpD, limit: meta.limits.hotspots_max, min_confidence: conf, raw: true }, signal)),
   );
   const comparison = useMemo(
-    () => (raw.data ? compareSensors(raw.data.features, cmpStart, qD, meta, raw.data) : null),
-    [raw.data, cmpStart, qD, meta],
+    () => (raw.data ? compareSensors(raw.data.features, cmpStart, cmpD, meta, raw.data) : null),
+    [raw.data, cmpStart, cmpD, meta],
   );
 
   // ---- short-term cards
@@ -197,9 +229,9 @@ export function AnalysisPage() {
       : fireApi.grid({ ...sel, mode: "count", start: qStart, end: qD, bbox: debView?.bbox, resolution, min_confidence: conf }, signal))),
   );
   const pointsQuery = useApiQuery(
-    debView && (showPoints || (eventsAvailable && state.event)) ? `hotspots|${v}|${selection.key}|${conf}|${qStart}|${qD}|${state.event ?? bboxKey}` : null,
+    debView && (showPoints || eventOnMap) ? `hotspots|${v}|${selection.key}|${conf}|${qStart}|${qD}|${eventOnMap ? state.event : bboxKey}` : null,
     (signal) => withArea((sel) => fireApi.hotspots(
-      state.event && eventsAvailable
+      eventOnMap && state.event
         ? { ...sel, start: qStart, end: qD, event_id: state.event, limit: meta.limits.hotspots_max, min_confidence: conf }
         : { ...sel, start: qStart, end: qD, bbox: debView?.bbox, limit: meta.limits.hotspots_default, min_confidence: conf },
       signal,
@@ -219,7 +251,10 @@ export function AnalysisPage() {
   );
   const anomalyData = mapGrid.data && isGridAnomaly(mapGrid.data) ? mapGrid.data : null;
   const mapLoading = mapGrid.status === "loading" || pointsQuery.status === "loading" || unitsQuery.status === "loading";
-  const mapError = [mapGrid, pointsQuery, unitsQuery].find((q) => q.status === "error");
+  // A selected event missing on this day (e.g. merged into another one) is explained in the list, not a map error,
+  // so it neither shows an error note nor stops playback.
+  const detailGone = isEventGone(detail) || isEventGone(pointsQuery);
+  const mapError = [mapGrid, pointsQuery, unitsQuery].find((q) => q.status === "error" && !isEventGone(q));
   usePlaybackClock({
     playing: playback.playing, stop: playback.stop, speed: playback.speed,
     value: D, max: sliderMax, ready: !mapLoading, failed: !!mapError, onStep: (d) => setState({ d }),
@@ -228,8 +263,11 @@ export function AnalysisPage() {
   const togglePlayback = () => {
     if (playback.playing) return playback.pause();
     if (playback.status === "stopped" || D >= sliderMax) setState({ d: sliderMin });
+    setCmpPlayD(qD);
     playback.play();
   };
+  // Before its start and after its end the selected event stays in the list, with a note instead of an error.
+  const shownUnit = eventPhase === "upcoming" || eventPhase === "ended" ? knownUnit : selectedUnit;
   const selectionFit = useMemo(() => (selection.bbox ? { bbox: selection.bbox, key: `sel|${selection.key}` } : null), [selection.bbox, selection.key]);
 
   // ---- season curve and year overview
@@ -358,7 +396,7 @@ export function AnalysisPage() {
                 <section className="ow-legend ow-legend--inmap" aria-label={t("legend.aria")}>
                   <h3 className="ow-legend__title">
                     {state.anomaly ? t("legend.unusual", { metric: gridLong })
-                      : showPoints || state.event ? t("legend.byAge")
+                      : showPoints || eventOnMap ? t("legend.byAge")
                         : t(mapMode === "events" ? "legend.eventsByAge" : "legend.cellsByAge")}
                     <Tip label={t("legend.about")}
                       text={state.anomaly
@@ -387,19 +425,26 @@ export function AnalysisPage() {
                 {t(kind === "event" ? "list.events" : "list.cells")}
                 <Tip text={t(kind === "event" ? "list.helpEvents" : "list.helpCells")} />
               </h3>
-              {selectedUnit && (
+              {shownUnit && (
                 <div className="ow-selected">
-                  <p className="ow-selected__name">{nameOf(selectedUnit)}</p>
+                  <p className="ow-selected__name">{nameOf(shownUnit)}</p>
                   <p className="ow-small ow-muted">
-                    {t("list.selected", { start: f.date(selectedUnit.first_seen), end: f.date(selectedUnit.last_seen), frp: f.compact(selectedUnit.frp_sum) })}
+                    {t("list.selected", { start: f.date(shownUnit.first_seen), end: f.date(shownUnit.last_seen), frp: f.compact(shownUnit.frp_sum) })}
                   </p>
+                  {(eventPhase === "upcoming" || eventPhase === "ended") && (
+                    <p className="ow-small ow-selected__phase" role="status">
+                      {eventPhase === "upcoming"
+                        ? t("list.upcoming", { date: f.date(shownUnit.first_seen) })
+                        : t("list.ended", { date: f.date(shownUnit.last_seen) })}
+                    </p>
+                  )}
                   <div className="ow-selected__actions">
-                    <button type="button" className="ow-btn ow-btn--small" onClick={() => setFit({ bbox: selectedUnit.bbox, key: `${selectedUnit.id}|${Date.now()}` })}>{t("list.zoom")}</button>
+                    <button type="button" className="ow-btn ow-btn--small" onClick={() => setFit({ bbox: shownUnit.bbox, key: `${shownUnit.id}|${Date.now()}` })}>{t("list.zoom")}</button>
                     <button type="button" className="ow-btn ow-btn--small ow-btn--ghost" onClick={() => selectUnit(null)}>{t("list.close")}</button>
                   </div>
                 </div>
               )}
-              {state.event && !selectedUnit && unitsQuery.status === "success" && (
+              {state.event && !shownUnit && unitsQuery.status === "success" && (
                 <Empty>
                   {t(detailGone ? "list.gone" : "list.notInWindow")}{" "}
                   <button type="button" className="ow-btn ow-btn--small" onClick={() => selectUnit(null)}>{t("list.clear")}</button>
@@ -418,7 +463,8 @@ export function AnalysisPage() {
           </div>
         </Tile>
 
-        <Tile title={t("cmp.analysisTitle", { date: qDLabel })}>
+        <Tile title={t("cmp.analysisTitle", { date: cmpDLabel })}
+          aside={playback.playing ? <span className="ow-small ow-muted">{t("cmp.playbackNote")}</span> : undefined}>
           <SensorCompare data={comparison} loading={raw.status === "loading"} error={raw.status === "error" ? raw.error : null} onRetry={raw.reload} />
         </Tile>
 

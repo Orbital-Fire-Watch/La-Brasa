@@ -284,6 +284,8 @@ export const es: Messages = {
   "list.close": "Cerrar",
   "list.gone": "Este incendio ya no existe.",
   "list.notInWindow": "El incendio seleccionado no está en la ventana de consulta de este día.",
+  "list.upcoming": "Aún no ha comenzado este día: el incendio empieza el {date}.",
+  "list.ended": "Ya ha terminado este día: el incendio se detectó por última vez el {date}.",
   "list.clear": "Quitar",
   "list.empty": "No hay incendios en los {window} hasta el {date}.",
   "list.countEvents": { one: "{count} incendio", other: "{count} incendios" },
@@ -376,6 +378,7 @@ export const es: Messages = {
   "cmp.cellTitle": "Detecciones de {family} sin procesar",
   "cmp.legendFamily": "Detecciones de {family} sin procesar por celda H3",
   "cmp.analysisTitle": "Datos sin procesar: MODIS y VIIRS, 30 días hasta el {date}",
+  "cmp.playbackNote": "Se mantiene en este día durante la reproducción.",
   "cmp.mapAria": "Mapa de detecciones de {family} sin procesar",
 
   "year.helpDisplay": "Armonizados: focos ponderados, comparables entre años. MODIS y VIIRS sin procesar: detecciones sin corregir de una familia de instrumentos. Comparar: ambos mapas de calor con una escala de color común, más las detecciones sin procesar por año.",

@@ -284,6 +284,8 @@ export const pt: Messages = {
   "list.close": "Fechar",
   "list.gone": "Este incêndio já não existe.",
   "list.notInWindow": "O incêndio selecionado não está na janela de consulta deste dia.",
+  "list.upcoming": "Ainda não começou neste dia: o incêndio começa a {date}.",
+  "list.ended": "Já terminou neste dia: o incêndio foi detetado pela última vez a {date}.",
   "list.clear": "Limpar",
   "list.empty": "Sem incêndios nos {window} até {date}.",
   "list.countEvents": { one: "{count} incêndio", other: "{count} incêndios" },
@@ -376,6 +378,7 @@ export const pt: Messages = {
   "cmp.cellTitle": "Deteções {family} em bruto",
   "cmp.legendFamily": "Deteções {family} em bruto por célula H3",
   "cmp.analysisTitle": "Dados em bruto: MODIS e VIIRS, 30 dias até {date}",
+  "cmp.playbackNote": "Mantém-se neste dia durante a reprodução.",
   "cmp.mapAria": "Mapa das deteções {family} em bruto",
 
   "year.helpDisplay": "Harmonizados: focos ponderados, comparáveis entre anos. MODIS e VIIRS em bruto: deteções não corrigidas de uma família de instrumentos. Comparar: os dois mapas de calor com uma escala de cores comum, mais as deteções em bruto por ano.",

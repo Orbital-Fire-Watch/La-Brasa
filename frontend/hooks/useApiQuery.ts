@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isAbortError } from "../services/api/errors";
+import { ApiError, isAbortError } from "../services/api/errors";
 
 /** UI state of one request. While loading, `data` holds the previous result (keeps maps and lists stable). */
 export type QueryState<T> =
@@ -9,6 +9,8 @@ export type QueryState<T> =
   | { status: "success"; data: T };
 
 const CACHE_LIMIT = 400;
+/** Waits before the retries of a request that failed for a passing reason (see isTransient). */
+const RETRY_DELAYS_MS = [500, 1500];
 const cache = new Map<string, unknown>();
 
 function remember(key: string, value: unknown) {
@@ -25,6 +27,7 @@ export function clearQueryCache() {
  * Loads data for `key` (null = nothing to load). A new key aborts the running request (AbortController);
  * `debounceMs` delays the request for high-frequency input such as the time slider or map moves.
  * Results are cached by key, so the key must contain every request parameter and the data_version.
+ * Passing server or network failures are retried twice before the error is shown.
  */
 export function useApiQuery<T>(
   key: string | null,
@@ -53,8 +56,7 @@ export function useApiQuery<T>(
     if (key === null || cache.has(key)) return;
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
-      fetcherRef
-        .current(ctrl.signal)
+      fetchWithRetry(() => fetcherRef.current(ctrl.signal), ctrl.signal)
         .then((data) => {
           remember(key, data);
           setEntry({ key, state: { status: "success", data } });
@@ -78,6 +80,36 @@ export function useApiQuery<T>(
   }, [key]);
 
   return { ...current.state, reload } as QueryState<T> & { reload: () => void };
+}
+
+/**
+ * A 5xx without a usable answer (e.g. the dev proxy losing the backend connection) or a dropped connection often
+ * succeeds on a second try; a request error (4xx) or a query timeout would only fail again.
+ */
+function isTransient(e: unknown): boolean {
+  if (e instanceof ApiError) return e.status >= 500 && e.code !== "QUERY_TIMEOUT";
+  return e instanceof TypeError;      // fetch rejects with a TypeError when no response arrives
+}
+
+async function fetchWithRetry<T>(fetcher: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  for (let tries = 0; ; tries++) {
+    try {
+      return await fetcher();
+    } catch (e) {
+      if (tries >= RETRY_DELAYS_MS.length || signal.aborted || !isTransient(e)) throw e;
+      await delay(RETRY_DELAYS_MS[tries], signal);
+    }
+  }
+}
+
+function delay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    }, { once: true });
+  });
 }
 
 function initialState<T>(key: string | null, previous: T | undefined): QueryState<T> {
