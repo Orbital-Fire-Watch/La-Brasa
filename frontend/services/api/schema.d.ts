@@ -572,7 +572,7 @@ export interface components {
             active: boolean;
             /**
              * New
-             * @description start == D
+             * @description became an event on D (on D it reached 2 hotspots; usually start == D)
              */
             new: boolean;
             /**
@@ -618,6 +618,16 @@ export interface components {
             trend?: ("growing" | "stable" | "shrinking") | null;
             /** @description Could-have */
             landcover?: components["schemas"]["Landcover"] | null;
+            /**
+             * Core Geometry
+             * @description cells of the dense core (largest group of directly neighbouring cells); null = no extension
+             */
+            core_geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
+            /**
+             * Extension Geometry
+             * @description cells joined to the core only through the wider ring (2 cells); null = no extension
+             */
+            extension_geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
             /**
              * Cloud Day
              * @description only for events last seen the day before D (POST /api/events): share of the sky covered at the VIIRS day pass on D at the event (0.25° cell of its centroid); null = no cloud data

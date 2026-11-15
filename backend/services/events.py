@@ -4,14 +4,20 @@ How it works
 - Points: every hotspot of Spain + Portugal with confidence nominal or high that is part of the series
   (in_series_n), i.e. exactly the points /api/hotspots returns.
 - Clustering (spec section 10): union-find over nodes (day, H3 cell of resolution 8), day by day. Two nodes
-  belong together if their cells are equal or direct neighbours (h3.grid_disk(cell, 1), centres about 0.9 km
-  apart) and at most GAP_DAYS days lie between them. The rule is transitive. The root of a group is its
+  belong together if their cells are at most RING = 2 cells apart (h3.grid_disk(cell, 2), centres up to about
+  1.8 km apart; a MODIS pixel is 1 km) and at most GAP_DAYS days lie between them. The rule is transitive. The root of a group is its
   earliest node; the id is 'e_' + sha256(start day, start cell)[:12], stable as long as the start is.
+- An event bundles several hotspots: a group counts as an event only from the day on which it has at least
+  MIN_HOTSPOTS points (event_day). A lone hotspot is no event, its event_id is null. The start stays the day
+  of the first point; "new" on D means the group became an event on D.
 - When a fire grows across two existing events they merge and the older one keeps its id (spec 5.6). The
   clustering remembers the day of every merge and, for every point, its group on its own day.
 - "As of D" (spec 5.6): an answer for day D must not know anything after D. Events that merge only after D
   are split again into their groups as of D (a small local clustering of their points up to D). The younger
   group has its own id until the merge; afterwards that id is gone (EVENT_NOT_FOUND).
+- Core and extension: inside an event as of D the points are grouped once more with CORE_RING = 1 (equal or
+  direct neighbour cells). The largest of these groups is the core; cells joined only through the wider ring
+  are the extension (core_geometry / extension_geometry, both null when there is no extension).
 - Everything is kept in memory as numpy arrays (no table, no schema change). The index is built in the
   background when the backend starts and again when the data_version changes (checked every 30 s at most,
   right away after a data sync: refresh_index).
@@ -38,7 +44,10 @@ from services.scope import SENSOR_SQL, region_exists
 log = logging.getLogger(__name__)
 
 GAP_DAYS = 2                     # spec 5.6: at most 2 days between two hotspots of one event
-RING = 1                         # direct neighbour cells at resolution 8
+MIN_HOTSPOTS = 2                 # a group of fewer points is a lone hotspot, not an event
+NEVER = np.iinfo(np.int32).max   # event_day of a group that never reaches MIN_HOTSPOTS
+RING = 2                         # cells up to 2 apart at resolution 8 belong to one event
+CORE_RING = 1                    # direct neighbours: the dense core of an event, the rest is its extension
 VERSION_CHECK_SECONDS = 30       # how often a request may check whether the data was reloaded
 STATE_CACHE_SIZE = 50_000        # event states "as of D" (slider steps reuse them)
 TREND_DAYS = 3                   # spec 6.9: fires of the last 3 days against the 3 days before
@@ -66,13 +75,18 @@ class Clusters:
     final: dict[Node, Node]          # node -> root of its event at the end
     own_day: dict[Node, Node]        # node -> root of its event on the node's own day
     merges: list[tuple[int, Node]]   # (day, a root) for every day on which two existing events grew together
+    event_day: dict[Node, int]       # root -> first day at whose end its group has >= MIN_HOTSPOTS points
 
 
-def cluster(cells_by_day: dict[int, set[str]]) -> Clusters:
-    """Union-find over (day, cell), in the order of the days (spec section 10)."""
+def cluster(cells_by_day: dict[int, set[str]], points: dict[Node, int] | None = None, ring: int = RING) -> Clusters:
+    """Union-find over (day, cell), in the order of the days (spec section 10). `points` = hotspots per node
+    (default 1 each). A root stays the root of a growing group, so its size only grows and event_day is the
+    first day on which the group is an event."""
     parent: dict[Node, Node] = {}
+    size: dict[Node, int] = {}                       # root -> points of its group so far
     merges: list[tuple[int, Node]] = []
     own_day: dict[Node, Node] = {}
+    event_day: dict[Node, int] = {}
 
     def find(x: Node) -> Node:
         while parent[x] != x:
@@ -86,14 +100,16 @@ def cluster(cells_by_day: dict[int, set[str]]) -> Clusters:
             if ra[0] < day and rb[0] < day:          # both events existed before today: they merge
                 merges.append((day, min(ra, rb)))
             parent[max(ra, rb)] = min(ra, rb)        # the older root wins -> stable id
+            size[min(ra, rb)] += size.pop(max(ra, rb))
 
     last_seen: dict[str, Node] = {}                  # cell -> its latest node so far
     for day in sorted(cells_by_day):
         cells = cells_by_day[day]
         for c in cells:
             parent[(day, c)] = (day, c)
+            size[(day, c)] = 1 if points is None else points[(day, c)]
         for c in cells:
-            for n in h3.grid_disk(c, RING):          # contains c itself
+            for n in h3.grid_disk(c, ring):          # contains c itself
                 if n in cells:
                     union((day, c), (day, n), day)
                 prev = last_seen.get(n)
@@ -101,8 +117,10 @@ def cluster(cells_by_day: dict[int, set[str]]) -> Clusters:
                     union((day, c), prev, day)
         for c in cells:
             last_seen[c] = (day, c)
-            own_day[(day, c)] = find((day, c))
-    return Clusters({node: find(node) for node in parent}, own_day, [(d, find(r)) for d, r in merges])
+            root = own_day[(day, c)] = find((day, c))
+            if root not in event_day and size[root] >= MIN_HOTSPOTS:
+                event_day[root] = day
+    return Clusters({node: find(node) for node in parent}, own_day, [(d, find(r)) for d, r in merges], event_day)
 
 
 def event_id(root: Node) -> str:
@@ -128,6 +146,7 @@ class EventIndex:
     root: np.ndarray             # per final event: root node
     offset: np.ndarray
     last_merge: np.ndarray       # per final event: last day two of its parts grew together (-1 = never)
+    event_day: np.ndarray        # per node: day on which the group with this root became an event (NEVER)
     group_ids: dict[int, str]    # root node -> id, for every group that exists on some day
     group_by_id: dict[str, int]
     event_of_root: dict[int, int]
@@ -168,9 +187,11 @@ def build_index(conn, version: str) -> EventIndex:
     days = [d.toordinal() for d in obs]
 
     cells_by_day: dict[int, set[str]] = {}
+    points: dict[Node, int] = {}
     for d, c in zip(days, cells):
         cells_by_day.setdefault(d, set()).add(c)
-    clusters = cluster(cells_by_day)
+        points[(d, c)] = points.get((d, c), 0) + 1
+    clusters = cluster(cells_by_day, points)
     nodes = sorted(clusters.final)
     number = {nd: i for i, nd in enumerate(nodes)}
     node = np.fromiter((number[nd] for nd in zip(days, cells)), dtype=np.int32, count=n)
@@ -211,15 +232,18 @@ def build_index(conn, version: str) -> EventIndex:
         node_day=np.fromiter((nd[0] for nd in nodes), dtype=np.int32, count=len(nodes)),
         node_cell=np.fromiter((cell_number[nd[1]] for nd in nodes), dtype=np.int32, count=len(nodes)),
         root=roots, offset=np.concatenate([[0], np.cumsum(np.bincount(columns["event"], minlength=len(roots)))]),
-        last_merge=last_merge, group_ids=group_ids, group_by_id={v: k for k, v in group_ids.items()},
+        last_merge=last_merge,
+        event_day=np.fromiter((clusters.event_day.get(nd, NEVER) for nd in nodes), dtype=np.int32, count=len(nodes)),
+        group_ids=group_ids, group_by_id={v: k for k, v in group_ids.items()},
         event_of_root={int(r): int(e) for r, e in zip(group_roots, event_of_group)},
         **columns, day_order=day_order, day_sorted=columns["day"][day_order],
         hid_sorted=columns["hid"][hid_order], hid_point=hid_order,
         cell_names=cell_names, cell_area=np.array([h3.cell_area(c, "km^2") for c in cell_names]),
         region_names=region_names, country_names=country_names, sensor_names=sensor_names, states={},
     )
-    log.info("Event index %s: %d points, %d events, %d merges in %.1f s",
-             version, n, len(roots), len(clusters.merges), time.monotonic() - t0)
+    log.info("Event index %s: %d points, %d events (%d groups below %d hotspots), %d merges in %.1f s",
+             version, n, int((index.event_day[roots] != NEVER).sum()), int((index.event_day[roots] == NEVER).sum()),
+             MIN_HOTSPOTS, len(clusters.merges), time.monotonic() - t0)
     return index
 
 
@@ -372,6 +396,8 @@ class EventState:
     cells: int
     area_km2: float
     geometry: dict
+    core_geometry: dict | None   # None: no extension, the core is the whole event
+    extension_geometry: dict | None
     bbox: tuple[float, float, float, float]
     centroid: tuple[float, float]
     province_id: str
@@ -388,6 +414,20 @@ def _geometry(cells: list[str]) -> tuple[dict, tuple[float, float, float, float]
     return {"type": "MultiPolygon", "coordinates": coords}, (min(xs), min(ys), max(xs), max(ys))
 
 
+def core_cells(points: dict[Node, int]) -> set[str]:
+    """Cells of the core of one event (points = hotspots per node): the largest group of its points under
+    CORE_RING, ties go to the earliest group. The other cells are the extension."""
+    cells_by_day: dict[int, set[str]] = {}
+    for day, cell in points:
+        cells_by_day.setdefault(day, set()).add(cell)
+    groups: dict[Node, int] = {}
+    final = cluster(cells_by_day, points, ring=CORE_RING).final
+    for key, r in final.items():
+        groups[r] = groups.get(r, 0) + points[key]
+    core = min(groups, key=lambda r: (-groups[r], r))
+    return {key[1] for key, r in final.items() if r == core}
+
+
 def state(ix: EventIndex, root: int, pts: np.ndarray) -> EventState:
     """The event with this root from its points (all up to D, sorted by day). A group only grows over time,
     so root + number of points identify its state; moving the slider reuses most of them."""
@@ -397,7 +437,13 @@ def state(ix: EventIndex, root: int, pts: np.ndarray) -> EventState:
         return cached
     days, inverse = np.unique(ix.day[pts], return_inverse=True)
     unique_cells, first = np.unique(ix.cell[pts], return_index=True)
-    geometry, bbox = _geometry([ix.cell_names[c] for c in unique_cells])
+    names = [ix.cell_names[c] for c in unique_cells]
+    geometry, bbox = _geometry(names)
+    nodes, counts = np.unique(ix.node[pts], return_counts=True)
+    core = core_cells({(int(ix.node_day[nd]), ix.cell_names[ix.node_cell[nd]]): int(k) for nd, k in zip(nodes, counts)})
+    extension = [c for c in names if c not in core]
+    core_geometry = _geometry([c for c in names if c in core])[0] if extension else None
+    extension_geometry = _geometry(extension)[0] if extension else None
     frp_raw = ix.frp_raw[pts]
     st = EventState(
         start=int(days[0]), last=int(days[-1]), days=days,
@@ -407,7 +453,7 @@ def state(ix: EventIndex, root: int, pts: np.ndarray) -> EventState:
         new_cells=np.bincount(inverse[first], minlength=len(days)),
         frp_max=float(np.nanmax(frp_raw)) if np.isfinite(frp_raw).any() else None,
         cells=len(unique_cells), area_km2=float(ix.cell_area[unique_cells].sum()),
-        geometry=geometry, bbox=bbox,
+        geometry=geometry, core_geometry=core_geometry, extension_geometry=extension_geometry, bbox=bbox,
         centroid=(round(float(ix.lon[pts].mean()), COORD_DIGITS), round(float(ix.lat[pts].mean()), COORD_DIGITS)),
         province_id=ix.region_names[int(np.bincount(ix.region[pts]).argmax())],
         sensors=sorted({ix.sensor_names[i] for i in np.unique(ix.sensor[pts])}),
@@ -437,12 +483,13 @@ def feature(ix: EventIndex, root: int, st: EventState, d: int) -> dict:
         "properties": {
             "start": dt.date.fromordinal(st.start), "last_seen": dt.date.fromordinal(st.last),
             "duration_days": st.last - st.start + 1, "days_since_last": since,
-            "active": since == 0, "new": st.start == d, "ended": since > GAP_DAYS,
+            "active": since == 0, "new": int(ix.event_day[root]) == d, "ended": since > GAP_DAYS,
             "hotspots": int(st.hotspots.sum()), "fires": round(float(st.fires.sum()), 1),
             "frp_sum": round(float(st.frp_sum.sum()), 1),
             "frp_max": None if st.frp_max is None else round(st.frp_max, 1),
             "area_km2": round(st.area_km2, 1), "cells": st.cells, "centroid": st.centroid, "bbox": st.bbox,
             "province_id": st.province_id, "sensors": st.sensors, "trend": _trend(st, d), "landcover": None,
+            "core_geometry": st.core_geometry, "extension_geometry": st.extension_geometry,
         },
     }
 
@@ -468,8 +515,9 @@ def scope_mask(conn, ix: EventIndex, body) -> np.ndarray | None:
 # ---------------------------------------------------------------------------- endpoints
 
 def _selected(table: GroupTable, first: int, high_only: bool) -> np.ndarray:
-    """Spec 6.9: last_seen in the window, at least one point up to D in the area, with 'high' a high point."""
-    keep = (table.last >= first) & table.in_area
+    """Spec 6.9: last_seen in the window, at least one point up to D in the area, with 'high' a high point.
+    Groups below MIN_HOTSPOTS points (as of D) are lone hotspots, not events."""
+    keep = (table.last >= first) & table.in_area & (table.hotspots >= MIN_HOTSPOTS)
     return keep & table.has_high if high_only else keep
 
 
@@ -484,7 +532,7 @@ def list_events(conn, body) -> dict:
     table = _table(ix, groups, mask)
     found = np.flatnonzero(_selected(table, first, high_only))
     yesterday = groups_as_of(ix, _events_on(ix, d - 1, d - 1), d - 1)
-    summary = {"active": int((table.last[found] == d).sum()), "new": int((table.start[found] == d).sum()),
+    summary = {"active": int((table.last[found] == d).sum()), "new": int((ix.event_day[groups.roots[found]] == d).sum()),
                "active_previous_day": int(_selected(_table(ix, yesterday, mask), d - 1, high_only).sum())}
 
     shown = found
@@ -565,12 +613,12 @@ def hidden_fires(conn, body) -> dict:
 def _group(ix: EventIndex, event: str, d: int) -> tuple[int, np.ndarray]:
     """Root and points (up to d) of the event with this id as of day d."""
     root = ix.group_by_id.get(event)
-    if root is not None and ix.node_day[root] <= d:
+    if root is not None and ix.event_day[root] <= d:
         groups = groups_as_of(ix, np.array([ix.event_of_root[root]]), d)
         hit = np.flatnonzero(groups.roots == root)
         if len(hit):
             return root, groups.members(int(hit[0]))
-    # unknown, not started yet on d, or merged into an older event by d (spec 5.6)
+    # unknown, not an event yet on d (too few hotspots), or merged into an older event by d (spec 5.6)
     raise ApiError(404, "EVENT_NOT_FOUND", f"Event '{event}' does not exist on {dt.date.fromordinal(d).isoformat()}.")
 
 
@@ -594,7 +642,8 @@ def event_detail(conn, event: str, date: dt.date) -> dict:
 
 def daily_event_counts(conn, body, first: dt.date, last: dt.date, no_data: list[bool]) -> dict:
     """events_active / events_new for /api/daily (spec 6.5): events with a point on that day in the area, each
-    day seen as of that day; new = the event started that day. With 'high' only events with a high point that day."""
+    day seen as of that day; new = the group became an event that day. With 'high' only events with a high point
+    that day. Groups below MIN_HOTSPOTS points on that day are not counted."""
     ix = get_index(conn)
     mask = scope_mask(conn, ix, body)
     sel = (ix.day >= first.toordinal()) & (ix.day <= last.toordinal())
@@ -602,17 +651,19 @@ def daily_event_counts(conn, body, first: dt.date, last: dt.date, no_data: list[
         sel &= mask
     if body.min_confidence == "high":
         sel &= ix.high
+    sel &= ix.event_day[ix.own] <= ix.day                      # the point's group is an event on its day
     pairs = np.unique(ix.own[sel].astype(np.int64) * 2**20 + (ix.day[sel] - first.toordinal()))
     group, offset = pairs // 2**20, pairs % 2**20
     n = (last - first).days + 1
     active = np.bincount(offset, minlength=n)
-    new = np.bincount(offset[ix.node_day[group] == offset + first.toordinal()], minlength=n)
+    new = np.bincount(offset[ix.event_day[group] == offset + first.toordinal()], minlength=n)
     return {"events_active": [None if gap else int(v) for v, gap in zip(active, no_data)],
             "events_new": [None if gap else int(v) for v, gap in zip(new, no_data)]}
 
 
 def events_of(ix: EventIndex, hotspot_ids: list[str], end: dt.date) -> list[str | None]:
-    """Event id of each hotspot as of day `end` (None for points that are not in the index)."""
+    """Event id of each hotspot as of day `end` (None for points that are not in the index and for lone
+    hotspots whose group has fewer than MIN_HOTSPOTS points up to `end`)."""
     if not hotspot_ids:
         return []
     keys = np.fromiter((int(h, 16) for h in hotspot_ids), dtype=np.uint64, count=len(hotspot_ids))
@@ -627,7 +678,7 @@ def events_of(ix: EventIndex, hotspot_ids: list[str], end: dt.date) -> list[str 
         groups = groups_as_of(ix, late, d)
         root_of_point = dict(zip(groups.points.tolist(), np.repeat(groups.roots, np.diff(groups.bounds)).tolist()))
         roots = np.array([root_of_point.get(int(p), int(r)) for p, r in zip(pts, roots)], dtype=np.int64)
-    return [ix.group_ids[int(r)] if ok else None for r, ok in zip(roots, found)]
+    return [ix.group_ids[int(r)] if ok and ix.event_day[r] <= d else None for r, ok in zip(roots, found)]
 
 
 def hotspots_of_event(ix: EventIndex, event: str, end: dt.date) -> list[str]:

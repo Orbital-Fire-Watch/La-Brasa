@@ -154,6 +154,7 @@ export const en = {
   "legend.loading": "Loading map data",
   "legend.unusual": "Unusual {metric}",
   "legend.eventsByAge": "Fire events by age",
+  "legend.extension": "Outskirts: up to 2 cells from the core",
   "legend.cellsByAge": "H3 cells by age",
   "legend.anomalyTip": "Window of at least {days} days, resolution at most {res}. Blue means less, red more than the median of the comparison years.",
   "legend.ageTip": "From zoom level {zoom} on, the map shows individual hotspots. For H3 cells, opacity shows the amount.",

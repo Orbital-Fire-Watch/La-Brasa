@@ -106,8 +106,18 @@ function addLayers(map: MlMap) {
     paint: { "fill-color": ["get", "color"], "fill-opacity": ["coalesce", ["get", "opacity"], 0.55] },
   }, labels);
   map.addLayer({
-    id: "events-line", type: "line", source: "events", filter: ["!=", ["get", "hidden"], true],
+    id: "events-line", type: "line", source: "events",
+    filter: ["all", ["!=", ["get", "part"], "extension"], ["!=", ["get", "hidden"], true]],
     paint: { "line-color": ["get", "stroke"], "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 12, 1.5] },
+  });
+  // extension of an event (cells joined to the core only through the wider ring): dashed, so it reads as "loosely attached"
+  map.addLayer({
+    id: "events-extension-line", type: "line", source: "events",
+    filter: ["all", ["==", ["get", "part"], "extension"], ["!=", ["get", "hidden"], true]],
+    paint: {
+      "line-color": ["get", "stroke"], "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 12, 1.5],
+      "line-dasharray": [2, 1.5],
+    },
   });
   // fires probably hidden under clouds on D (lib/clouds.ts probablyHiddenFire): dashed, a dash pattern cannot depend on the feature
   map.addLayer({

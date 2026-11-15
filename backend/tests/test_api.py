@@ -15,6 +15,7 @@ import h3
 import numpy as np
 import pandas as pd
 import pytest
+from shapely.geometry import shape
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 pytestmark = pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")
@@ -24,7 +25,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 from core.db import connect  # noqa: E402
 from dtos import Sensor  # noqa: E402
 from main import app  # noqa: E402
-from services.events import Groups, _selected, _table, cluster, event_id  # noqa: E402
+from services.events import (MIN_HOTSPOTS, NEVER, RING, Groups, _selected, _table, cluster, core_cells,  # noqa: E402
+                             event_id, get_index)
 from services.scope import SENSOR_SQL  # noqa: E402
 
 PARQUET = Path(__file__).resolve().parents[2] / "data" / "harmonised"
@@ -340,24 +342,75 @@ def _day(iso: str) -> int:
 
 
 def test_cluster_rule_from_the_spec():
-    """Spec 5.6 / section 10: neighbour cell after 2 days = same event, same cell after 3 days = new event."""
+    """Spec 5.6 / section 10: up to 2 cells apart and 2 days = same event, same cell after 3 days = new event."""
     c = h3.latlng_to_cell(42.34, -7.86, 8)
     neighbour = next(n for n in h3.grid_disk(c, 1) if n != c)
-    far = next(n for n in h3.grid_disk(c, 3) if h3.grid_distance(c, n) == 3)
+    far = next(n for n in h3.grid_disk(neighbour, 3) if h3.grid_distance(neighbour, n) == 3)
     d0 = _day("2025-08-01")
     roots = cluster({d0: {c}, d0 + 2: {neighbour}, d0 + 5: {neighbour}, d0 + 6: {far}}).final
     assert roots[(d0 + 2, neighbour)] == roots[(d0, c)] == (d0, c)                 # 2 days later, neighbour: same
     assert roots[(d0 + 5, neighbour)] == (d0 + 5, neighbour)                       # 3 days after the last point: new
-    assert roots[(d0 + 6, far)] == (d0 + 6, far)                                   # 3 cells away: new
+    assert roots[(d0 + 6, far)] == (d0 + 6, far)                                   # 3 cells from the last point: new
+    two = next(n for n in h3.grid_disk(c, 2) if h3.grid_distance(c, n) == 2)
+    assert cluster({d0: {c}, d0 + 1: {two}}).final[(d0 + 1, two)] == (d0, c)       # 2 cells away: same (RING = 2)
     chain = cluster({d0: {c}, d0 + 1: {neighbour}, d0 + 2: {next(n for n in h3.grid_disk(neighbour, 1) if h3.grid_distance(c, n) == 2)}})
     assert len(set(chain.final.values())) == 1                                     # transitive
-    # two fires 2 cells apart grow together on day 2: merged, the older keeps the id, the merge is remembered
-    left, right = c, next(n for n in h3.grid_disk(c, 2) if h3.grid_distance(c, n) == 2)
-    middle = next(n for n in h3.grid_disk(c, 1) if h3.grid_distance(n, right) == 1)
+    # two fires 4 cells apart grow together on day 2: merged, the older keeps the id, the merge is remembered
+    left, right = c, next(n for n in h3.grid_disk(c, 4) if h3.grid_distance(c, n) == 4)
+    middle = next(n for n in h3.grid_disk(c, 2) if h3.grid_distance(n, right) == 2)
     merged = cluster({d0: {left}, d0 + 1: {right}, d0 + 2: {middle}})
     assert set(merged.final.values()) == {(d0, left)} and merged.merges == [(d0 + 2, (d0, left))]
     assert merged.own_day[(d0 + 1, right)] == (d0 + 1, right)                      # on its own day still separate
     assert event_id((d0, c)) == event_id((d0, c)) and event_id((d0, c)).startswith("e_") and len(event_id((d0, c))) == 14
+
+
+def test_a_lone_hotspot_is_no_event():
+    """An event bundles several hotspots: a group becomes an event only on the day it reaches MIN_HOTSPOTS points."""
+    c = h3.latlng_to_cell(42.34, -7.86, 8)
+    neighbour = next(n for n in h3.grid_disk(c, 1) if n != c)
+    far = next(n for n in h3.grid_disk(c, 3) if h3.grid_distance(c, n) == 3)
+    d0 = _day("2025-08-01")
+    cl = cluster({d0: {c, far}, d0 + 1: {neighbour}}, {(d0, c): 1, (d0, far): 2, (d0 + 1, neighbour): 1})
+    assert cl.event_day[(d0, c)] == d0 + 1                                        # one point on d0, two from d0 + 1
+    assert cl.event_day[(d0, far)] == d0                                          # two points in one cell: an event
+    alone = cluster({d0: {c}, d0 + 5: {neighbour}})
+    assert alone.event_day == {}                                                   # gap too long: two lone hotspots
+
+
+def test_core_is_the_largest_group_of_direct_neighbours():
+    c = h3.latlng_to_cell(42.34, -7.86, 8)
+    neighbour = next(n for n in h3.grid_disk(c, 1) if n != c)
+    two = next(n for n in h3.grid_disk(c, 2) if h3.grid_distance(c, n) == 2 and h3.grid_distance(neighbour, n) == 2)
+    d0 = _day("2025-08-01")
+    assert core_cells({(d0, c): 1, (d0, neighbour): 2, (d0 + 1, two): 1}) == {c, neighbour}   # two: extension
+    assert core_cells({(d0, c): 1, (d0 + 1, two): 3}) == {two}                                # more points win
+    assert core_cells({(d0, c): 2, (d0 + 1, two): 2}) == {c}                                  # tie: the earlier
+
+
+def test_core_and_extension_cover_the_event():
+    r = post("/api/events", {"date": D, "lookback_days": 60, "limit": 2000})["features"]
+    with_ext = [f for f in r if f["properties"]["extension_geometry"] is not None]
+    assert with_ext and all(f["properties"]["core_geometry"] is None for f in r if f not in with_ext)
+    for f in with_ext[:20]:                                  # core and extension split the outline without overlap
+        whole, core, ext = (shape(g).buffer(0) for g in (f["geometry"], f["properties"]["core_geometry"],
+                                                         f["properties"]["extension_geometry"]))
+        assert core.intersection(ext).area < 0.01 * whole.area
+        assert core.union(ext).symmetric_difference(whole).area < 0.01 * whole.area
+
+
+def test_events_have_at_least_min_hotspots():
+    r = post("/api/events", {"date": D, "lookback_days": 60, "limit": 2000})
+    assert all(f["properties"]["hotspots"] >= MIN_HOTSPOTS for f in r["features"])
+    points = post("/api/hotspots", {"start": D, "end": D, "limit": 20000})["features"]
+    ids = [p["properties"]["event_id"] for p in points]
+    for event in {i for i in ids if i is not None}:
+        assert client.get(f"/api/events/{event}", params={"date": D}).status_code == 200
+    with connect() as conn:
+        ix = get_index(conn)
+    lone = int(np.flatnonzero(ix.event_day[ix.root] == NEVER)[0])                  # a group that never became an event
+    root, last = int(ix.root[lone]), int(ix.day[ix.offset[lone + 1] - 1])
+    r = client.get(f"/api/events/{ix.group_ids[root]}", params={"date": pd.Timestamp.fromordinal(last).date().isoformat()})
+    assert r.status_code == 404 and r.json()["error"]["code"] == "EVENT_NOT_FOUND"
 
 
 def test_events_are_connected_and_complete(hot):
@@ -374,7 +427,7 @@ def test_events_are_connected_and_complete(hot):
         assert len(ids) == f["properties"]["hotspots"] == member.sum()
         def touching(node):
             day, cell = node
-            return {(day + k, n) for k in range(-2, 3) for n in h3.grid_disk(cell, 1)} & nodes
+            return {(day + k, n) for k in range(-2, 3) for n in h3.grid_disk(cell, RING)} & nodes
         # complete: nothing outside the event touches it; connected: walking from the start reaches all of it
         assert all(touching(n) <= inside for n in inside)
         seen, todo = set(), [min(inside)]
@@ -426,7 +479,7 @@ def test_daily_event_counts_match_hotspots():
     daily = post("/api/daily", {"region_id": "PT16"})
     i = (pd.Timestamp(D) - pd.Timestamp(daily["start"])).days
     points = post("/api/hotspots", {"start": D, "end": D, "region_id": "PT16", "limit": 20000})["features"]
-    assert daily["events_active"][i] == len({p["properties"]["event_id"] for p in points})
+    assert daily["events_active"][i] == len({p["properties"]["event_id"] for p in points} - {None})   # None: lone hotspot
     starting = [e for e in post("/api/events", {"date": D, "lookback_days": 1, "region_id": "PT16"})["features"]
                 if e["properties"]["new"]]
     assert daily["events_new"][i] == len(starting)

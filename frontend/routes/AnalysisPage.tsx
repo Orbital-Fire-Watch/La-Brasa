@@ -419,6 +419,9 @@ export function AnalysisPage() {
                   ) : (
                     <ul className="ow-agelegend">
                       {ageLegend.map((a) => <li key={a}><span className="ow-swatch" style={{ background: colors[a] }} />{t(`age.${a}`)}</li>)}
+                      {shapes && !showPoints && !eventOnMap && units.some((u) => u.extensionGeometry) && (
+                        <li><span className="ow-swatch ow-swatch--extension" style={{ color: colors.today }} />{t("legend.extension")}</li>
+                      )}
                       {hiddenFires > 0 && <li><span className="ow-swatch ow-swatch--hidden" />{t("legend.hidden")}</li>}
                     </ul>
                   )}

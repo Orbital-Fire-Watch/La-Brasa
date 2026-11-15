@@ -20,7 +20,7 @@ Jeder Schritt sagt, was zu tun ist (**Tun**) und worauf zu achten ist (**Sehen**
 | **Harmonisiert** | Die Satellitenflotte hat sich über die Jahre verändert (ab 2012 kam VIIRS mit viel kleineren Pixeln dazu). Deshalb wird jede Erkennung gewichtet und in „MODIS-Aqua-Äquivalente“ umgerechnet. So bleiben 2005 und 2025 vergleichbar. Das ist die Standardansicht. |
 | **Roh (raw)** | Die unkorrigierten Erkennungen einer Instrumentenfamilie (MODIS oder VIIRS). Roh-Zahlen von MODIS und VIIRS lassen sich nicht direkt vergleichen (1 km gegen 375 m Pixel). |
 | **FRP** | Fire Radiative Power in Megawatt (MW), also wie stark ein Feuer strahlt. |
-| **Feuerereignis (Event)** | Hotspots, die räumlich benachbart sind (gleiche oder benachbarte H3-Zelle) und höchstens 2 Tage auseinanderliegen. Das ist wahrscheinlich derselbe Brand. |
+| **Feuerereignis (Event)** | Hotspots, die räumlich nah beieinander liegen (H3-Zellen höchstens 2 Zellen, ca. 1,8 km, auseinander) und höchstens 2 Tage auseinanderliegen, mindestens 2 Hotspots. Das ist wahrscheinlich derselbe Brand. Ein einzelner Hotspot ohne Nachbarn ist kein Ereignis. Auf der Karte ist der Kern (direkt benachbarte Zellen) kräftig gefüllt, Ausläufer im zweiten Ring blass und gestrichelt. |
 | **H3-Zelle** | Ein Sechseck aus einem weltweiten Raster. Je weiter man hineinzoomt, desto kleiner werden die Zellen. |
 | **Confidence** | Wie sicher sich das Satellitenprodukt ist, dass es ein Feuer ist. „Standard“ zählt nominale und hohe Sicherheit, „High only“ nur hohe. Werte aus beiden Einstellungen nicht miteinander vergleichen. |
 | **Stichtag (Reference date)** | Der Tag, auf den sich alles bezieht. Voreingestellt ist der letzte Tag mit Daten. |

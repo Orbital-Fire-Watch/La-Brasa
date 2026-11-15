@@ -585,7 +585,7 @@ class EventProperties(ResponseModel):
     duration_days: int = Field(ge=1)
     days_since_last: NonNegInt
     active: bool = Field(description="hotspot on day D")
-    new: bool = Field(description="start == D")
+    new: bool = Field(description="became an event on D (on D it reached 2 hotspots; usually start == D)")
     ended: bool = Field(description="days_since_last > 2")
     hotspots: NonNegInt
     fires: NonNegFloat
@@ -599,6 +599,10 @@ class EventProperties(ResponseModel):
     sensors: list[Sensor]
     trend: Trend | None = Field(None, description="Could-have")
     landcover: Landcover | None = Field(None, description="Could-have")
+    core_geometry: AreaGeometry | None = Field(
+        None, description="cells of the dense core (largest group of directly neighbouring cells); null = no extension")
+    extension_geometry: AreaGeometry | None = Field(
+        None, description="cells joined to the core only through the wider ring (2 cells); null = no extension")
     cloud_day: Share | None = Field(
         None, description="only for events last seen the day before D (POST /api/events): share of the sky covered at "
                           "the VIIRS day pass on D at the event (0.25° cell of its centroid); null = no cloud data")

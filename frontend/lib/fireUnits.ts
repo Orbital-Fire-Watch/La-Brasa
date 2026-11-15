@@ -11,6 +11,9 @@ export interface FireUnit {
   id: string;
   kind: "event" | "cell";
   geometry: AreaGeometry;
+  /** Events only: dense core and the cells joined only through the wider ring; both null without extension. */
+  coreGeometry: AreaGeometry | null;
+  extensionGeometry: AreaGeometry | null;
   bbox: BBox;
   first_seen: string;
   last_seen: string;
@@ -48,6 +51,8 @@ interface EventLike {
     centroid: Position;
     province_id: string;
     trend?: "growing" | "stable" | "shrinking" | null;
+    core_geometry?: AreaGeometry | null;
+    extension_geometry?: AreaGeometry | null;
     cloud_day?: number | null;
     cloud_night?: number | null;
     seen_next_day?: boolean | null;
@@ -59,6 +64,8 @@ export function eventsToUnits(features: EventLike[]): FireUnit[] {
     id: f.id,
     kind: "event",
     geometry: f.geometry,
+    coreGeometry: f.properties.core_geometry ?? null,
+    extensionGeometry: f.properties.extension_geometry ?? null,
     bbox: f.properties.bbox,
     first_seen: f.properties.start,
     last_seen: f.properties.last_seen,
@@ -106,6 +113,8 @@ export function cellsToUnits(cells: CellLike[], date: string, windowStart: strin
       id: c.cell,
       kind: "cell",
       geometry: { type: "Polygon", coordinates: [[...ring, ring[0]]] },
+      coreGeometry: null,
+      extensionGeometry: null,
       bbox: bboxOfPoints(ring),
       first_seen: first,
       last_seen: last,
