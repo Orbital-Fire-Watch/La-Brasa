@@ -10,7 +10,7 @@ const t0 = performance.now();
 const world = buildWorld(regions, "2026-11-13");
 const buildMs = performance.now() - t0;
 const api = new MockApi(world, {
-  areas: true, daily: true, events: true, anomaly: true, anomaly_window: true, grid_by_day: true, landcover: false,
+  areas: true, daily: true, events: true, anomaly: true, anomaly_window: true, grid_by_day: true, landcover: false, forecast: true,
 });
 
 function code(fn: () => unknown): string {

@@ -3,11 +3,14 @@ import { CONFIG } from "../../lib/config";
 import { apiPost, apiRequest, apiUrl } from "./client";
 import type {
   AreaRequest, CalendarRequest, DailyRequest, EventDetailResponse, EventsRequest, ExportQuery, GridRequest,
-  HotspotsRequest, MetaResponse, RegionsResponse,
+  ForecastDailyResponse, ForecastStatusResponse, HotspotsRequest, MetaResponse, RegionsResponse,
 } from "./types";
 
 export const fireApi = {
   meta: (signal?: AbortSignal) => apiRequest<MetaResponse>("GET", "/api/meta", { signal }),
+  forecastDaily: (query: { region_id?: string; target_date?: string }, signal?: AbortSignal) =>
+    apiRequest<ForecastDailyResponse>("GET", "/api/forecast/daily", { query, signal }),
+  forecastStatus: (signal?: AbortSignal) => apiRequest<ForecastStatusResponse>("GET", "/api/forecast/status", { signal }),
   regions: (signal?: AbortSignal) => apiRequest<RegionsResponse>("GET", "/api/regions", { signal }),
   calendar: (body: CalendarRequest, signal?: AbortSignal) => apiPost("/api/calendar", body, signal),
   daily: (body: DailyRequest, signal?: AbortSignal) => apiPost("/api/daily", body, signal),

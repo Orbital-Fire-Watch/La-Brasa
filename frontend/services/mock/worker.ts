@@ -29,6 +29,7 @@ const FEATURES: Features = {
   anomaly_window: true,
   grid_by_day: true,
   landcover: false,
+  forecast: true,
 };
 for (const key of Object.keys(FEATURES) as (keyof Features)[]) if (CONFIG.mockDisabledFeatures.includes(key)) FEATURES[key] = false;
 
@@ -52,6 +53,8 @@ function route(a: MockApi, { method, path, query = {}, body = {} }: MockRequestM
     if (path === "/api/meta") return a.meta();
     if (path === "/api/regions") return a.regions();
     if (path === "/api/sync") return a.syncStatus();
+    if (path === "/api/forecast/daily") return a.forecastDaily(query);
+    if (path === "/api/forecast/status") return a.forecastStatus();
     if (path === "/api/export.csv") return a.exportCsv(query as unknown as ExportQuery);
     const m = /^\/api\/events\/([^/]+)$/.exec(path);
     if (m) return a.eventDetail(decodeURIComponent(m[1]), query.date ?? null);

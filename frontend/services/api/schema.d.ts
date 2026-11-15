@@ -208,6 +208,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forecast/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Forecast Daily */
+        get: operations["forecast_daily_api_forecast_daily_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forecast/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Forecast Status */
+        get: operations["forecast_status_api_forecast_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sync": {
         parameters: {
             query?: never;
@@ -458,7 +492,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "INVALID_REQUEST" | "INVALID_DATE_RANGE" | "AREA_CONFLICT" | "GEOMETRY_INVALID" | "AREA_OUTSIDE_REGION" | "LIMIT_TOO_HIGH" | "RESOLUTION_OUT_OF_RANGE" | "REGION_NOT_FOUND" | "AREA_NOT_FOUND" | "EVENT_NOT_FOUND" | "GEOMETRY_TOO_COMPLEX" | "INTERNAL_ERROR" | "NOT_IMPLEMENTED" | "QUERY_TIMEOUT";
+            code: "INVALID_REQUEST" | "INVALID_DATE_RANGE" | "AREA_CONFLICT" | "GEOMETRY_INVALID" | "AREA_OUTSIDE_REGION" | "LIMIT_TOO_HIGH" | "RESOLUTION_OUT_OF_RANGE" | "REGION_NOT_FOUND" | "AREA_NOT_FOUND" | "EVENT_NOT_FOUND" | "GEOMETRY_TOO_COMPLEX" | "INTERNAL_ERROR" | "NOT_IMPLEMENTED" | "QUERY_TIMEOUT" | "FORECAST_NOT_AVAILABLE";
             /**
              * Message
              * @description English text, may be shown to the user
@@ -712,6 +746,84 @@ export interface components {
             grid_by_day: boolean;
             /** Landcover */
             landcover: boolean;
+            /**
+             * Forecast
+             * @description forecast_daily has rows (/forecast/*)
+             */
+            forecast: boolean;
+        };
+        /** ForecastDailyResponse */
+        ForecastDailyResponse: {
+            /**
+             * Issue Date
+             * Format: date
+             */
+            issue_date: string;
+            /** Days */
+            days: components["schemas"]["ForecastDay"][];
+        };
+        /** ForecastDay */
+        ForecastDay: {
+            /** Region Id */
+            region_id: string;
+            /**
+             * Target Date
+             * Format: date
+             */
+            target_date: string;
+            /** Lead Days */
+            lead_days: number;
+            /** P Big Fire Day */
+            p_big_fire_day: number;
+            /** P Big Fire Day Lo */
+            p_big_fire_day_lo: number;
+            /** P Big Fire Day Hi */
+            p_big_fire_day_hi: number;
+            /** P Fire Day */
+            p_fire_day: number;
+            /** P Clim Big Fire Day */
+            p_clim_big_fire_day: number;
+            /** P Clim Fire Day */
+            p_clim_fire_day: number;
+            /** Risk Ratio */
+            risk_ratio: number;
+            /**
+             * Risk Class
+             * @enum {string}
+             */
+            risk_class: "low" | "normal" | "elevated" | "high" | "very_high";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "model" | "climatology";
+            /** Model Version */
+            model_version: string;
+        };
+        /** ForecastStatusResponse */
+        ForecastStatusResponse: {
+            /**
+             * Last Run Utc
+             * Format: date-time
+             */
+            last_run_utc: string;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Issue Date
+             * Format: date
+             */
+            issue_date: string;
+            /** Issue Date Age Days */
+            issue_date_age_days: number;
+            /** Model Version */
+            model_version: string;
+            /** Weather Used */
+            weather_used: boolean;
+            /** Weather Provider */
+            weather_provider: string | null;
+            /** Warnings */
+            warnings: string[];
         };
         /** GridAnomalyResponse */
         GridAnomalyResponse: {
@@ -1406,6 +1518,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -1473,6 +1594,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1558,6 +1688,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -1629,6 +1768,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1714,6 +1862,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -1785,6 +1942,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1870,6 +2036,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -1941,6 +2116,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2033,6 +2217,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -2104,6 +2297,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2190,6 +2392,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -2261,6 +2472,184 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    forecast_daily_api_forecast_daily_get: {
+        parameters: {
+            query?: {
+                region_id?: string | null;
+                target_date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastDailyResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    forecast_status_api_forecast_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastStatusResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2342,6 +2731,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -2409,6 +2807,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

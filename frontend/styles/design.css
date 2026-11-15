@@ -713,3 +713,30 @@ a { color: var(--ow-blue); }
 @media (max-width: 900px) {
   .ow-tour-maparea { top: 0; left: 0; right: 0; bottom: auto; height: 78vh; }
 }
+
+/* ================================================================ forecast warning box (above the short-term tile) */
+
+.ow-forecast {
+  margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--ow-tile-border); border-left-width: 6px;
+  border-radius: var(--ow-radius-lg); color: var(--ow-text);
+}
+.ow-forecast__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ow-forecast__headline { flex: 1; min-width: 12rem; }
+.ow-forecast__note { margin: 6px 0 0; font-size: 0.857rem; color: var(--ow-muted); }
+.ow-forecast__rows { display: grid; gap: 8px; margin-top: 8px; }
+.ow-forecast__region { display: block; font-size: 0.857rem; font-weight: 600; margin-bottom: 3px; }
+.ow-forecast__days {
+  display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px; margin: 0; padding: 0; list-style: none;
+}
+.ow-forecast__day {
+  display: flex; flex-direction: column; align-items: center; padding: 4px 2px; border-radius: var(--ow-radius-sm);
+  font-variant-numeric: tabular-nums; line-height: 1.2; cursor: help; min-width: 0;
+}
+.ow-forecast__date { font-size: 0.714rem; }
+.ow-forecast__pct { font-weight: 600; font-size: 0.857rem; }
+.ow-forecast__cls { font-size: 0.643rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.ow-forecast__foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 0.786rem; color: var(--ow-muted); }
+.ow-forecast__warn { color: var(--ow-text); font-weight: 600; }
+@media (max-width: 640px) {
+  .ow-forecast__days { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}

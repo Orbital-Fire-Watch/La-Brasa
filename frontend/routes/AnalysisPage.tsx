@@ -42,6 +42,9 @@ import { usePrefs } from "../hooks/usePrefs";
 import { useRegionName, useSelectionInfo } from "../hooks/useSelectionInfo";
 import { compareSensors } from "../lib/sensors";
 import { useTour } from "../hooks/useTour";
+import { ForecastBox } from "../components/analysis/ForecastBox";
+import { forecastScope, forecastVisible } from "../lib/forecast";
+import type { AreaGeometry } from "../lib/geo";
 
 const FALLBACK_RESOLUTION = 6;
 
@@ -332,6 +335,13 @@ export function AnalysisPage() {
       {daily.status === "error" && <div className="ow-content"><ErrorNote error={daily.error} onRetry={daily.reload} /></div>}
 
       <main className="ow-content">
+        {meta.features.forecast && forecastVisible(D, meta.last_date) && (
+          <ForecastBox
+            scope={forecastScope(state.region ? regionById.get(state.region) ?? null : null,
+              selection.kind === "area" ? (selection.geometry as AreaGeometry | null) : null, regions?.features ?? [])}
+            regionName={(id) => { const r = regionById.get(id); return r ? regionName(r) : id; }}
+          />
+        )}
         <Tile title={t("an.short", { date: DLabel })} tour="short">
           <div className="ow-cards">
             <WeekCard anomaly={week} method={method} unit={unitOf(method)} loading={daily.status === "loading"} />

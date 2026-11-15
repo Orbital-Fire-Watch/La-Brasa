@@ -5,7 +5,8 @@
 import { cellsToMultiPolygon, latLngToCell } from "h3-js";
 import type {
   AreaResponse, CalendarMonth, CalendarResponse, Confidence, DailyResponse, ErrorCode, EventDetailResponse,
-  EventFeature, EventProperties, EventSort, EventsResponse, ExportQuery, Features, Geometry, GridAnomalyResponse,
+  EventFeature, EventProperties, EventSort, EventsResponse, ExportQuery, Features, ForecastDailyResponse, ForecastDay,
+  ForecastStatusResponse, RiskClass, Geometry, GridAnomalyResponse,
   GridByDayResponse, GridCountResponse, GridRequest, HotspotFeature, HotspotsResponse, Limits, MetaResponse, Metric,
   RegionsResponse, Sensor, SensorDailyResponse, SyncStatus,
 } from "../api/types";
@@ -16,6 +17,13 @@ import {
 } from "../../lib/geo";
 import { hex12 } from "./rng";
 import { hotspotsOf, SENSORS, type MockEvent, type MockEventDay, type MockHotspot, type World } from "./world";
+import FORECAST_SAMPLE from "./forecastSample.json";
+
+/** The mock names the Spanish regions by ISO 3166-2 code, the forecast (and the real backend) by NUTS-2. */
+const MOCK_REGION_OF_NUTS: Record<string, string> = {
+  ES11: "ES-GA", ES12: "ES-AS", ES13: "ES-CB", ES21: "ES-PV", ES22: "ES-NC", ES23: "ES-RI", ES24: "ES-AR", ES30: "ES-MD",
+  ES41: "ES-CL", ES42: "ES-CM", ES43: "ES-EX", ES51: "ES-CT", ES52: "ES-VC", ES53: "ES-IB", ES61: "ES-AN", ES62: "ES-MC",
+};
 
 export class MockApiError extends Error {
   constructor(public status: number, public code: ErrorCode, message: string) {
@@ -208,6 +216,27 @@ export class MockApi {
   }
 
   /** GET /api/sync: the synthetic world never changes, so a running sync ends at the next poll without new rows. */
+  // ---------------------------------------------------------------- forecast (a real run, placed after the mock's last day)
+  forecastDaily(query: Record<string, string>): ForecastDailyResponse {
+    if (!this.features.forecast) fail(503, "FORECAST_NOT_AVAILABLE", "No forecast has been loaded yet.");
+    const issue = this.world.lastDate;
+    let days: ForecastDay[] = FORECAST_SAMPLE.rows.map((r) => ({
+      ...r, region_id: MOCK_REGION_OF_NUTS[r.region_id] ?? r.region_id, target_date: addDays(issue, r.lead_days),
+      risk_class: r.risk_class as RiskClass, source: r.source as ForecastDay["source"],
+    }));
+    if (query.region_id) days = days.filter((d) => d.region_id === query.region_id || d.region_id.startsWith(query.region_id));
+    if (query.target_date) days = days.filter((d) => d.target_date === query.target_date);
+    return { issue_date: issue, days };
+  }
+
+  forecastStatus(): ForecastStatusResponse {
+    if (!this.features.forecast) fail(503, "FORECAST_NOT_AVAILABLE", "No forecast has been loaded yet.");
+    return {
+      last_run_utc: `${this.world.lastDate}T08:00:00Z`, ok: true, issue_date: this.world.lastDate, issue_date_age_days: 0,
+      model_version: "0.2-weather", weather_used: true, weather_provider: "open-meteo", warnings: [],
+    };
+  }
+
   syncStatus(): SyncStatus {
     if (this.sync.state === "running") this.sync = { ...this.sync, state: "succeeded", step: null, finished_at: new Date().toISOString(), new_rows: 0 };
     return { ...this.sync };
