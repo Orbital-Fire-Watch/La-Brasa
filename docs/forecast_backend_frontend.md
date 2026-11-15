@@ -411,10 +411,9 @@ Die Antworten von `daily` und `weekly` dürfen bis zum nächsten Lauf zwischenge
    forecastSkill: (signal?: AbortSignal) => apiRequest<ForecastSkillResponse>("GET", "/api/forecast/skill", { signal }),
    forecastStatus: (signal?: AbortSignal) => apiRequest<ForecastStatusResponse>("GET", "/api/forecast/status", { signal }),
    ```
-3. **Mock** (`services/mock/handlers.ts`): Ohne `VITE_API_MODE=live` beantwortet der Mock alle Anfragen, er braucht
-   also auch Antworten für die neuen Pfade.
-   - Am einfachsten eine kleine JSON-Kopie aus `data/forecast/csv/` in `services/mock/` ablegen.
-   - Im Mock `features.forecast: true` setzen. Mit `VITE_MOCK_DISABLE=forecast` lässt sich „kein Forecast“ testen.
+3. **Kein Mock mehr:** Das Frontend spricht immer mit dem Backend (der Mock unter `services/mock/` wurde entfernt).
+   Die neuen Pfade brauchen also nur das Backend. „Kein Forecast“ lässt sich mit `features.forecast: false` in
+   `/api/meta` testen.
 4. **Farben** (`lib/colors.ts`):
    - `RISK_COLOR` und `RISK_LABEL` für die fünf Klassen, nach dem Muster von `AGE_COLOR`/`AGE_LABEL`.
    - Eine sequenzielle Skala von hell bis dunkelrot, auch für Farbenblinde unterscheidbar.

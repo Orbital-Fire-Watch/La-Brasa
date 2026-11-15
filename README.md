@@ -32,7 +32,7 @@ Each part only reads the output of the part before it and does not import its co
 | `forecast/` | weather data and the fire activity forecast; reads only `data/harmonised/` | change harmonised data |
 | `db/init/` | create the tables (runs once on an empty database volume) | |
 | `backend/` | answer questions: aggregation, filtering, events, export | recompute harmonisation |
-| `frontend/` | the web app; talks only to the backend (or to its built-in mock) | compute data |
+| `frontend/` | the web app; talks only to the backend | compute data |
 | `data/` | local data, not in Git: `raw/`, `processed/`, `harmonised/`, `forecast/`, `logs/` | |
 
 - Column meanings, units and "empty vs. 0": `harmonisation/docs/data_dictionary.md`.

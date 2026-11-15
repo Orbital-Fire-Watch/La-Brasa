@@ -4,7 +4,6 @@
  * is back on the start page with the selection they had before.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CONFIG } from "../lib/config";
 import { clampDate } from "../lib/dates";
 import type { BBox, Position } from "../lib/geo";
 import {
@@ -60,7 +59,6 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const [fire, setFire] = useState<TourFire | null>(null);
   const autoStarted = useRef(false);
 
-  const available = CONFIG.apiMode === "live" || requested;
   const region = useMemo(() => {
     const features = regions?.features ?? [];
     return features.find((f) => f.properties.id === TOUR_REGION_ID)
@@ -76,8 +74,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
   // First visit (or ?tour=1): start once the pages are there. Waits for the regions, the steps need the test area.
   useEffect(() => {
     if (autoStarted.current || !regions) return;
-    const live = CONFIG.apiMode === "live";
-    if (!requested && !shouldAutoStart({ live, search: window.location.search, stored: readTourStatus() })) return;
+    if (!requested && !shouldAutoStart({ search: window.location.search, stored: readTourStatus() })) return;
     const id = window.setTimeout(() => {
       autoStarted.current = true;
       start();
@@ -130,9 +127,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, [step, fire]);
 
   const value = useMemo<TourValue>(() => ({
-    available, active, index: run?.index ?? 0, total: TOUR_STEPS.length, step, placeName: region?.properties.name ?? TOUR_REGION_NAME, date,
+    available: true, active, index: run?.index ?? 0, total: TOUR_STEPS.length, step, placeName: region?.properties.name ?? TOUR_REGION_NAME, date,
     start, next, back, end, isTarget, fit,
-  }), [available, active, run, step, region, date, start, next, back, end, isTarget, fit]);
+  }), [active, run, step, region, date, start, next, back, end, isTarget, fit]);
 
   return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
 }

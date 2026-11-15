@@ -56,11 +56,10 @@ describe("returnSearch and shouldAutoStart", () => {
   });
 
   it("starts by itself only on a first visit without a shared link", () => {
-    expect(shouldAutoStart({ live: true, search: "", stored: null })).toBe(true);
-    expect(shouldAutoStart({ live: true, search: "?region=ES11", stored: null })).toBe(false);
-    expect(shouldAutoStart({ live: true, search: "?page=analysis", stored: null })).toBe(false);
-    expect(shouldAutoStart({ live: true, search: "", stored: "skipped" })).toBe(false);
-    expect(shouldAutoStart({ live: false, search: "", stored: null })).toBe(false);
+    expect(shouldAutoStart({ search: "", stored: null })).toBe(true);
+    expect(shouldAutoStart({ search: "?region=ES11", stored: null })).toBe(false);
+    expect(shouldAutoStart({ search: "?page=analysis", stored: null })).toBe(false);
+    expect(shouldAutoStart({ search: "", stored: "skipped" })).toBe(false);
   });
 });
 

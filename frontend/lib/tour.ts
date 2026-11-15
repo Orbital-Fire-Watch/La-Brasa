@@ -105,12 +105,12 @@ export function returnSearch(search: string): string {
 
 export type TourStatus = "done" | "skipped";
 
-/** Starts by itself only on the first visit, with the real data, and not when a shared link was opened. */
-export function shouldAutoStart(opts: { live: boolean; search: string; stored: TourStatus | null }): boolean {
-  return opts.live && opts.stored === null && returnSearch(opts.search) === "" && !new URLSearchParams(opts.search).has("page");
+/** Starts by itself only on the first visit, and not when a shared link was opened. */
+export function shouldAutoStart(opts: { search: string; stored: TourStatus | null }): boolean {
+  return opts.stored === null && returnSearch(opts.search) === "" && !new URLSearchParams(opts.search).has("page");
 }
 
-/** `?tour=1` opens the tutorial in any mode (also with mock data, for development). */
+/** `?tour=1` opens the tutorial even after it was finished or skipped. */
 export const tourRequested = (search: string) => new URLSearchParams(search).has("tour");
 
 export function readTourStatus(): TourStatus | null {

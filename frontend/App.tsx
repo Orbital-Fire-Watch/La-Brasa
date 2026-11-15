@@ -2,7 +2,6 @@
 import { useMemo } from "react";
 import { useApiQuery } from "./hooks/useApiQuery";
 import { AppDataContext, type AppData } from "./hooks/useAppData";
-import { CONFIG } from "./lib/config";
 import { finestRegions } from "./lib/regions";
 import { fireApi } from "./services/api/fireApi";
 import { Logo } from "./components/Header";
@@ -39,7 +38,7 @@ function Pages() {
         {meta.status === "error" ? (
           <ErrorNote error={meta.error} onRetry={meta.reload} />
         ) : (
-          <p className="ow-splash__text"><Spinner /> {t(CONFIG.apiMode === "mock" ? "splash.mock" : "splash.live")}</p>
+          <p className="ow-splash__text"><Spinner /> {t("splash.live")}</p>
         )}
       </div>
     );

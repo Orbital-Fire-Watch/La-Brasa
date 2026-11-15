@@ -137,6 +137,47 @@ def test_daily_zero_is_not_null():
     assert all(v is not None for v in r["fires"])                  # all days up to last_date are complete
 
 
+CLOUDS = PARQUET.parent / "raw" / "clouds" / "cloud_daily.parquet"
+
+
+@pytest.mark.skipif(not CLOUDS.exists(), reason="no cloud data (pipeline/ingestion/fetch_clouds.py)")
+def test_daily_clouds_of_one_cell():
+    clouds = pd.read_parquet(CLOUDS)
+    row = clouds.dropna().iloc[-1]                                   # a cell and day with both values
+    i, j = map(int, row["cell_id"].split("_"))
+    lon, lat = (j + 0.4) * 0.25, (i + 0.4) * 0.25                     # a small square inside that one cell
+    square = [[lon, lat], [lon + 0.05, lat], [lon + 0.05, lat + 0.05], [lon, lat + 0.05], [lon, lat]]
+    r = post("/api/daily", {"geometry": {"type": "Polygon", "coordinates": [square]}})
+    assert len(r["cloud_day"]) == len(r["cloud_night"]) == len(r["fires"])
+    k = (row["date"] - pd.Timestamp(r["start"]).date()).days
+    if 0 <= k < len(r["fires"]):
+        assert r["cloud_day"][k] == pytest.approx(row["cloud_day"], abs=0.006)
+        assert r["cloud_night"][k] == pytest.approx(row["cloud_night"], abs=0.006)
+
+
+@pytest.mark.skipif(not CLOUDS.exists(), reason="no cloud data (pipeline/ingestion/fetch_clouds.py)")
+def test_events_cloud_check_only_for_events_seen_the_day_before(meta):
+    date = (pd.Timestamp(meta["last_date"]) - pd.Timedelta(days=120)).date().isoformat()   # a day with a day after it
+    r = post("/api/events", {"date": date, "lookback_days": 7, "limit": 200})
+    checked = [f["properties"] for f in r["features"] if f["properties"]["days_since_last"] == 1]
+    others = [f["properties"] for f in r["features"] if f["properties"]["days_since_last"] != 1]
+    assert all(p["cloud_day"] is None and p["seen_next_day"] is None for p in others)
+    assert all(p["seen_next_day"] is not None and p["cloud_day"] is not None for p in checked)
+
+
+@pytest.mark.skipif(not CLOUDS.exists(), reason="no cloud data (pipeline/ingestion/fetch_clouds.py)")
+def test_hidden_fire_days_match_events(meta):
+    end = pd.Timestamp(meta["last_date"]) - pd.Timedelta(days=120)
+    days = [(end - pd.Timedelta(days=k)).date().isoformat() for k in range(9, -1, -1)]
+    r = post("/api/events/hidden", {"region_id": "ES12", "start": days[0], "end": days[-1]})
+    assert len(r["cover"]) == len(days)
+    for day, cover in zip(days, r["cover"]):                         # the same fires the map draws dashed that day
+        ev = post("/api/events", {"region_id": "ES12", "date": day, "lookback_days": 7, "limit": 200})
+        lows = [min(p["cloud_day"], p["cloud_night"]) for p in (f["properties"] for f in ev["features"])
+                if p["days_since_last"] == 1 and p["seen_next_day"] and p["cloud_day"] is not None and p["cloud_night"] is not None]
+        assert cover == (max(lows) if lows else None)
+
+
 def test_confidence_high_is_subset(hot):
     a = post("/api/daily", {"region_id": "PT11", "min_confidence": "nominal"})
     b = post("/api/daily", {"region_id": "PT11", "min_confidence": "high"})

@@ -15,6 +15,9 @@ export const INFO_IDLE_DELAY_MS = 2000;
 /** Window of the activity map and the info boxes on the start page. */
 export const MAP_WINDOW_DAYS = 30;
 
+/** A day counts as cloudy (fires may be hidden) when both VIIRS passes, day and night, are covered at least this share. */
+export const CLOUDY_THRESHOLD = 0.5;
+
 /**
  * Smaller H3 cells: resolution = zoom − 1 (the app uses zoom − 2), limited to 4–8.
  * At the Iberia overview (zoom ≈ 5) this is resolution 4 (≈ 1 770 km²) instead of 3 (≈ 12 400 km²).

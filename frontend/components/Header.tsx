@@ -1,6 +1,5 @@
 /** Top bar of both pages: logo top left; language, info page and accessibility menu top right. */
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { CONFIG } from "../lib/config";
 import { BRAND, INFO_PAGE_URL } from "../lib/uiConfig";
 import { useI18n } from "../i18n/I18n";
 import { LOCALE_CODES, LOCALES, type Locale } from "../i18n/locales";
@@ -165,7 +164,6 @@ export function Header({ children, floating = false }: { children?: ReactNode; f
       <HomeLink />
       <div className="ow-header__middle">{children}</div>
       <nav className="ow-header__actions" aria-label={t("header.nav")}>
-        {CONFIG.apiMode === "mock" && <span className="ow-mocknote" title={t("header.mockTitle")}>{t("header.mock")}</span>}
         <SyncButton />
         <TutorialButton />
         <LanguageSelect />

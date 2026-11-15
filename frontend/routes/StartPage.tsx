@@ -1,5 +1,5 @@
 /**
- * Start page of the mock: fullscreen map, floating tiles on the left (settings first), info boxes that slide in
+ * Start page: fullscreen map, floating tiles on the left (settings first), info boxes that slide in
  * after 2 s and hide while the map moves, drawing tools at the bottom, "Analysis" bottom right.
  */
 import { cellToBoundary } from "h3-js";

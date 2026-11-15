@@ -35,6 +35,7 @@ export type HotspotsResponse = S["HotspotsResponse"];
 export type HotspotFeature = S["HotspotFeature"];
 export type HotspotProperties = S["HotspotProperties"];
 export type EventsRequest = S["EventsRequest"];
+export type HiddenFiresRequest = S["HiddenFiresRequest"];
 export type EventsResponse = S["EventsResponse"];
 export type EventFeature = S["EventFeature"];
 export type EventProperties = S["EventProperties"];
