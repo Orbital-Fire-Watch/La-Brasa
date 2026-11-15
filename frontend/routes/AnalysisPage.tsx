@@ -366,12 +366,16 @@ export function AnalysisPage() {
             <div className="ow-tile__controls">
               <Segmented label={t("an.lookback")} value={L} size="small" onChange={(l) => setState({ lookback: l })}
                 options={LOOKBACKS.map((l) => ({ value: l, label: t("lookback", { count: l }) }))} />
-              <Segmented label={t("an.show")} value={mapMode} size="small" onChange={(m) => setState({ view: m })}
-                options={[{ value: "events", label: t("an.events"), disabled: !eventsAvailable }, { value: "cells", label: t("an.cells") }]} />
-              <label className="ow-switch" title={anomalyAvailable ? t("an.unusualTitle") : t("an.notAvailable")}>
-                <input type="checkbox" checked={state.anomaly} disabled={!anomalyAvailable} onChange={(e) => setState({ anomaly: e.target.checked })} />
-                <span>{t("an.unusual")}</span>
-              </label>
+              {/* anomalies are always shown as H3 cells, so the events/cells choice is hidden meanwhile; state.view stays as it was */}
+              {!state.anomaly && (
+                <Segmented label={t("an.show")} value={mapMode} size="small" onChange={(m) => setState({ view: m })}
+                  options={[{ value: "events", label: t("an.events"), disabled: !eventsAvailable }, { value: "cells", label: t("an.cells") }]} />
+              )}
+              <button type="button" className="ow-btn ow-btn--small ow-btn--toggle" aria-pressed={state.anomaly}
+                disabled={!anomalyAvailable} title={anomalyAvailable ? t("an.unusualTitle") : t("an.notAvailable")}
+                onClick={() => setState({ anomaly: !state.anomaly })}>
+                {state.anomaly ? t("an.hideAnomalies") : t("an.unusual")}
+              </button>
               {state.anomaly && (
                 <label className="ow-field ow-field--inline">
                   <span className="ow-small ow-muted">{t("an.compareWith")}</span>
