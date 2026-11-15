@@ -23,7 +23,7 @@ import {
 import { ApiError } from "../services/api/errors";
 import { exportCsvUrl, fireApi } from "../services/api/fireApi";
 import { isGridAnomaly, isGridCount, type EventSort, type ExportQuery } from "../services/api/types";
-import { ActiveCard, FireList, HeroBlocks, inSentence, SeasonCard, StrongestCard, TimeSlider, WeekCard } from "../components/analysis/AnalysisParts";
+import { ActiveCard, FireList, inSentence, SeasonCard, StrongestCard, TimeSlider, WeekCard } from "../components/analysis/AnalysisParts";
 import { Header } from "../components/Header";
 import { DisplaySwitch, ExitButton } from "../components/map/MapTools";
 import { YearCompare } from "../components/analysis/YearCompare";
@@ -340,7 +340,6 @@ export function AnalysisPage() {
         </div>
       </div>
 
-      <HeroBlocks daily={dailyData} date={D} loading={daily.status === "loading"} />
       {daily.status === "error" && <div className="ow-content"><ErrorNote error={daily.error} onRetry={daily.reload} /></div>}
 
       <main className="ow-content">

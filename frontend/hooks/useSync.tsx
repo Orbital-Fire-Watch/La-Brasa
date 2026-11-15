@@ -2,7 +2,8 @@
  * State of the sync button and the data_version the whole app queries with.
  * Every query key contains meta.data_version, so a new effective version requests all data again while the
  * components (and the map) stay mounted. A sync with new rows gives a new data_version in /api/meta; without new
- * rows (or without sync on the server) a local revision suffix (#rN) still makes every view load again.
+ * rows a local revision suffix (#rN) still makes every view load again. A server that cannot fetch (no FIRMS key,
+ * no pipeline) is reported as "unavailable" and nothing is reloaded.
  */
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { clearQueryCache } from "./useApiQuery";
@@ -12,8 +13,8 @@ import { runSync } from "../services/api/sync";
 export type SyncState =
   | { status: "idle" }
   | { status: "running" }
-  | { status: "done"; at: string; result: "completed" | "up_to_date" | "reload_only"; newHotspots: number }
-  | { status: "failed"; at: string; error: unknown; message?: string };
+  | { status: "done"; at: string; result: "completed" | "up_to_date"; newHotspots: number }
+  | { status: "failed"; at: string; reason: "unavailable" | "error"; error: unknown; message?: string };
 
 interface SyncValue {
   state: SyncState;
@@ -57,24 +58,31 @@ export function useSyncController(meta: MetaResponse | null, reloadMeta: () => v
     runSync()
       .then((outcome) => {
         const at = new Date().toISOString();
-        if (outcome.kind === "synced" && outcome.status.state === "failed") {
-          setState({ status: "failed", at, error: null, message: outcome.status.message ?? undefined });
+        if (outcome.kind === "unavailable") {
+          setState({ status: "failed", at, reason: "unavailable", error: null, message: outcome.message });
           return;
         }
-        // Always request the data again, also when nothing is new: that is what the button promises.
+        if (outcome.status.state === "failed") {
+          setState({ status: "failed", at, reason: "error", error: null, message: outcome.status.message ?? undefined });
+          return;
+        }
+        // The fetch succeeded: request the data again, also when nothing is new.
         revision.current += 1;
-        const newRows = outcome.kind === "synced" ? (outcome.status.new_rows ?? 0) : 0;
+        const newRows = outcome.status.new_rows ?? 0;
         clearQueryCache();
         setOverride({ base: meta.data_version, version: `${current.replace(/#r\d+$/, "")}#r${revision.current}` });
         reloadMeta();
         setState({
           status: "done",
           at,
-          result: outcome.kind === "reload_only" ? "reload_only" : newRows > 0 ? "completed" : "up_to_date",
+          result: newRows > 0 ? "completed" : "up_to_date",
           newHotspots: newRows,
         });
       })
-      .catch((error: unknown) => setState({ status: "failed", at: new Date().toISOString(), error }))
+      .catch((error: unknown) => setState({
+        status: "failed", at: new Date().toISOString(), reason: "error", error,
+        message: error instanceof Error ? error.message : undefined,
+      }))
       .finally(() => {
         running.current = false;
       });
