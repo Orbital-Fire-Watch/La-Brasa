@@ -78,6 +78,11 @@ Für jedes FIRMS-Produkt aus `harmonisation/pipeline_config.yaml` (`sources`: MO
     (`harmonised_end`), die Schritte und Warnungen.
 - **Rückgabewert:** 0, wenn alle Schritte ohne Fehler durchliefen, sonst 1. Eine verfehlte KPI der Harmonisierung
   zählt auch als 1, die Ausgaben sind dann trotzdem geschrieben.
+  - Ausnahme: **I1b**, „zwei Läufe ergeben dieselben Dateien“. Die Harmonisierung prüft das nur, wenn dieselben
+    Eingaben zweimal gerechnet werden. Bei neuen FIRMS-Daten, also an fast jedem Tag, steht I1b auf „nicht
+    geprüft“ (`None`). Das gilt nicht als Fehler und steht als Hinweis im Protokoll.
+  - Geprüft wird der Determinismus mit `harmonisation/.venv/bin/python run_pipeline.py --force`, z. B. einmal pro
+    Woche. Am 15.11.2026 ergab das identische Dateien.
 
 **Gemessen** am 15.11.2026 auf dem Laptop:
 

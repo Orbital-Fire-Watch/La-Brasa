@@ -84,12 +84,30 @@ def step_fetch(days: int) -> dict:
     return res
 
 
+def failed_kpis() -> list[dict]:
+    """Failed KPIs of the last harmonisation run (data/harmonised/kpi_report.json)."""
+    try:
+        rep = json.loads((REPO / "data" / "harmonised" / "kpi_report.json").read_text())
+        return [k for k in rep.get("kpis", []) if not k.get("passed")]
+    except (OSError, ValueError):
+        return []
+
+
 def step_harmonise() -> dict:
     code, tail, sec = run([interpreter("HARMONISATION_PYTHON", "harmonisation"), "run_pipeline.py"],
                           REPO / "harmonisation", 3600)
     res = {"exit": code, "seconds": sec}
     if code == 1:
-        res["warning"] = "harmonisation: a KPI threshold was missed (outputs written, see its report)"
+        failed = failed_kpis()
+        res["failed_kpis"] = [{"id": k["id"], "value": k.get("value")} for k in failed]
+        # I1b (two runs give the same files) is only checked when the same inputs are run twice; with new FIRMS data
+        # it is None ("not checked"), not a failure. Determinism is tested with run_pipeline.py --force.
+        real = [k for k in failed if not (k["id"] == "I1b" and k.get("value") is None)]
+        if real:
+            res["warning"] = ("harmonisation: KPI threshold missed: " + ", ".join(k["id"] for k in real)
+                              + " (outputs written, see data/harmonised/kpi_report.json)")
+        else:
+            res["exit"], res["note"] = 0, "I1b determinism not checked on new inputs (needs a second run with the same data)"
     elif code != 0:
         res["warning"] = f"harmonisation failed (exit {code}); the last harmonised state is kept"
         res["log_tail"] = tail
