@@ -46,8 +46,25 @@ WEATHER_SETS = {
                  "log_days_since_rain", "rain30", "rain90_anom", "fosberg", "ffw", "drought",
                  "fwi_anom", "dc_anom", "tmax_anom", "vpd_anom"],
 }
-# slow drought features known on the issue date, for the weekly outlook
-WEEKLY_WEATHER = ["dc", "dmc", "dc_anom", "drought", "rain90_anom"]
+# Sets from the core variables only (own FWI, own Fosberg): they work with every IFS source (Meteomatics until
+# 22.11.2026, Open-Meteo afterwards) and can be perturbed with forecast errors (features/perturb.py).
+CORE_SETS = {
+    "small_core": ["log_fwi", "dc", "rh", "tmax", "log_days_since_rain"],
+    "fwi_core": ["ffmc", "dmc", "dc", "log_isi", "bui", "log_fwi", "tmax", "rh", "vpd", "gust", "precip",
+                 "log_days_since_rain", "rain30", "rain90_anom", "fosberg_own"],
+    "fwi_anom_core": ["ffmc", "dmc", "dc", "log_isi", "bui", "log_fwi", "tmax", "rh", "vpd", "gust", "precip",
+                      "log_days_since_rain", "rain30", "rain90_anom", "fosberg_own",
+                      "fwi_anom", "dc_anom", "tmax_anom", "vpd_anom"],
+    "fwi_anom_core_nl": ["ffmc", "dmc", "dc", "log_isi", "bui", "log_fwi", "tmax", "rh", "vpd", "gust", "precip",
+                         "log_days_since_rain", "rain30", "rain90_anom", "fosberg_own",
+                         "fwi_anom", "dc_anom", "tmax_anom", "vpd_anom",
+                         "log_fwi_x_clim", "dc_x_clim", "log_fwi_sq"],
+}
+# non-linear terms built from target-day features and the seasonal curve (run_forecast.Pipeline.pairs)
+INTERACTIONS = {"log_fwi_x_clim": ("log_fwi", "clim_logit"), "dc_x_clim": ("dc", "clim_logit"),
+                "log_fwi_sq": ("log_fwi", "log_fwi")}
+# slow drought features known on the issue date, for the weekly outlook (core variables only)
+WEEKLY_WEATHER = ["dc", "dmc", "dc_anom", "rain90_anom"]
 ANOMALY_OF = {"fwi_anom": "fwi", "dc_anom": "dc", "tmax_anom": "tmax", "vpd_anom": "vpd", "rain90_anom": "rain90"}
 RAIN_DAY_MM = 1.0
 DAYS_SINCE_RAIN_CAP = 120
@@ -69,17 +86,23 @@ def latest_forecast_file(out_dir: Path, group: str) -> Path | None:
 def load_point_weather(out_dir: Path, with_forecast: bool = True) -> tuple[pd.DataFrame, dict]:
     """Point weather, one row per (lat, lon, date), history continued by the newest forecast file.
 
-    Returns the table and info {group: {"history_end", "forecast_file", "forecast_end"}}.
+    Returns the table and info {group: {"history_end", "forecast_file", "forecast_end"}}. Column `lead_day` says
+    where the core values come from: -1 history (ERA5), 0 recent days (IFS), j >= 0 forecast j days after the day
+    the forecast was fetched (used by the bias correction, features/perturb.py).
     """
     parts, info = [], {}
     for group in GROUPS:
         h = _read_points(out_dir / f"weather_points_history_{group}.parquet")
+        if group == "core":
+            h["lead_day"] = -1
         gi = {"history_end": str(h["date"].max().date()), "recent_end": None, "forecast_file": None,
               "forecast_end": None}
         r_path = out_dir / f"weather_points_recent_{group}.parquet"
         if r_path.exists():
             r = _read_points(r_path)
             r = r[r["date"] > h["date"].max()]
+            if group == "core":
+                r["lead_day"] = 0
             if len(r):
                 h = pd.concat([h, r], ignore_index=True)
                 gi["recent_end"] = str(r["date"].max().date())
@@ -87,6 +110,9 @@ def load_point_weather(out_dir: Path, with_forecast: bool = True) -> tuple[pd.Da
         if f_path is not None:
             f = _read_points(f_path)
             f = f[f["date"] > h["date"].max()]
+            if group == "core":
+                start = pd.Timestamp(f_path.stem.rsplit("_", 1)[-1])
+                f["lead_day"] = (f["date"] - start).dt.days.clip(lower=0)
             if len(f):
                 h = pd.concat([h, f], ignore_index=True)
                 gi.update(forecast_file=f_path.name, forecast_end=str(f["date"].max().date()))
@@ -164,6 +190,7 @@ def add_derived(w: pd.DataFrame, train_end: str) -> pd.DataFrame:
     w["rain90"] = g["precip"].transform(lambda s: s.rolling(90, min_periods=45).sum())
     w["log_days_since_rain"] = np.log1p(np.concatenate(
         [_days_since(s >= RAIN_DAY_MM, DAYS_SINCE_RAIN_CAP) for _, s in g["precip"]]))
+    w["fosberg_own"] = fosberg_index(w["t2m"].to_numpy(), w["rh"].to_numpy(), w["wind"].to_numpy())
     w["log_fwi"] = np.log1p(w["fwi"])
     w["log_isi"] = np.log1p(w["isi"])
     w["doy"] = day_of_year_noleap(w["date"])
@@ -177,9 +204,37 @@ def add_derived(w: pd.DataFrame, train_end: str) -> pd.DataFrame:
     return w.drop(columns=["doy"])
 
 
-def build_region_weather(out_dir: Path, train_end: str, with_forecast: bool = True) -> tuple[pd.DataFrame, dict]:
+def correct_points(pts: pd.DataFrame, points: pd.DataFrame, correction) -> pd.DataFrame:
+    """Bias correction of the IFS rows (recent days and forecast) towards ERA5, per region, month and lead day."""
+    pts = pts.copy()
+    live = pts["lead_day"].fillna(-1).to_numpy() >= 0
+    if not live.any():
+        return pts
+    reg = pts.loc[live, ["lat", "lon"]].merge(points[["lat", "lon", "region_id"]].drop_duplicates(["lat", "lon"]),
+                                              on=["lat", "lon"], how="left")["region_id"].to_numpy()
+    sub = pts.loc[live]
+    months = sub["date"].dt.month.to_numpy()
+    out = {v: sub[v].to_numpy(float).copy() for v in ("t2m", "rh", "wind", "precip", "tmax", "gust", "td")}
+    for ld in np.unique(sub["lead_day"].to_numpy(int)):
+        m = sub["lead_day"].to_numpy(int) == ld
+        corr = correction.apply({v: x[m] for v, x in out.items()}, reg[m], months[m], int(ld))
+        for v in out:
+            out[v][m] = corr[v]
+    from features.perturb import clip_weather
+    out = clip_weather(out)
+    for v, x in out.items():
+        pts.loc[live, v] = x
+    return pts
+
+
+def build_region_weather(out_dir: Path, train_end: str, with_forecast: bool = True,
+                         correction=None) -> tuple[pd.DataFrame, dict]:
     pts, info = load_point_weather(out_dir, with_forecast)
-    w = add_derived(region_weather(pts, load_points(out_dir)), train_end)
+    points = load_points(out_dir)
+    if correction is not None:
+        pts = correct_points(pts, points, correction)
+        info = {**info, "bias_correction": True}
+    w = add_derived(region_weather(pts, points), train_end)
     return w, info
 
 
@@ -246,3 +301,19 @@ def signal_check(w: pd.DataFrame, fire: pd.DataFrame, train_end: str, months=(6,
         within = v - m.groupby(["region_id", m["date"].dt.month])[c].transform("mean")
         out[c] = {"auc": roc_auc(y[ok], v.to_numpy()[ok]), "auc_within_region_month": roc_auc(y[ok], within.to_numpy()[ok])}
     return {"months": list(months), "train_end": train_end, "n": int(len(m)), "n_big": int(y.sum()), "features": out}
+
+
+def fosberg_index(t_c: np.ndarray, rh: np.ndarray, wind_kmh: np.ndarray) -> np.ndarray:
+    """Fosberg fire weather index (Fosberg 1978; Goodrick 2002), from temperature, humidity and wind.
+
+    Equilibrium moisture content m (%) from T (°F) and RH, moisture damping eta, wind U in mph:
+    FFWI = eta * sqrt(1 + U^2) / 0.3002. Computed here so that the model does not need the Meteomatics index."""
+    t = np.asarray(t_c, float) * 9 / 5 + 32
+    h = np.clip(np.asarray(rh, float), 0, 100)
+    u = np.asarray(wind_kmh, float) / 1.609344
+    m = np.where(h < 10, 0.03229 + 0.281073 * h - 0.000578 * h * t,
+                 np.where(h < 50, 2.22749 + 0.160107 * h - 0.01478 * t,
+                          21.0606 + 0.005565 * h ** 2 - 0.00035 * h * t - 0.483199 * h))
+    x = np.clip(m, 0, 30) / 30.0
+    eta = 1 - 2 * x + 1.5 * x ** 2 - 0.5 * x ** 3
+    return eta * np.sqrt(1 + u ** 2) / 0.3002

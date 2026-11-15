@@ -48,11 +48,22 @@ def make_design(target: str, regions: list[str], extra: tuple[str, ...] | list[s
 
 
 def train(pairs: pd.DataFrame, target: str, lead: int, regions: list[str], l2_cont: float, l2_cat: float,
-          extra: tuple[str, ...] | list[str] = ()) -> DailyModel:
-    design = make_design(target, regions, extra).fit(pairs)
+          extra: tuple[str, ...] | list[str] = (), design: Design | None = None, w0: np.ndarray | None = None) -> DailyModel:
+    """design / w0: reuse a fitted design (same standardisation) and start values, for bootstrap refits."""
+    design = design or make_design(target, regions, extra).fit(pairs)
     X = design.matrix(pairs)
-    w = fit_logistic(X, pairs["y"].to_numpy().astype(float), design.penalty(l2_cont, l2_cat))
+    w = fit_logistic(X, pairs["y"].to_numpy().astype(float), design.penalty(l2_cont, l2_cat), w0=w0)
     return DailyModel(target, lead, design, w)
+
+
+def refit_like(model: DailyModel, pairs: pd.DataFrame, l2_cont: float, l2_cat: float) -> DailyModel:
+    """Refit on other rows (bootstrap) with the model's design, warm start and its Platt line.
+
+    Cheaper than train_calibrated (no inner fit, few Newton steps). The band then shows the uncertainty of the
+    coefficients; the calibration line is held fixed (Christoph Gahabka, docs/logistic_model.md, section 7)."""
+    m = train(pairs, model.target, model.lead, [], l2_cont, l2_cat, design=model.design, w0=model.coef)
+    m.platt = model.platt
+    return m
 
 
 def predict(model: DailyModel, pairs: pd.DataFrame) -> np.ndarray:

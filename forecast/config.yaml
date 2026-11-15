@@ -61,7 +61,14 @@ model:
   test_start: "2022-01-01"
   leads: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
   targets: [big, fire]
-  clim_window_days: 7
+  clim_window_days: 7         # moving mean +-7 days (seasonal curve of the weekly log-FRP)
+  # Seasonal curve of the daily targets: circular Gaussian kernel (sd in days) with shrinkage to a wide seasonal rate
+  # (shrink_days pseudo-days). Chosen on validation 2020-2021 (fit 2012-2019): big_fire_day Brier of the climatology
+  # -2.1 %, log loss -5 % against the old +-7-day box; a single event no longer makes a 15-day block with a hard edge
+  # (ES51, 19./20.11.). fire_day: kernel only (shrinkage made it slightly worse, many events).
+  climatology:
+    big: {sigma_days: 10, prior_sigma_days: 30, shrink_days: 20}
+    fire: {sigma_days: 10, prior_sigma_days: 30, shrink_days: 0}
   neighbours: 3
   # chosen on validation 2020-2021 (train 2012-2019), not on the test years: L2 = 1 / 30 / 100 / 300 with and
   # without Platt; L2 = 100 + Platt had the best Brier with calibration slopes ~0.8-0.85
@@ -74,6 +81,12 @@ model:
   bootstrap_models: 20        # refits on resampled years for p_big_fire_day_lo / _hi
   band_quantiles: [0.05, 0.95]
   min_region_events: 30       # per-region fallback only where the test has at least this many events
+  honest:
+    # step 5: target-day weather with real IFS forecast errors (data/forecast/ifs_errors.parquet from
+    # fetch_weather.py errors). Used to choose features, to score the weather tier and, if chosen on validation,
+    # to train it on noisy weather. draws = noisy copies of the test set.
+    enabled: true
+    draws: 3
   weather:
     # weather feature set of the daily models chosen on validation (fit 2012-2019, validate 2020-2021, mean gain
     # of big_fire_day over these leads); candidates in features/weather.py WEATHER_SETS
@@ -113,7 +126,10 @@ kpi:
 
 # Daily job (daily.py, started by cron on the server)
 daily:
-  meteomatics_valid_until: "2026-11-22"   # hackathon account; afterwards no API calls, no-weather tier only
+  meteomatics_valid_until: "2026-11-22"   # hackathon account; afterwards the fallback provider
+  fallback_provider: open-meteo           # no key, non-commercial, CC BY 4.0; null = no weather after the account ends
+  required_groups: [core]                 # groups the weather model needs (core feature sets only)
+  ensemble: true                          # ECMWF ensemble from Open-Meteo for p_big_fire_day_lo / _hi
   max_forecast_age_days: 1                # an older weather forecast is not used
   keep_forecast_files: 14                 # newest weather forecast files kept per group
   max_issue_date_age_days: 2              # warn if data/harmonised/ ends earlier (FIRMS update missing)

@@ -54,9 +54,13 @@ def _sigmoid(z: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-np.clip(z, -35, 35)))
 
 
-def fit_logistic(X: np.ndarray, y: np.ndarray, penalty: np.ndarray, max_iter: int = 60, tol: float = 1e-9) -> np.ndarray:
-    """Ridge-penalised logistic regression by Newton-Raphson (IRLS). Returns coefficients."""
-    w = np.zeros(X.shape[1])
+def fit_logistic(X: np.ndarray, y: np.ndarray, penalty: np.ndarray, max_iter: int = 60, tol: float = 1e-9,
+                 w0: np.ndarray | None = None) -> np.ndarray:
+    """Ridge-penalised logistic regression by Newton-Raphson (IRLS). Returns coefficients.
+
+    w0: start values (warm start, e.g. the production coefficients for bootstrap refits); the optimum is unique,
+    so the start only changes the number of steps."""
+    w = np.zeros(X.shape[1]) if w0 is None else np.asarray(w0, float).copy()
     pen = np.diag(penalty)
     for _ in range(max_iter):
         p = _sigmoid(X @ w)

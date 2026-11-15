@@ -46,11 +46,14 @@ import yaml
 
 import contract
 from evaluate import binary_scores, bootstrap_skill_by_year, ece, rps
-from features.climatology import doy_climatology
+from features.climatology import doy_climatology, doy_climatology_shrunk
 from features.fire_history import issue_features, lead_pairs, load_daily, region_neighbours
 from features.fwi import COMPONENTS as FWI_COMPONENTS
 from features.fwi import fwi_series
 from features import weather as wx
+from features.calendar import is_holiday
+from features.forecast_errors import growth_factors
+from features.perturb import BiasCorrection, ErrorModel, Perturber
 from models import daily, weekly
 
 HERE = Path(__file__).resolve().parent
@@ -113,9 +116,23 @@ def fwi_reference_check() -> float:
     return float(max(np.abs(o[c][:, 0] - r[c.upper()].to_numpy()).max() for c in FWI_COMPONENTS))
 
 
+def climatology_for(d: pd.DataFrame, target: str, mask: np.ndarray, mc: dict, clip=1e-4) -> pd.DataFrame:
+    """Seasonal curve per region and day of year from the rows in `mask`.
+
+    Targets listed in config model.climatology use the Gaussian kernel with shrinkage (doy_climatology_shrunk);
+    everything else the +-clim_window_days moving mean."""
+    m = mask & d[target].notna().to_numpy()
+    cc = mc.get("climatology", {}).get(target)
+    if cc:
+        return doy_climatology_shrunk(d["region_id"], d["doy"].to_numpy(), d[target], m, cc["sigma_days"],
+                                      cc["prior_sigma_days"], cc["shrink_days"], clip=clip)
+    return doy_climatology(d["region_id"], d["doy"].to_numpy(), d[target], m, mc["clim_window_days"], clip=clip)
+
+
 # =============================================================================================
 class Pipeline:
-    def __init__(self, cfg: dict, use_weather: bool, neighbours: dict | None = None, weather_qc: bool = True):
+    def __init__(self, cfg: dict, use_weather: bool, neighbours: dict | None = None, weather_qc: bool = True,
+                 correction: BiasCorrection | None = None):
         self.cfg = cfg
         self.mc = cfg["model"]
         self.train_end = pd.Timestamp(self.mc["train_end"])
@@ -137,21 +154,90 @@ class Pipeline:
         self.weather_qc: dict | None = None
         self.weather_cols: list[str] = []
         self.weekly_weather_cols: list[str] = []
+        self.noweather_extra: list[str] = []      # human features (holiday, weekend) if chosen on validation
+        self.train_noise = False                  # weather tier trained on weather with forecast errors
+        self.correction = correction              # IFS bias correction applied to the live forecast
+        self.errors: ErrorModel | None = None
+        self.perturber: Perturber | None = None
         if use_weather and (OUT / "weather_points_history_core.parquet").exists():
-            self.weather, self.weather_info = wx.build_region_weather(OUT, self.mc["train_end"])
+            self.weather, self.weather_info = wx.build_region_weather(OUT, self.mc["train_end"], correction=correction)
+            err_file = OUT / "ifs_errors.parquet"
+            if self.mc.get("honest", {}).get("enabled", False) and err_file.exists() and weather_qc:
+                err = pd.read_parquet(err_file)
+                self.errors = ErrorModel(err, growth_factors(err))
+                self.error_bias = BiasCorrection.fit(err)
+                self.perturber = Perturber(self.weather)
         if self.weather is not None and weather_qc:
             hist_end = max(pd.Timestamp(gi["recent_end"] or gi["history_end"]) for gi in self.weather_info.values())
             pts, _ = wx.load_point_weather(OUT, with_forecast=False)
             self.weather_qc = wx.quality_report(pts, self.weather[self.weather["date"] <= hist_end], self.regions,
                                                 self.mc["viirs_start"], str(min(hist_end, self.issue_date).date()))
             self.weather_qc["signal"] = wx.signal_check(self.weather, self.d, self.mc["train_end"])
+        self.ensemble = self._load_ensemble() if self.weather is not None else None
         self.tiers = TIERS if self.weather is not None else ("noweather",)
+
+    def _load_ensemble(self) -> pd.DataFrame | None:
+        """Ensemble members (fetch_weather.py ensemble) fetched on the same day as the deterministic forecast, as
+        deviations from the ensemble mean per region (strongest point of the region), date and variable."""
+        files = sorted(OUT.glob("weather_ensemble_*.parquet"))
+        fc = self.weather_info.get("core", {}).get("forecast_file")
+        if not files or not fc or files[-1].stem.rsplit("_", 1)[-1] != fc.rsplit("_", 1)[-1].removesuffix(".parquet"):
+            return None
+        e = pd.read_parquet(files[-1])
+        e[["lat", "lon"]] = e[["lat", "lon"]].round(4)
+        pts = wx.load_points(OUT)
+        top = pts.sort_values(["region_id", "weight"], ascending=[True, False]).groupby("region_id").head(1)
+        e = e.merge(top[["lat", "lon", "region_id"]], on=["lat", "lon"], how="inner")
+        from features.perturb import BASE
+        mean = e.groupby(["region_id", "date"])[BASE].transform("mean")
+        dev = e[["region_id", "date", "member"]].copy()
+        for v in BASE:
+            dev[v] = e[v] - mean[v]
+        self.weather_info["ensemble_file"] = files[-1].name
+        return dev
+
+    def ensemble_predictions(self, model: daily.DailyModel, live: pd.DataFrame, lead: int) -> np.ndarray | None:
+        """p for every ensemble member: the deterministic forecast path plus the member's deviation on each
+        forecast day, FWI carried through the days (features/perturb.py). Shape (members, rows)."""
+        if self.ensemble is None or not self.weather_cols:
+            return None
+        from features.perturb import BASE, clip_weather
+        if self.perturber is None:
+            self.perturber = Perturber(self.weather, since=self.issue_date - pd.Timedelta(days=5))
+        regions, issue = live["region_id"].to_numpy(), live["issue_date"].reset_index(drop=True)
+        base_paths = self.perturber.analysed_paths(regions, issue, lead)
+        if not hasattr(self, "_ens_wide"):
+            # (region, date) x member arrays per variable, built once
+            self._ens_members = sorted(self.ensemble["member"].unique())
+            self._ens_wide = {v: self.ensemble.pivot_table(index=["region_id", "date"], columns="member", values=v,
+                                                           aggfunc="first").reindex(columns=self._ens_members)
+                              for v in BASE}
+        wide = self._ens_wide
+        dev_k = []
+        for k in range(1, lead + 1):
+            ix = wide[BASE[0]].index.get_indexer(pd.MultiIndex.from_arrays([regions, issue + pd.Timedelta(days=k)]))
+            dev_k.append({v: np.where(ix[:, None] >= 0, np.nan_to_num(wide[v].to_numpy()[np.maximum(ix, 0)]), 0.0)
+                          for v in BASE})
+        # all members in one call: rows repeated member by member
+        n, n_m = len(regions), len(self._ens_members)
+        reg_all = np.tile(regions, n_m)
+        issue_all = pd.Series(np.tile(issue.to_numpy(), n_m))
+        paths = [clip_weather({v: np.tile(a[v], n_m) + dev_k[k][v].T.reshape(-1) for v in BASE})
+                 for k, a in enumerate(base_paths)]
+        f = self.perturber.features(reg_all, issue_all, lead, paths)
+        lm = pd.concat([live.reset_index(drop=True)] * n_m, ignore_index=True)
+        for col in f.columns:
+            if col in lm.columns:
+                lm[col] = f[col].to_numpy()
+        lm = self._interactions(lm, self.weather_cols)
+        p = daily.predict(model, lm).reshape(n_m, n)
+        ok = lm[self.weather_cols].notna().all(axis=1).to_numpy().reshape(n_m, n).all(axis=1)
+        sims = list(p[ok])
+        return np.array(sims) if len(sims) >= 10 else None
 
     # --- helpers -----------------------------------------------------------------------------
     def climatology(self, target: str, mask: np.ndarray, clip=1e-4) -> pd.DataFrame:
-        d = self.d
-        return doy_climatology(d["region_id"], d["doy"].to_numpy(), d[target], mask & d[target].notna().to_numpy(),
-                               self.mc["clim_window_days"], clip=clip)
+        return climatology_for(self.d, target, mask, self.mc, clip)
 
     def add_weather(self, df: pd.DataFrame, cols: list[str], date_col: str) -> pd.DataFrame:
         if not cols or self.weather is None:
@@ -164,10 +250,38 @@ class Pipeline:
 
     def pairs(self, target: str, lead: int, clim: pd.DataFrame, cols: list[str] = ()) -> pd.DataFrame:
         pr = daily.add_climatology(lead_pairs(self.d, self.feats, target, lead), clim)
-        return self.add_weather(pr, list(cols), "target_date")
+        pr["target_holiday"] = is_holiday(pr["region_id"], pr["target_date"])
+        pr["target_weekend"] = (pr["target_weekday"] >= 5).astype(float)
+        base = sorted({c for c in cols if c not in wx.INTERACTIONS}
+                      | {x for c in cols if c in wx.INTERACTIONS for x in wx.INTERACTIONS[c] if x != "clim_logit"})
+        return self._interactions(self.add_weather(pr, base, "target_date"), cols)
+
+    @staticmethod
+    def _interactions(df: pd.DataFrame, cols) -> pd.DataFrame:
+        for c in cols:
+            if c in wx.INTERACTIONS:
+                a, b = wx.INTERACTIONS[c]
+                df[c] = df[a] * df[b]
+        return df
+
+    def noisy(self, df: pd.DataFrame, lead: int, cols: list[str], seed: int, draws: int = 1,
+              correction: BiasCorrection | None = None) -> pd.DataFrame:
+        """Copies of `df` whose target-day weather features carry real forecast errors (features/perturb.py)."""
+        if self.perturber is None or not cols:
+            return df
+        out = []
+        for i in range(draws):
+            rng = np.random.default_rng([seed, lead, i])
+            f = self.perturber.noisy(df["region_id"].to_numpy(), df["issue_date"], lead, self.errors, rng, correction)
+            c = df.copy()
+            for col in f.columns:
+                if col in c.columns:
+                    c[col] = f[col].to_numpy()
+            out.append(self._interactions(c, cols))
+        return pd.concat(out, ignore_index=True) if draws > 1 else out[0]
 
     def extra(self, tier: str) -> list[str]:
-        return self.weather_cols if tier == "weather" else []
+        return [*self.noweather_extra, *(self.weather_cols if tier == "weather" else [])]
 
     def fit_daily(self, tr: pd.DataFrame, target: str, lead: int, extra: list[str] = ()) -> daily.DailyModel:
         mc = self.mc
@@ -176,33 +290,86 @@ class Pipeline:
                                           mc["calib_years"], extra)
         return daily.train(tr, target, lead, self.regions, mc["l2_continuous"], mc["l2_region"], extra)
 
-    # --- step 4a: choose the weather features on validation (train 2012-2019, validate 2020-2021) ---------------
+    # --- step 4a/5: choose the features on validation (fit 2012-2019, validate 2020-2021) ---------------------
     def select_weather_set(self) -> None:
-        if self.weather is None:
-            return
+        """Choose, on validation only:
+        - human features (holiday, weekend) for both tiers,
+        - the weather set (core variables only, so it works with every IFS source and can be perturbed),
+        - whether the weather tier is trained on weather with forecast errors,
+        - whether the live IFS forecast gets the bias correction.
+        Scored with forecast errors on the validation weather when the error model exists (honest), otherwise on
+        analysed weather."""
         val_start = self.train_end - pd.DateOffset(years=2) + pd.Timedelta(days=1)
         fit_rows = (self.d["date"] < val_start).to_numpy()
         leads = self.mc["weather"]["selection_leads"]
-        all_cols = sorted({c for cols in wx.WEATHER_SETS.values() for c in cols})
-        res = {}
-        for target in self.mc["targets"]:
+        honest = self.errors is not None
+        human = ["target_holiday", "target_weekend"]
+        all_cols = sorted({c for cols in [*wx.CORE_SETS.values(), *wx.WEATHER_SETS.values()] for c in cols})
+        res: dict = {}
+        prepared = {}
+        for target in ["big"]:            # decisions are made on the main target
             clim = self.climatology(target, fit_rows)
             for lead in leads:
                 pr = self.pairs(target, lead, clim, all_cols)
                 ok = pr["y"].notna()
-                tr = pr[ok & (pr["target_date"] < val_start)]
-                va = pr[ok & (pr["target_date"] >= val_start) & (pr["target_date"] <= self.train_end)]
-                y, c = va["y"].to_numpy(), va["clim"].to_numpy()
-                b_ref = np.mean((c - y) ** 2)
-                for name, cols in [("none", []), *wx.WEATHER_SETS.items()]:
-                    p = daily.predict(self.fit_daily(tr, target, lead, cols), va)
-                    res.setdefault(target, {}).setdefault(name, {})[lead] = float(1 - np.mean((p - y) ** 2) / b_ref)
-        mean_big = {name: float(np.mean(list(v.values()))) for name, v in res["big"].items()}
-        best = max(wx.WEATHER_SETS, key=lambda n: mean_big[n])
-        self.weather_cols = list(wx.WEATHER_SETS[best])
-        self.ev["weather_selection"] = {"validation": [str(val_start.date()), str(self.train_end.date())],
-                                        "gain_vs_climatology": res, "mean_gain_big": mean_big, "chosen": best}
-        print(f"  weather set chosen on validation: {best} ({len(self.weather_cols)} features)", flush=True)
+                tr = pr[ok & (pr["target_date"] < val_start)].reset_index(drop=True)
+                va = pr[ok & (pr["target_date"] >= val_start) & (pr["target_date"] <= self.train_end)].reset_index(drop=True)
+                prepared[(target, lead)] = (tr, va)
+
+        def score(target, lead, cols, train_noise=False, noisy_val=True, correction=None):
+            tr, va = prepared[(target, lead)]
+            wcols = [c for c in cols if c not in human]
+            tr_ = self.noisy(tr, lead, wcols, seed=11, correction=correction) if (train_noise and honest and wcols) else tr
+            va_ = self.noisy(va, lead, wcols, seed=12, correction=correction) if (noisy_val and honest and wcols) else va
+            y, c = va_["y"].to_numpy(), va_["clim"].to_numpy()
+            p = daily.predict(self.fit_daily(tr_, target, lead, cols), va_)
+            return float(1 - np.mean((p - y) ** 2) / np.mean((c - y) ** 2))
+
+        def mean_gain(target, **kw):
+            return {lead: score(target, lead, **kw) for lead in leads}
+
+        # 1. human features on the no-weather tier
+        for target in ["big"]:
+            res.setdefault(target, {})["none"] = mean_gain(target, cols=[])
+            res[target]["none+human"] = mean_gain(target, cols=human)
+        avg = lambda d: float(np.mean(list(d.values())))
+        self.noweather_extra = human if avg(res["big"]["none+human"]) > avg(res["big"]["none"]) else []
+        if self.weather is None:
+            self.ev["weather_selection"] = {"gain_vs_climatology": res, "human_features": self.noweather_extra}
+            return
+        base = self.noweather_extra
+        # 2. weather sets, trained on analysed weather / on weather with forecast errors (decided on big_fire_day,
+        #    the main target; fire_day uses the same set)
+        for target in ["big"]:
+            for name, cols in wx.CORE_SETS.items():
+                res[target][f"{name}"] = mean_gain(target, cols=[*base, *cols])
+                if honest:
+                    res[target][f"{name}+train_noise"] = mean_gain(target, cols=[*base, *cols], train_noise=True)
+                    res[target][f"{name} (analysed weather)"] = mean_gain(target, cols=[*base, *cols], noisy_val=False)
+            if honest:   # for the record: the old set with the Meteomatics indices, analysed weather only
+                res[target]["fwi_anom with Meteomatics indices (analysed weather)"] = mean_gain(
+                    target, cols=[*base, *wx.WEATHER_SETS["fwi_anom"]], noisy_val=False)
+        cands = [k for k in res["big"] if k.split("+")[0] in wx.CORE_SETS and "(" not in k]
+        best = max(cands, key=lambda k: avg(res["big"][k]))
+        name = best.split("+")[0]
+        self.weather_cols = list(wx.CORE_SETS[name])
+        self.train_noise = best.endswith("+train_noise")
+        # 3. bias correction of the live forecast (only meaningful with the error model)
+        use_corr = False
+        if honest:
+            for target in ["big"]:
+                res[target][f"{best}+bias_correction"] = mean_gain(target, cols=[*base, *self.weather_cols],
+                                                                   train_noise=self.train_noise,
+                                                                   correction=self.error_bias)
+            use_corr = avg(res["big"][f"{best}+bias_correction"]) > avg(res["big"][best])
+        self.correction = self.error_bias if use_corr else None
+        self.ev["weather_selection"] = {
+            "validation": [str(val_start.date()), str(self.train_end.date())], "scored_with_forecast_errors": honest,
+            "gain_vs_climatology": res, "mean_gain_big": {k: avg(v) for k, v in res["big"].items()},
+            "mean_gain_fire": {k: avg(v) for k, v in res.get("fire", {}).items()}, "chosen": name,
+            "train_noise": self.train_noise, "bias_correction": use_corr, "human_features": self.noweather_extra}
+        print(f"  chosen on validation: weather set {name} ({len(self.weather_cols)} features), train_noise "
+              f"{self.train_noise}, bias correction {use_corr}, human features {self.noweather_extra}", flush=True)
 
     # --- evaluation: train 2012-2021, test 2022 .. last archive day ------------------------------
     def evaluate_daily(self) -> None:
@@ -219,9 +386,22 @@ class Pipeline:
                     self._evaluate_tier(tier, target, lead, tr, te)
             print(f"  evaluated daily target={target}", flush=True)
 
+    def _weather_train(self, tr: pd.DataFrame, lead: int, seed: int = 21) -> pd.DataFrame:
+        return self.noisy(tr, lead, self.weather_cols, seed=seed) if self.train_noise else tr
+
     def _evaluate_tier(self, tier, target, lead, tr, te) -> None:
         mc = self.mc
+        if tier == "weather":
+            tr = self._weather_train(tr.reset_index(drop=True), lead)
         model = self.fit_daily(tr, target, lead, self.extra(tier))
+        if tier == "weather" and self.errors is not None:
+            # upper bound with analysed weather, for the record
+            pa, ya, ca = daily.predict(model, te), te["y"].to_numpy(), te["clim"].to_numpy()
+            self.ev["daily"].setdefault("weather_analysis", {})[f"{target}_{lead}"] = {
+                "bss_vs_climatology": float(1 - np.mean((pa - ya) ** 2) / np.mean((ca - ya) ** 2)),
+                "auc": float(binary_scores(ya, pa, ca, 0.5)["auc"])}
+            te = self.noisy(te.reset_index(drop=True), lead, self.weather_cols, seed=31,
+                            draws=mc["honest"]["draws"], correction=self.correction)
         thr = float(np.quantile(daily.predict(model, tr), 1 - mc["warn_share"]))
         p, c, y = daily.predict(model, te), te["clim"].to_numpy(), te["y"].to_numpy()
         sc = binary_scores(y, p, c, thr)
@@ -230,7 +410,7 @@ class Pipeline:
         self.ev["daily"][tier][f"{target}_{lead}"] = sc
         use_all = bool(sc["bss_vs_climatology"] > 0 and sc["ci_lo"] >= 0)
         self.use_model[(tier, target, lead, "all")] = use_all
-        basis = "analysis" if tier == "weather" else "no_weather"
+        basis = ("analysis_with_noise" if self.errors is not None else "analysis") if tier == "weather" else "no_weather"
         rows = [self._skill_row("daily", target, lead, "all", sc, use_all, basis)]
         for r, g in te.assign(p=p).groupby("region_id"):
             yr, pr_, cr = g["y"].to_numpy(), g["p"].to_numpy(), g["clim"].to_numpy()
@@ -274,9 +454,13 @@ class Pipeline:
             ok = pr["y"].notna() & ~pr["target_provisional"].astype(bool)
             tr = pr[ok & (pr["target_date"].dt.year != yr)]
             te = pr[ok & (pr["target_date"].dt.year == yr)]
-            c, y = te["clim"].to_numpy(), te["y"].to_numpy()
             for tier in self.tiers:
-                p = daily.predict(self.fit_daily(tr, "big", 1, self.extra(tier)), te)
+                tr_, te_ = tr.reset_index(drop=True), te.reset_index(drop=True)
+                if tier == "weather":
+                    tr_ = self._weather_train(tr_, 1)
+                    te_ = self.noisy(te_, 1, self.weather_cols, seed=41, correction=self.correction)
+                c, y = te_["clim"].to_numpy(), te_["y"].to_numpy()
+                p = daily.predict(self.fit_daily(tr_, "big", 1, self.extra(tier)), te_)
                 out[tier][int(yr)] = {"gain": 1 - np.mean((p - y) ** 2) / np.mean((c - y) ** 2), "n_events": int(y.sum())}
         self.ev["loyo"] = out
         print("  evaluated leave-one-year-out", flush=True)
@@ -347,6 +531,7 @@ class Pipeline:
              "code_fingerprint": code_fingerprint(), "trained_issue_date": str(self.issue_date.date()),
              "last_archive_day": str(self.last_archive.date()), "regions": self.regions, "neighbours": self.nn,
              "weather_cols": self.weather_cols, "weekly_weather_cols": self.weekly_weather_cols,
+             "noweather_extra": self.noweather_extra, "train_noise": self.train_noise, "correction": self.correction,
              "skill_rows": self.skill_rows, "climatology": {}, "daily": {}, "weekly": {}}
         for target in mc["targets"]:
             clim = self.climatology(target, archive)
@@ -358,17 +543,20 @@ class Pipeline:
                 entry = {"preferred": pref, "tiers": {}}
                 for tier in (("noweather", "weather") if pref == "weather" else ("noweather",)):
                     extra = self.extra(tier)
+                    tr_t = self._weather_train(tr.reset_index(drop=True), lead, seed=51) if tier == "weather" else tr
+                    model = self.fit_daily(tr_t, target, lead, extra)
                     boots = []
                     if target == "big":
-                        yrs = tr["target_date"].dt.year.to_numpy()
+                        yrs = tr_t["target_date"].dt.year.to_numpy()
                         uniq = np.unique(yrs)
                         by_year = {y: np.flatnonzero(yrs == y) for y in uniq}
                         for _ in range(mc["bootstrap_models"]):
                             pick = rng.choice(uniq, size=len(uniq), replace=True)
-                            boots.append(self.fit_daily(tr.iloc[np.concatenate([by_year[y] for y in pick])], target, lead, extra))
+                            rows = tr_t.iloc[np.concatenate([by_year[y] for y in pick])]
+                            boots.append(daily.refit_like(model, rows, mc["l2_continuous"], mc["l2_region"]))
                     use = {r: bool(self.use_model.get((tier, target, lead, r), self.use_model.get((tier, target, lead, "all"), False)))
                            for r in self.regions}
-                    entry["tiers"][tier] = {"model": self.fit_daily(tr, target, lead, extra), "bootstrap": boots, "use": use}
+                    entry["tiers"][tier] = {"model": model, "bootstrap": boots, "use": use}
                 b["daily"][f"{target}_{lead}"] = entry
             print(f"  fitted production daily target={target}", flush=True)
         weeks, wclim, lclim = self._week_inputs(
@@ -392,6 +580,7 @@ class Pipeline:
     def apply(self, b: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Today's forecast from a fitted bundle: features of the issue date, no model fitting (cheap)."""
         self.weather_cols, self.weekly_weather_cols = list(b["weather_cols"]), list(b["weekly_weather_cols"])
+        self.noweather_extra = list(b.get("noweather_extra", []))
         return self._apply_daily(b), self._apply_weekly(b)
 
     def _apply_daily(self, b: dict) -> pd.DataFrame:
@@ -413,6 +602,13 @@ class Pipeline:
                 if t["bootstrap"]:
                     sims = np.array([daily.predict(m, live) for m in t["bootstrap"]])
                     lo, hi = np.quantile(sims, mc["band_quantiles"], axis=0)
+                    if tier == "weather":
+                        ens = self.ensemble_predictions(t["model"], live, lead)
+                        if ens is not None:
+                            # weather uncertainty (ensemble) and coefficient uncertainty (bootstrap): the wider of both
+                            elo, ehi = np.quantile(ens, mc["band_quantiles"], axis=0)
+                            lo, hi = np.minimum(lo, elo), np.maximum(hi, ehi)
+                            self.ev.setdefault("ensemble_band", {})[lead] = int(len(ens))
                     live["lo"], live["hi"] = np.minimum(lo, live["p"]), np.maximum(hi, live["p"])
                 live["use"] = [t["use"].get(r, False) for r in live["region_id"]]
                 out[(target, lead)] = live
@@ -499,18 +695,19 @@ def leakage_checks(pipe: Pipeline) -> dict:
             w2.loc[lw, c] = w2.loc[lw, c] * 0.5 + 3.0
         f_a = wx.add_derived(_recompute_fwi_regions(w1), pipe.mc["train_end"])
         f_b = wx.add_derived(_recompute_fwi_regions(w2), pipe.mc["train_end"])
-        cols = sorted({c for s in wx.WEATHER_SETS.values() for c in s} | set(wx.WEEKLY_WEATHER))
+        cols = sorted(({c for s in [*wx.WEATHER_SETS.values(), *wx.CORE_SETS.values()] for c in s}
+                       | set(wx.WEEKLY_WEATHER)) - set(wx.INTERACTIONS))
         a = f_a[f_a["date"] <= wcut].sort_values(["region_id", "date"])[cols].to_numpy()
         b = f_b[f_b["date"] <= wcut].sort_values(["region_id", "date"])[cols].to_numpy()
         changed_after = not np.allclose(f_a[f_a["date"] > wcut][cols].to_numpy(), f_b[f_b["date"] > wcut][cols].to_numpy(),
                                         equal_nan=True)
         a2_weather = bool(np.allclose(a, b, equal_nan=True, rtol=0, atol=1e-12) and changed_after)
     train_rows = (d["date"] <= pipe.train_end).to_numpy()
-    c1 = doy_climatology(d["region_id"], d["doy"].to_numpy(), d["big"], train_rows & d["big"].notna().to_numpy(), 7)
+    c1 = climatology_for(d, "big", train_rows, pipe.mc)
     d3 = d.copy()
     test = d3["date"] > pipe.train_end
     d3.loc[test, "big"] = 1.0 - d3.loc[test, "big"]
-    c2 = doy_climatology(d3["region_id"], d3["doy"].to_numpy(), d3["big"], train_rows & d3["big"].notna().to_numpy(), 7)
+    c2 = climatology_for(d3, "big", train_rows, pipe.mc)
     weeks = weekly.weekly_table(d, week_col(pipe.mc))
     wk_train = (weeks["week_start"] + pd.Timedelta(days=6) <= pipe.train_end).to_numpy()
     w1 = weekly.fit_week_climatology(weeks, wk_train, 1).table
@@ -724,7 +921,8 @@ def cmd_predict(cfg: dict, use_weather: bool) -> int:
     if b["config_fingerprint"] != cfg_fp:
         print("warning: config.yaml changed since training (model / risk_class); retrain for consistent results",
               file=sys.stderr)
-    pipe = Pipeline(cfg, use_weather=use_weather and bool(b["weather_cols"]), neighbours=b["neighbours"], weather_qc=False)
+    pipe = Pipeline(cfg, use_weather=use_weather and bool(b["weather_cols"]), neighbours=b["neighbours"], weather_qc=False,
+                    correction=b.get("correction"))
     if sorted(b["regions"]) != pipe.regions:
         print("regions differ from the training data: run `run_forecast.py train` again", file=sys.stderr)
         return 2
@@ -776,6 +974,10 @@ def main() -> int:
         print(json.dumps(jsonable({"A5": qc["A5"], "A6": qc["A6"]["total"]}) if qc else "no weather", indent=1))
         return 0 if qc and qc["A6"]["passed"] and all(v["passed"] for v in qc["A5"].values()) else 1
     pipe.select_weather_set()
+    if pipe.correction is not None and pipe.weather is not None:
+        # the live IFS rows are corrected towards ERA5 (history and test are ERA5 and do not change)
+        pipe.weather, pipe.weather_info = wx.build_region_weather(OUT, cfg["model"]["train_end"], correction=pipe.correction)
+        pipe.perturber = Perturber(pipe.weather)
     pipe.evaluate_daily()
     pipe.evaluate_loyo()
     pipe.evaluate_weekly()
