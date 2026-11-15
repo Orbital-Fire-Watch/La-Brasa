@@ -54,7 +54,7 @@ FAMILY_FLAGS = {
 
 
 def build_sensor_daily(conn, scope: Scope, start: dt.date | None, end: dt.date | None) -> dict:
-    """Raw detections and raw FRP per day and family: the same points as /api/hotspots (in_series_n), unweighted."""
+    """Raw detections and raw FRP per day and family: all points of both families (not only the harmonised series), unweighted."""
     first, last = data_range(conn)
     start, end = max(start or first, first), min(end or last, last)
     if start > end:
@@ -67,7 +67,7 @@ def build_sensor_daily(conn, scope: Scope, start: dt.date | None, end: dt.date |
         measured[r["date"]] = {fam: r["is_complete_day"] and any(r[f] for f in flags) for fam, flags in FAMILY_FLAGS.items()}
     values = {(r["d"], r["fam"]): (int(r["n"]), float(r["frp"])) for r in conn.execute(
         f"SELECT h.obs_date AS d, lower(h.sensor) AS fam, count(*) AS n, COALESCE(SUM(h.frp), 0) AS frp "
-        f"FROM hotspots_harmonised h WHERE {scope.where} AND h.in_series_n "
+        f"FROM hotspots_harmonised h WHERE {scope.where} "
         f"AND h.obs_date BETWEEN %(start)s AND %(end)s GROUP BY h.obs_date, lower(h.sensor)",
         {**scope.params, "start": start, "end": end},
     ).fetchall()}

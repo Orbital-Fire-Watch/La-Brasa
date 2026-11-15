@@ -494,6 +494,8 @@ class HotspotsRequest(AreaSelector, WithConfidence):
     limit: int = Field(HOTSPOTS_DEFAULT, ge=1, le=HOTSPOTS_MAX)
     event_id: EventId | None = Field(None, description="only points of this event up to end")
     min_frp: NonNegFloat | None = Field(None, description="Could-have; applies to the points only")
+    raw: bool = Field(False, description="true = all points of both sensor families (e.g. MODIS after 2012), "
+                                         "not only those of the harmonised series")
 
     @model_validator(mode="after")
     def _check(self):

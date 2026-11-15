@@ -146,7 +146,7 @@ export function StartPage() {
   const rawPoints = rawZoom !== undefined && rawZoom >= HOTSPOT_MIN_ZOOM;
   const raw = useApiQuery(
     display !== "harmonised" ? `raw|${meta.data_version}|${selection.key}|${conf}|${windowStart}|${date}` : null,
-    (signal) => withArea((sel) => fireApi.hotspots({ ...sel, start: windowStart, end: date, limit: meta.limits.hotspots_max, min_confidence: conf }, signal)),
+    (signal) => withArea((sel) => fireApi.hotspots({ ...sel, start: windowStart, end: date, limit: meta.limits.hotspots_max, min_confidence: conf, raw: true }, signal)),
   );
   const comparison = useMemo(
     () => (raw.data ? compareSensors(raw.data.features, windowStart, date, meta, raw.data) : null),

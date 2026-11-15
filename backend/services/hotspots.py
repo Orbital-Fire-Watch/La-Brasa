@@ -18,8 +18,9 @@ def feature_id(hotspot_id: str) -> int:
     return int(hotspot_id[:13], 16)
 
 
-def _period(ix: EventIndex, scope: Scope, start: dt.date | None, end: dt.date, event: str | None) -> tuple[str, dict]:
-    where, params = scope.where + " AND h.in_series_n", {**scope.params, "start": start, "end": end}
+def _period(ix: EventIndex, scope: Scope, start: dt.date | None, end: dt.date, event: str | None,
+            raw: bool = False) -> tuple[str, dict]:
+    where, params = scope.where + ("" if raw else " AND h.in_series_n"), {**scope.params, "start": start, "end": end}
     if event is not None:
         where += " AND h.hotspot_id = ANY(%(event_hotspots)s) AND h.obs_date <= %(end)s"
         params["event_hotspots"] = hotspots_of_event(ix, event, end)
@@ -29,7 +30,7 @@ def _period(ix: EventIndex, scope: Scope, start: dt.date | None, end: dt.date, e
 
 
 def build_hotspots(conn, scope: Scope, body, ix: EventIndex) -> dict:
-    where, params = _period(ix, scope, body.start, body.end, body.event_id)
+    where, params = _period(ix, scope, body.start, body.end, body.event_id, body.raw)
     if body.bbox:
         where += " AND h.longitude BETWEEN %(w)s AND %(e)s AND h.latitude BETWEEN %(s)s AND %(n)s"
         params.update(w=body.bbox[0], s=body.bbox[1], e=body.bbox[2], n=body.bbox[3])

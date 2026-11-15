@@ -1005,6 +1005,12 @@ export interface components {
              * @description Could-have; applies to the points only
              */
             min_frp?: number | null;
+            /**
+             * Raw
+             * @description true = all points of both sensor families (e.g. MODIS after 2012), not only those of the harmonised series
+             * @default false
+             */
+            raw?: boolean;
         };
         /** HotspotsResponse */
         HotspotsResponse: {

@@ -135,7 +135,7 @@ export function AnalysisPage() {
 
   // ---- raw MODIS / VIIRS, 30 days up to D (summed up from /api/hotspots, see sensors.ts)
   const raw = useApiQuery(`raw|${v}|${selection.key}|${conf}|${cmpStart}|${qD}`, (signal) =>
-    withArea((sel) => fireApi.hotspots({ ...sel, start: cmpStart, end: qD, limit: meta.limits.hotspots_max, min_confidence: conf }, signal)),
+    withArea((sel) => fireApi.hotspots({ ...sel, start: cmpStart, end: qD, limit: meta.limits.hotspots_max, min_confidence: conf, raw: true }, signal)),
   );
   const comparison = useMemo(
     () => (raw.data ? compareSensors(raw.data.features, cmpStart, qD, meta, raw.data) : null),

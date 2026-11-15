@@ -59,7 +59,7 @@ async function viaHotspots(
 
   const worker = async () => {
     for (let w = queue.shift(); w; w = queue.shift()) {
-      const res = await fetchHotspots({ ...selector, start: w.start, end: w.end, limit: meta.limits.hotspots_max, min_confidence }, signal);
+      const res = await fetchHotspots({ ...selector, start: w.start, end: w.end, limit: meta.limits.hotspots_max, min_confidence, raw: true }, signal);
       if (res.truncated && w.split) {
         const y = yearOf(w.start);
         const months: typeof queue = [];
