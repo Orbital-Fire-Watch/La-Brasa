@@ -114,6 +114,13 @@ export function useAppState(): [AppState, SetAppState] {
   return [state, set];
 }
 
+/** Back to the start page with no selection: a new history entry with an empty query string. */
+export function goHome(): void {
+  window.history.pushState(null, "", window.location.pathname);
+  window.scrollTo({ top: 0 });
+  emit();
+}
+
 /** Replaces the whole view state with a saved query string, e.g. "?region=ES11" (end of the tutorial). */
 export function replaceAppSearch(search: string): void {
   window.history.replaceState(null, "", `${window.location.pathname}${search}`);

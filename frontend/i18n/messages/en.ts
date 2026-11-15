@@ -4,9 +4,8 @@
  * the form is chosen with Intl.PluralRules from the `count` variable.
  */
 export const en = {
-  "brand.tagline": "Satellite fire monitoring for Spain and Portugal",
-
   "header.nav": "Help and settings",
+  "header.home": "La Brasa, back to the start page",
   "header.info": "Info",
   "header.accessibility": "Accessibility",
   "header.language": "Language",
