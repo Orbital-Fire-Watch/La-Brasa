@@ -5,7 +5,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { periodColumns, type PeriodCell, type PeriodMode } from "../../lib/analysis";
 import { sequentialScale } from "../../lib/colors";
-import { formatDayMonth, monthShort } from "../../lib/dates";
+import { useI18n, type Fmt, type Translate } from "../../i18n/I18n";
 import { HeatLegend } from "./HeatLegend";
 
 export interface HeatmapProps {
@@ -23,16 +23,15 @@ export interface HeatmapProps {
 const LABEL_W = 34;
 const HEADER_H = 16;
 
-export function cellLabel(c: PeriodCell, mode: PeriodMode): string {
-  return mode === "month" ? `${monthShort(c.col + 1)} ${c.year}` : `${formatDayMonth(c.start)}–${formatDayMonth(c.end)}${c.year}`;
+/** "Aug 2025" or "11 Aug – 17 Aug 2025", in the language of the UI. */
+export function cellLabel(c: PeriodCell, mode: PeriodMode, f: Fmt): string {
+  return mode === "month" ? `${f.monthShort(c.col + 1)} ${c.year}` : `${f.dayMonth(c.start)} – ${f.dayMonth(c.end)} ${c.year}`;
 }
 
-export const STATUS_TEXT: Record<PeriodCell["status"], string> = {
-  complete: "",
-  incomplete: " (unvollständig)",
-  running: " (läuft noch)",
-  nodata: " (keine Daten)",
-};
+/** " (incomplete)" etc. after the value; nothing for a complete period. */
+export function statusText(status: PeriodCell["status"], t: Translate): string {
+  return status === "complete" ? "" : ` (${t(`status.${status}`)})`;
+}
 
 export function useHeatmapScale(cells: PeriodCell[], minYear?: number) {
   return useMemo(() => {
@@ -42,6 +41,7 @@ export function useHeatmapScale(cells: PeriodCell[], minYear?: number) {
 }
 
 export function YearHeatmap({ cells, mode, selectedDate, onSelect, formatValue, unitLabel, minYear, ariaLabel }: HeatmapProps) {
+  const { t, f } = useI18n();
   const cols = periodColumns(mode);
   const years = useMemo(() => [...new Set(cells.map((c) => c.year))].sort((a, b) => b - a), [cells]);
   const { max, color } = useHeatmapScale(cells, minYear);
@@ -79,7 +79,7 @@ export function YearHeatmap({ cells, mode, selectedDate, onSelect, formatValue, 
         className="heatmap__svg"
         viewBox={`0 0 ${width} ${height}`}
         role="grid"
-        aria-label={`${ariaLabel}. Pfeiltasten wählen ein Feld, Enter setzt den Stichtag.`}
+        aria-label={`${ariaLabel}. ${t("heat.keys")}`}
         tabIndex={0}
         onKeyDown={onKey}
         onBlur={() => setCursor(null)}
@@ -94,7 +94,7 @@ export function YearHeatmap({ cells, mode, selectedDate, onSelect, formatValue, 
           mode === "month" || col % 4 === 0 ? (
             <text key={col} x={LABEL_W + col * cellW + (mode === "month" ? cellW / 2 : 0)} y={11} className="heatmap__label"
               textAnchor={mode === "month" ? "middle" : "start"}>
-              {mode === "month" ? monthShort(col + 1).slice(0, 1) : col + 1}
+              {mode === "month" ? f.monthNarrow(col + 1) : col + 1}
             </text>
           ) : null,
         )}
@@ -134,8 +134,8 @@ export function YearHeatmap({ cells, mode, selectedDate, onSelect, formatValue, 
       </svg>
       <p className="heatmap__readout" aria-live="polite">
         {shown
-          ? `${cellLabel(shown, mode)}: ${shown.value === null || disabled(shown) ? "–" : `${formatValue(shown.value)} ${unitLabel}`}${STATUS_TEXT[shown.status]}`
-          : "Feld anklicken, um den Stichtag zu setzen."}
+          ? `${cellLabel(shown, mode, f)}: ${shown.value === null || disabled(shown) ? "–" : `${formatValue(shown.value)} ${unitLabel}`}${statusText(shown.status, t)}`
+          : t("heat.hint")}
       </p>
       <HeatLegend max={max} color={sequentialScale(max)} formatValue={formatValue} unitLabel={unitLabel} />
     </div>

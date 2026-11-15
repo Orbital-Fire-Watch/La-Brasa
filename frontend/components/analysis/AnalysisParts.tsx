@@ -1,84 +1,22 @@
 /** Building blocks of the analysis page: EFFIS-style header blocks, short-term cards, time slider, fire list. */
 import { useMemo, useState, type ReactNode } from "react";
-import type { DailySeries, SeasonPhase, SeriesKey, Values, WindowAnomaly } from "../../lib/analysis";
+import type { SeasonPhase, Values, WindowAnomaly } from "../../lib/analysis";
+import { probablyHiddenFire, type DayCloudInfo } from "../../lib/clouds";
+import { CLOUDY_THRESHOLD } from "../../lib/uiConfig";
 import { addDays, dateFromDayOfYear, dayOfYear, daysBetween, monthOf } from "../../lib/dates";
 import type { FireUnit } from "../../lib/fireUnits";
 import type { Method } from "../../lib/methods";
 import type { EventSort } from "../../services/api/types";
 import { useI18n } from "../../i18n/I18n";
-import type { MessageKey } from "../../i18n/types";
 import { unitAge } from "../../lib/mapFeatures";
 import { ageColors } from "../../lib/palette";
 import { usePrefs } from "../../hooks/usePrefs";
-import { ytdStat, type YtdStat } from "../../lib/ytd";
 import { Spinner, Tip } from "../ui/Elements";
 import { Segmented } from "../ui/Segmented";
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from "../../hooks/usePlayback";
 
 /** Lower-case first letter, for method names used inside a sentence. */
 export const inSentence = (s: string) => s.charAt(0).toLocaleLowerCase() + s.slice(1);
-
-// ------------------------------------------------------------------ header blocks (year to date, side by side)
-
-interface HeroSpec {
-  id: string;
-  key: SeriesKey;
-  unit: string;
-  sentence: MessageKey;
-  /** counts (events, detections) are shown without decimals */
-  integer?: boolean;
-}
-
-function HeroBlock({ spec, stat, loading }: { spec: HeroSpec; stat: YtdStat | null; loading: boolean }) {
-  const { t, f } = useI18n();
-  const num = (v: number) => (spec.integer && Math.abs(v) < 1e6 ? f.int(v) : f.compact(v));
-  let compare: ReactNode = t(loading ? "hero.loading" : "hero.noCompare");
-  if (stat && stat.value !== null && stat.lastYear) {
-    const pct = stat.lastYear.value > 0 ? f.pctChange((stat.value - stat.lastYear.value) / stat.lastYear.value) : "–";
-    const vars = { value: `${num(stat.lastYear.value)} ${spec.unit}`, date: f.dateLong(stat.lastYear.date), pct };
-    compare = (
-      <>
-        {t(stat.value >= stat.lastYear.value ? "hero.above" : "hero.below", vars)}
-        {stat.record && <> {stat.value > stat.record.value ? t("hero.newRecord") : t("hero.record", { value: num(stat.record.value), year: String(stat.record.year) })}</>}
-      </>
-    );
-  }
-  return (
-    <article className="ow-hero__block">
-      <p className="ow-hero__value">
-        {stat?.value == null ? (loading ? <Spinner /> : t("ui.na")) : num(stat.value)} <span className="ow-hero__unit">{spec.unit}</span>
-      </p>
-      <p className="ow-hero__sentence">{t(spec.sentence)}</p>
-      <p className="ow-hero__compare">{compare}</p>
-    </article>
-  );
-}
-
-/** Year to date for the selection: harmonised hotspots, FRP, and new events (raw detections without events). */
-export function HeroBlocks({ daily, date, loading }: { daily: DailySeries | null; date: string; loading: boolean }) {
-  const { t, f } = useI18n();
-  const specs: HeroSpec[] = [
-    { id: "fires", key: "fires", unit: t("unit.hotspots"), sentence: "hero.fires" },
-    { id: "frp", key: "frp_sum", unit: "MW", sentence: "hero.frp" },
-    daily?.events_new
-      ? { id: "events", key: "events_new", unit: t("unit.events"), sentence: "hero.events", integer: true }
-      : { id: "raw", key: "hotspots", unit: t("unit.detections"), sentence: "hero.raw", integer: true },
-  ];
-  const stats = useMemo(
-    () => (daily ? { fires: ytdStat(daily, "fires", date), frp_sum: ytdStat(daily, "frp_sum", date), events_new: ytdStat(daily, "events_new", date), hotspots: ytdStat(daily, "hotspots", date) } : null),
-    [daily, date],
-  );
-  return (
-    <section className="ow-hero" aria-label={t("hero.aria")} data-tour="hero">
-      <div className="ow-hero__grid">
-        {specs.map((s) => (
-          <HeroBlock key={s.id} spec={s} stat={stats ? stats[s.key as "fires" | "frp_sum" | "events_new" | "hotspots"] : null} loading={loading} />
-        ))}
-      </div>
-      <p className="ow-hero__asof">{t("hero.asOf", { date: f.dateLong(date) })}</p>
-    </section>
-  );
-}
 
 // ------------------------------------------------------------------ short-term cards
 
@@ -203,9 +141,13 @@ export function StrongestCard({ unit, name, loading, onShow }: { unit: FireUnit 
 
 // ------------------------------------------------------------------ time slider
 
-export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel, playback }: {
+export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel, playback, clouds, hiddenFires = 0 }: {
   value: string; anchor: string; min: string; max: string; onChange: (d: string) => void; bars: Values | null; barsLabel: string;
   playback: { playing: boolean; onToggle: () => void; speed: PlaybackSpeed; onSpeed: (s: PlaybackSpeed) => void };
+  /** cloud cover per day from min to max (lib/clouds.ts cloudDays); null = no cloud data */
+  clouds?: (DayCloudInfo | null)[] | null;
+  /** fires on the map probably hidden under clouds on the shown day (drawn dashed) */
+  hiddenFires?: number;
 }) {
   const { t, f } = useI18n();
   const total = daysBetween(min, max);
@@ -217,14 +159,16 @@ export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel,
   return (
     <div className="ow-slider" data-tour="slider">
       <div className="ow-slider__head">
-        <button type="button" className="ow-btn ow-btn--small ow-btn--icon ow-slider__play" onClick={playback.onToggle} disabled={total === 0}
-          aria-pressed={playback.playing} aria-label={t(playback.playing ? "slider.pause" : "slider.play")} title={t(playback.playing ? "slider.pause" : "slider.play")}>
-          {playback.playing
-            ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z" fill="currentColor" /></svg>
-            : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z" fill="currentColor" /></svg>}
-        </button>
-        <Segmented label={t("slider.speed")} hideLabel size="small" value={playback.speed} onChange={playback.onSpeed}
-          options={PLAYBACK_SPEEDS.map((s) => ({ value: s, label: `${f.factor(s)}×` }))} />
+        <div className="ow-slider__playback" data-tour="playback">
+          <button type="button" className="ow-btn ow-btn--small ow-btn--icon ow-slider__play" onClick={playback.onToggle} disabled={total === 0}
+            aria-pressed={playback.playing} aria-label={t(playback.playing ? "slider.pause" : "slider.play")} title={t(playback.playing ? "slider.pause" : "slider.play")}>
+            {playback.playing
+              ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z" fill="currentColor" /></svg>
+              : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z" fill="currentColor" /></svg>}
+          </button>
+          <Segmented label={t("slider.speed")} hideLabel size="small" value={playback.speed} onChange={playback.onSpeed}
+            options={PLAYBACK_SPEEDS.map((s) => ({ value: s, label: `${f.factor(s)}×` }))} />
+        </div>
         <button type="button" className="ow-btn ow-btn--small ow-btn--icon" onClick={() => onChange(addDays(value, -1))} disabled={value <= min} aria-label={t("slider.back")}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
         </button>
@@ -246,6 +190,7 @@ export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel,
           ))}
         </svg>
       )}
+      {clouds?.some(Boolean) && <CloudStrip days={clouds} min={min} pos={pos} />}
       <div className="ow-slider__track">
         <span className="ow-slider__anchor" style={{ insetInlineStart: `${pct(anchorPos)}%` }} aria-hidden="true" />
         <input type="range" min={0} max={total} step={1} value={pos} className="ow-slider__input" aria-label={t("slider.aria")} aria-valuetext={f.date(value)}
@@ -256,6 +201,44 @@ export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel,
         <span>{t("slider.reference", { date: f.dayMonth(anchor) })}</span>
         <span>{f.dayMonth(max)}</span>
       </div>
+      {clouds && <CloudNote info={clouds[pos] ?? null} hiddenFires={hiddenFires} announce={!playback.playing} />}
+    </div>
+  );
+}
+
+/** One cell per day under the fire bars: stronger = both satellite passes more covered, solid from the threshold on, dashed = a fire probably hidden. */
+function CloudStrip({ days, min, pos }: { days: (DayCloudInfo | null)[]; min: string; pos: number }) {
+  const { t, f } = useI18n();
+  const pct = (v: number | null) => (v == null ? t("ui.na") : `${f.int(v * 100)} %`);
+  return (
+    <svg className="ow-slider__clouds" data-tour="clouds" viewBox={`0 0 ${days.length} 11`} preserveAspectRatio="none" role="img" aria-label={t("cloud.strip")}>
+      {days.map((c, i) => c && (
+        <rect key={i} x={i} y={0} width={0.86} height={11} style={{ fillOpacity: cloudOpacity(c) }}
+          className={`ow-slider__cloud${c.cloudy ? " ow-slider__cloud--cloudy" : ""}${c.hiddenFire ? " ow-slider__cloud--hidden" : ""}${i === pos ? " ow-slider__cloud--on" : ""}`}>
+          <title>{t("cloud.dayTitle", { date: f.date(addDays(min, i)), day: pct(c.day), night: pct(c.night) })}</title>
+        </rect>
+      ))}
+    </svg>
+  );
+}
+
+/** Clear days stay faint (up to 0.45), cloudy days (at or above the threshold) are nearly solid. */
+const cloudOpacity = (c: DayCloudInfo): number => (c.cover === null ? 0.08 : c.cloudy ? 0.8 + 0.2 * c.cover : 0.08 + 0.37 * c.cover);
+
+const CLOUD_ICON = "M4.5 12.5h7.2a2.8 2.8 0 0 0 .3-5.6 3.9 3.9 0 0 0-7.4 1.1 2.3 2.3 0 0 0-.1 4.5z";
+
+/** Cloud cover on the day the slider shows (its date is right above); warns when fires may be hidden. Silent while playing. */
+function CloudNote({ info, hiddenFires, announce }: { info: DayCloudInfo | null; hiddenFires: number; announce: boolean }) {
+  const { t, f } = useI18n();
+  if (!info) return null;
+  const pct = (v: number | null) => (v == null ? t("ui.na") : `${f.int(v * 100)} %`);
+  const text = t("cloud.note", { day: pct(info.day), night: pct(info.night) });
+  const warning = hiddenFires > 0 ? t("cloud.noteFires", { count: hiddenFires }) : info.cloudy ? t("cloud.noteHidden") : null;
+  return (
+    <div className={`ow-cloudnote${info.cloudy || hiddenFires > 0 ? " ow-cloudnote--cloudy" : ""}`} data-tour="clouds">
+      <svg viewBox="0 0 16 16" role="img" aria-label={t("cloud.label")}><path d={CLOUD_ICON} /></svg>
+      <span aria-live={announce ? "polite" : "off"}>{warning ? `${text} – ${warning}` : text}</span>
+      <Tip text={t("cloud.help", { pct: pct(CLOUDY_THRESHOLD) })} label={t("cloud.about")} />
     </div>
   );
 }
@@ -274,6 +257,7 @@ export function FireList({ units, kind, sort, onSort, selectedId, onSelect, name
   const [shown, setShown] = useState(PAGE);
   const sorts: EventSort[] = kind === "event" ? ["frp_sum", "area_km2", "duration_days", "hotspots", "start", "last_seen"] : ["frp_sum", "duration_days", "hotspots", "last_seen"];
   const status = (u: FireUnit) => {
+    if (probablyHiddenFire(u, CLOUDY_THRESHOLD)) return t("unitStatus.hidden");
     if (u.days_since_last === 0) return u.isNew ? t("unitStatus.newToday") : t("unitStatus.activeFor", { count: u.duration_days });
     return t(u.days_since_last > 2 ? "unitStatus.ended" : "unitStatus.lastSeen", { count: u.days_since_last });
   };

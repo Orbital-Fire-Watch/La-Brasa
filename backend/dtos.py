@@ -78,6 +78,7 @@ Position = tuple[float, float]                       # [lon, lat]
 BBox = tuple[float, float, float, float]             # [minLon, minLat, maxLon, maxLat]
 NonNegFloat = Annotated[float, Field(ge=0)]
 NonNegInt = Annotated[int, Field(ge=0)]
+Share = Annotated[float, Field(ge=0, le=1)]
 
 RegionId = Annotated[str, Field(min_length=2, max_length=10, examples=["ES-OR"])]
 AreaId = Annotated[str, Field(pattern=r"^a_[0-9a-f]{12}$", examples=["a_7f3c9e2b41d0"])]
@@ -171,6 +172,7 @@ class Features(ResponseModel):
     anomaly_window: bool
     grid_by_day: bool
     landcover: bool
+    forecast: bool = Field(description="forecast_daily has rows (/forecast/*)")
 
 
 class Limits(ResponseModel):
@@ -323,11 +325,15 @@ class DailyResponse(ResponseModel):
     events_active: list[NonNegInt | None] | None = Field(
         None, description="omitted while events are not available (features.events = false)")
     events_new: list[NonNegInt | None] | None = None
+    cloud_day: list[Share | None] | None = Field(
+        None, description="share of the sky covered at the VIIRS day pass (about 13:45 UTC), mean over the 0.25° cells "
+                          "of the selection; null = no cloud value for that day; omitted without cloud data")
+    cloud_night: list[Share | None] | None = Field(None, description="the same at the night pass (about 01:45 UTC)")
 
     @model_validator(mode="after")
     def _same_length(self):
         n = (self.end - self.start).days + 1
-        for name in ("fires", "hotspots", "frp_sum", "n_sensors", "events_active", "events_new"):
+        for name in ("fires", "hotspots", "frp_sum", "n_sensors", "events_active", "events_new", "cloud_day", "cloud_night"):
             arr = getattr(self, name)
             if arr is not None and len(arr) != n:
                 raise ValueError(f"{name} has {len(arr)} values, expected {n} (start to end).")
@@ -580,7 +586,7 @@ class EventProperties(ResponseModel):
     duration_days: int = Field(ge=1)
     days_since_last: NonNegInt
     active: bool = Field(description="hotspot on day D")
-    new: bool = Field(description="start == D")
+    new: bool = Field(description="became an event on D (on D it reached 2 hotspots; usually start == D)")
     ended: bool = Field(description="days_since_last > 2")
     hotspots: NonNegInt
     fires: NonNegFloat
@@ -594,6 +600,43 @@ class EventProperties(ResponseModel):
     sensors: list[Sensor]
     trend: Trend | None = Field(None, description="Could-have")
     landcover: Landcover | None = Field(None, description="Could-have")
+    core_geometry: AreaGeometry | None = Field(
+        None, description="cells of the dense core (largest group of directly neighbouring cells); null = no extension")
+    extension_geometry: AreaGeometry | None = Field(
+        None, description="cells joined to the core only through the wider ring (2 cells); null = no extension")
+    cloud_day: Share | None = Field(
+        None, description="only for events last seen the day before D (POST /api/events): share of the sky covered at "
+                          "the VIIRS day pass on D at the event (0.25° cell of its centroid); null = no cloud data")
+    cloud_night: Share | None = Field(None, description="the same at the night pass")
+    seen_next_day: bool | None = Field(
+        None, description="only for events last seen the day before D: points on D + 1 in its cells or their direct "
+                          "neighbours; null when D is the newest day")
+
+
+class HiddenFiresRequest(AreaSelector, WithConfidence):
+    start: dt.date
+    end: dt.date
+
+    @model_validator(mode="after")
+    def _check(self):
+        _check_range(self.start, self.end, max_days=2 * LOOKBACK_DAYS_MAX + 1)
+        return self
+
+
+class HiddenFiresResponse(ResponseModel):
+    """Column-oriented: index i = day start + i."""
+    start: dt.date
+    end: dt.date
+    cover: list[Share | None] = Field(
+        description="per day: cloud cover of the most covered fire in the area that was seen the day before and the day "
+                    "after but not on the day (the lower of the two VIIRS passes at the fire); null = no such fire. "
+                    "The frontend marks the day when it reaches its cloudy threshold (frontend/lib/clouds.ts)")
+
+    @model_validator(mode="after")
+    def _same_length(self):
+        if len(self.cover) != (self.end - self.start).days + 1:
+            raise ValueError("cover must have one value per day from start to end.")
+        return self
 
 
 class EventFeature(ResponseModel):
@@ -681,6 +724,46 @@ class SyncStatus(ResponseModel):
 
 
 # ===========================================================================
+# Forecast (docs/forecast_backend_frontend.md, section 3; computed in forecast/, only passed on here)
+# ===========================================================================
+
+RiskClass = Literal["low", "normal", "elevated", "high", "very_high"]
+ForecastSource = Literal["model", "climatology"]
+
+
+class ForecastDay(ResponseModel):
+    region_id: str
+    target_date: dt.date
+    lead_days: int
+    p_big_fire_day: float
+    p_big_fire_day_lo: float
+    p_big_fire_day_hi: float
+    p_fire_day: float
+    p_clim_big_fire_day: float
+    p_clim_fire_day: float
+    risk_ratio: float
+    risk_class: RiskClass
+    source: ForecastSource
+    model_version: str
+
+
+class ForecastDailyResponse(ResponseModel):
+    issue_date: dt.date
+    days: list[ForecastDay]
+
+
+class ForecastStatusResponse(ResponseModel):
+    last_run_utc: dt.datetime
+    ok: bool
+    issue_date: dt.date
+    issue_date_age_days: int
+    model_version: str
+    weather_used: bool
+    weather_provider: str | None
+    warnings: list[str]
+
+
+# ===========================================================================
 # 8. Errors
 # ===========================================================================
 
@@ -688,7 +771,7 @@ ErrorCode = Literal[
     "INVALID_REQUEST", "INVALID_DATE_RANGE", "AREA_CONFLICT", "GEOMETRY_INVALID",
     "AREA_OUTSIDE_REGION", "LIMIT_TOO_HIGH", "RESOLUTION_OUT_OF_RANGE",
     "REGION_NOT_FOUND", "AREA_NOT_FOUND", "EVENT_NOT_FOUND",
-    "GEOMETRY_TOO_COMPLEX", "INTERNAL_ERROR", "NOT_IMPLEMENTED", "QUERY_TIMEOUT",
+    "GEOMETRY_TOO_COMPLEX", "INTERNAL_ERROR", "NOT_IMPLEMENTED", "QUERY_TIMEOUT", "FORECAST_NOT_AVAILABLE",
 ]
 
 

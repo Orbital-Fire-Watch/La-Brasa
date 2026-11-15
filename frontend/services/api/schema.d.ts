@@ -174,6 +174,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/events/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Events Hidden
+         * @description Days on which a fire was probably hidden under clouds (time slider of the analysis page).
+         */
+        post: operations["events_hidden_api_events_hidden_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events/{event_id}": {
         parameters: {
             query?: never;
@@ -202,6 +222,40 @@ export interface paths {
         put?: never;
         /** By Region */
         post: operations["by_region_api_by_region_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forecast/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Forecast Daily */
+        get: operations["forecast_daily_api_forecast_daily_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forecast/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Forecast Status */
+        get: operations["forecast_status_api_forecast_status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -451,6 +505,16 @@ export interface components {
             events_active?: (number | null)[] | null;
             /** Events New */
             events_new?: (number | null)[] | null;
+            /**
+             * Cloud Day
+             * @description share of the sky covered at the VIIRS day pass (about 13:45 UTC), mean over the 0.25° cells of the selection; null = no cloud value for that day; omitted without cloud data
+             */
+            cloud_day?: (number | null)[] | null;
+            /**
+             * Cloud Night
+             * @description the same at the night pass (about 01:45 UTC)
+             */
+            cloud_night?: (number | null)[] | null;
         };
         /** ErrorDetail */
         ErrorDetail: {
@@ -458,7 +522,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "INVALID_REQUEST" | "INVALID_DATE_RANGE" | "AREA_CONFLICT" | "GEOMETRY_INVALID" | "AREA_OUTSIDE_REGION" | "LIMIT_TOO_HIGH" | "RESOLUTION_OUT_OF_RANGE" | "REGION_NOT_FOUND" | "AREA_NOT_FOUND" | "EVENT_NOT_FOUND" | "GEOMETRY_TOO_COMPLEX" | "INTERNAL_ERROR" | "NOT_IMPLEMENTED" | "QUERY_TIMEOUT";
+            code: "INVALID_REQUEST" | "INVALID_DATE_RANGE" | "AREA_CONFLICT" | "GEOMETRY_INVALID" | "AREA_OUTSIDE_REGION" | "LIMIT_TOO_HIGH" | "RESOLUTION_OUT_OF_RANGE" | "REGION_NOT_FOUND" | "AREA_NOT_FOUND" | "EVENT_NOT_FOUND" | "GEOMETRY_TOO_COMPLEX" | "INTERNAL_ERROR" | "NOT_IMPLEMENTED" | "QUERY_TIMEOUT" | "FORECAST_NOT_AVAILABLE";
             /**
              * Message
              * @description English text, may be shown to the user
@@ -542,7 +606,7 @@ export interface components {
             active: boolean;
             /**
              * New
-             * @description start == D
+             * @description became an event on D (on D it reached 2 hotspots; usually start == D)
              */
             new: boolean;
             /**
@@ -588,6 +652,31 @@ export interface components {
             trend?: ("growing" | "stable" | "shrinking") | null;
             /** @description Could-have */
             landcover?: components["schemas"]["Landcover"] | null;
+            /**
+             * Core Geometry
+             * @description cells of the dense core (largest group of directly neighbouring cells); null = no extension
+             */
+            core_geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
+            /**
+             * Extension Geometry
+             * @description cells joined to the core only through the wider ring (2 cells); null = no extension
+             */
+            extension_geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
+            /**
+             * Cloud Day
+             * @description only for events last seen the day before D (POST /api/events): share of the sky covered at the VIIRS day pass on D at the event (0.25° cell of its centroid); null = no cloud data
+             */
+            cloud_day?: number | null;
+            /**
+             * Cloud Night
+             * @description the same at the night pass
+             */
+            cloud_night?: number | null;
+            /**
+             * Seen Next Day
+             * @description only for events last seen the day before D: points on D + 1 in its cells or their direct neighbours; null when D is the newest day
+             */
+            seen_next_day?: boolean | null;
         };
         /** EventsRequest */
         EventsRequest: {
@@ -712,6 +801,84 @@ export interface components {
             grid_by_day: boolean;
             /** Landcover */
             landcover: boolean;
+            /**
+             * Forecast
+             * @description forecast_daily has rows (/forecast/*)
+             */
+            forecast: boolean;
+        };
+        /** ForecastDailyResponse */
+        ForecastDailyResponse: {
+            /**
+             * Issue Date
+             * Format: date
+             */
+            issue_date: string;
+            /** Days */
+            days: components["schemas"]["ForecastDay"][];
+        };
+        /** ForecastDay */
+        ForecastDay: {
+            /** Region Id */
+            region_id: string;
+            /**
+             * Target Date
+             * Format: date
+             */
+            target_date: string;
+            /** Lead Days */
+            lead_days: number;
+            /** P Big Fire Day */
+            p_big_fire_day: number;
+            /** P Big Fire Day Lo */
+            p_big_fire_day_lo: number;
+            /** P Big Fire Day Hi */
+            p_big_fire_day_hi: number;
+            /** P Fire Day */
+            p_fire_day: number;
+            /** P Clim Big Fire Day */
+            p_clim_big_fire_day: number;
+            /** P Clim Fire Day */
+            p_clim_fire_day: number;
+            /** Risk Ratio */
+            risk_ratio: number;
+            /**
+             * Risk Class
+             * @enum {string}
+             */
+            risk_class: "low" | "normal" | "elevated" | "high" | "very_high";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "model" | "climatology";
+            /** Model Version */
+            model_version: string;
+        };
+        /** ForecastStatusResponse */
+        ForecastStatusResponse: {
+            /**
+             * Last Run Utc
+             * Format: date-time
+             */
+            last_run_utc: string;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Issue Date
+             * Format: date
+             */
+            issue_date: string;
+            /** Issue Date Age Days */
+            issue_date_age_days: number;
+            /** Model Version */
+            model_version: string;
+            /** Weather Used */
+            weather_used: boolean;
+            /** Weather Provider */
+            weather_provider: string | null;
+            /** Warnings */
+            warnings: string[];
         };
         /** GridAnomalyResponse */
         GridAnomalyResponse: {
@@ -902,6 +1069,62 @@ export interface components {
              * @enum {string}
              */
             metric?: "fires" | "hotspots" | "frp_sum";
+        };
+        /** HiddenFiresRequest */
+        HiddenFiresRequest: {
+            /**
+             * Min Confidence
+             * @description §2 Confidence: 'nominal' = nominal + high, 'high' = high only
+             * @default nominal
+             * @enum {string}
+             */
+            min_confidence?: "nominal" | "high";
+            /**
+             * Region Id
+             * @description ID from /api/regions
+             */
+            region_id?: string | null;
+            /**
+             * Area Id
+             * @description ID from POST /api/areas
+             */
+            area_id?: string | null;
+            /**
+             * Geometry
+             * @description Interim solution until /api/areas exists
+             */
+            geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+        };
+        /**
+         * HiddenFiresResponse
+         * @description Column-oriented: index i = day start + i.
+         */
+        HiddenFiresResponse: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Cover
+             * @description per day: cloud cover of the most covered fire in the area that was seen the day before and the day after but not on the day (the lower of the two VIIRS passes at the fire); null = no such fire. The frontend marks the day when it reaches its cloudy threshold (frontend/lib/clouds.ts)
+             */
+            cover: (number | null)[];
         };
         /** HotspotFeature */
         HotspotFeature: {
@@ -1406,6 +1629,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -1473,6 +1705,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1558,6 +1799,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -1629,6 +1879,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1714,6 +1973,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -1785,6 +2053,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1870,6 +2147,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -1941,6 +2227,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2033,6 +2328,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -2104,6 +2408,102 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    events_hidden_api_events_hidden_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HiddenFiresRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HiddenFiresResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2190,6 +2590,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -2261,6 +2670,184 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    forecast_daily_api_forecast_daily_get: {
+        parameters: {
+            query?: {
+                region_id?: string | null;
+                target_date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastDailyResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    forecast_status_api_forecast_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastStatusResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2342,6 +2929,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Gateway Timeout */
             504: {
                 headers: {
@@ -2409,6 +3005,15 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

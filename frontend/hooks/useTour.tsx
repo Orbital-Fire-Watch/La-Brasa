@@ -4,12 +4,12 @@
  * is back on the start page with the selection they had before.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CONFIG } from "../lib/config";
 import { clampDate } from "../lib/dates";
 import type { BBox, Position } from "../lib/geo";
 import {
   readTourStatus, returnSearch, shouldAutoStart, stepState, TOUR_DATE, TOUR_LOOKBACK, TOUR_REGION_ID, TOUR_REGION_NAME,
-  TOUR_STEPS, tourRequested, writeTourStatus, zoomBox, type TourStatus, type TourStep, type TourTarget,
+  TOUR_STEPS, tourRequested, tourSteps, writeTourStatus, zoomBox, type TourStatus, type TourStep, type TourStepId,
+  type TourTarget,
 } from "../lib/tour";
 import { fireApi } from "../services/api/fireApi";
 import { useAppData } from "./useAppData";
@@ -56,11 +56,13 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const { meta, regions } = useAppData();
   const [, setState] = useAppState();
   const [requested] = useState(() => tourRequested(window.location.search));
-  const [run, setRun] = useState<{ index: number; returnTo: string } | null>(null);
+  // The step is kept by id: the list can still lose a step while the cloud check below runs.
+  const [run, setRun] = useState<{ id: TourStepId; returnTo: string } | null>(null);
   const [fire, setFire] = useState<TourFire | null>(null);
+  /** cloud cover known for the test area; null until checked (the step stays in the list meanwhile) */
+  const [clouds, setClouds] = useState<boolean | null>(null);
   const autoStarted = useRef(false);
 
-  const available = CONFIG.apiMode === "live" || requested;
   const region = useMemo(() => {
     const features = regions?.features ?? [];
     return features.find((f) => f.properties.id === TOUR_REGION_ID)
@@ -71,13 +73,18 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const date = clampDate(TOUR_DATE, meta.first_date, meta.last_date);
   const active = run !== null;
 
-  const start = useCallback(() => setRun({ index: 0, returnTo: returnSearch(window.location.search) }), []);
+  const steps = useMemo(() => tourSteps({
+    forecast: !!meta.features.forecast,
+    anomaly: !!(meta.features.anomaly && meta.features.anomaly_window),
+    clouds: clouds !== false,
+  }), [meta.features, clouds]);
+
+  const start = useCallback(() => setRun({ id: TOUR_STEPS[0].id, returnTo: returnSearch(window.location.search) }), []);
 
   // First visit (or ?tour=1): start once the pages are there. Waits for the regions, the steps need the test area.
   useEffect(() => {
     if (autoStarted.current || !regions) return;
-    const live = CONFIG.apiMode === "live";
-    if (!requested && !shouldAutoStart({ live, search: window.location.search, stored: readTourStatus() })) return;
+    if (!requested && !shouldAutoStart({ search: window.location.search, stored: readTourStatus() })) return;
     const id = window.setTimeout(() => {
       autoStarted.current = true;
       start();
@@ -99,7 +106,19 @@ export function TourProvider({ children }: { children: ReactNode }) {
     return () => ctrl.abort();
   }, [active, regionId, date, meta.data_version]);
 
-  const step = run ? TOUR_STEPS[run.index] : null;
+  // Cloud cover is optional (table cloud_daily): without it the time slider has no cloud strip, so the step is left out.
+  useEffect(() => {
+    if (!active || !regionId || clouds !== null) return;
+    const ctrl = new AbortController();
+    fireApi.daily({ region_id: regionId, min_confidence: "nominal" }, ctrl.signal)
+      .then((res) => setClouds(!!res.cloud_day?.some((v) => v !== null)))
+      .catch(() => undefined);
+    return () => ctrl.abort();
+  }, [active, regionId, clouds]);
+
+  const found = run ? steps.findIndex((s) => s.id === run.id) : -1;
+  const index = found >= 0 ? found : 0;
+  const step = run ? steps[index] : null;
   const eventId = fire?.id ?? null;
   useEffect(() => {
     if (step) setState(stepState(step, { regionId, date, eventId }), { replace: true });
@@ -114,12 +133,12 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, [run]);
   const next = useCallback(() => {
     if (!run) return;
-    if (run.index >= TOUR_STEPS.length - 1) end("done");
-    else setRun({ ...run, index: run.index + 1 });
-  }, [run, end]);
+    if (index >= steps.length - 1) end("done");
+    else setRun({ ...run, id: steps[index + 1].id });
+  }, [run, index, steps, end]);
   const back = useCallback(() => {
-    if (run && run.index > 0) setRun({ ...run, index: run.index - 1 });
-  }, [run]);
+    if (run && index > 0) setRun({ ...run, id: steps[index - 1].id });
+  }, [run, index, steps]);
 
   const isTarget = useCallback((target: TourTarget) => !!step?.targets.includes(target), [step]);
   const fit = useMemo(() => {
@@ -130,9 +149,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, [step, fire]);
 
   const value = useMemo<TourValue>(() => ({
-    available, active, index: run?.index ?? 0, total: TOUR_STEPS.length, step, placeName: region?.properties.name ?? TOUR_REGION_NAME, date,
+    available: true, active, index, total: steps.length, step, placeName: region?.properties.name ?? TOUR_REGION_NAME, date,
     start, next, back, end, isTarget, fit,
-  }), [available, active, run, step, region, date, start, next, back, end, isTarget, fit]);
+  }), [active, index, steps.length, step, region, date, start, next, back, end, isTarget, fit]);
 
   return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
 }

@@ -1,0 +1,135 @@
+# Forecast module configuration. Paths are relative to the La-Brasa repository root.
+
+paths:
+  harmonised_dir: data/harmonised
+  weather_cache_dir: data/raw/weather/meteomatics
+  output_dir: data/forecast
+  env_file: .env
+
+# Where weather is sampled: the 0.25° cells with the most VIIRS detections per region.
+points:
+  training_start: "2012-01-20"
+  training_end: "2021-12-31"
+  max_cells_per_region: 8
+  min_share_of_region: 0.0   # drop cells below this share of the region's detections (0 = keep top N)
+
+meteomatics:
+  base_url: https://api.meteomatics.com
+  model: mix                  # default source (Meteomatics picks one per time and place)
+  # Source per use and group. Checked 14.11.2026: the history of `mix` has broken precipitation (e.g. 6 mm in
+  # 2016 at a point in Aragon, 42 mm in 2023 in Galicia) and gust jumps in 2014 and 2020; ERA5 is homogeneous and
+  # plausible (Galicia ~1350 mm/year). ERA5 ends ~5 days before today, `recent` fills the gap with ECMWF IFS.
+  models:
+    history: {core: ecmwf-era5, fire: mix}
+    recent: {core: ecmwf-ifs, fire: mix}
+    forecast: {core: ecmwf-ifs, fire: mix}
+  format: csv
+  max_points_per_request: 50  # more than 10 points needs the "area requests" option (the hackathon account has it)
+  chunk_days: 366             # one request covers at most this many days
+  timeout_s: 900              # one 50-point x 1-year request takes about 3-4 minutes
+  parallel_requests: 8        # account limit is 10 parallel requests
+  max_retries: 4
+  pause_between_requests_s: 0.5
+  # Daily values at 12:00 UTC (≈ local noon in Iberia, the standard time of the Canadian FWI system).
+  # *_24h parameters are aggregated over the 24 h ending at the valid time.
+  valid_hour_utc: 12
+  # Parameter groups are requested separately, so a parameter missing from the account
+  # only fails its own group. Check names with `fetch_weather.py check`.
+  parameter_groups:
+    core:
+      - t_2m:C
+      - relative_humidity_2m:p
+      - wind_speed_10m:kmh
+      - precip_24h:mm
+      - t_max_2m_24h:C
+      - t_min_2m_24h:C
+      - wind_gusts_10m_24h:kmh
+      - dew_point_2m:C
+    fire:
+      - fosberg_fire_weather_index:idx
+      - forest_fire_warning:idx
+      - drought_index:idx
+  forecast_days: 10
+
+# Forecast models: no-weather tier (step 1) and weather tier (step 4)
+model:
+  version: "0.2-weather"            # with weather (step 4); the no-weather tier writes version_noweather
+  version_noweather: "0.1-noweather"
+  seed: 20261114
+  viirs_start: "2012-01-20"
+  train_end: "2021-12-31"
+  test_start: "2022-01-01"
+  leads: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  targets: [big, fire]
+  clim_window_days: 7         # moving mean +-7 days (seasonal curve of the weekly log-FRP)
+  # Seasonal curve of the daily targets: circular Gaussian kernel (sd in days) with shrinkage to a wide seasonal rate
+  # (shrink_days pseudo-days). Chosen on validation 2020-2021 (fit 2012-2019): big_fire_day Brier of the climatology
+  # -2.1 %, log loss -5 % against the old +-7-day box; a single event no longer makes a 15-day block with a hard edge
+  # (ES51, 19./20.11.). fire_day: kernel only (shrinkage made it slightly worse, many events).
+  climatology:
+    big: {sigma_days: 10, prior_sigma_days: 30, shrink_days: 20}
+    fire: {sigma_days: 10, prior_sigma_days: 30, shrink_days: 0}
+  neighbours: 3
+  # chosen on validation 2020-2021 (train 2012-2019), not on the test years: L2 = 1 / 30 / 100 / 300 with and
+  # without Platt; L2 = 100 + Platt had the best Brier with calibration slopes ~0.8-0.85
+  l2_continuous: 100.0
+  l2_region: 20.0
+  platt_calibration: true
+  calib_years: 2             # Platt fitted on the last 2 years of the training period
+  warn_share: 0.10            # warning threshold = top 10 % of training predictions
+  bootstrap: 1000             # block bootstrap over years for skill intervals
+  bootstrap_models: 20        # refits on resampled years for p_big_fire_day_lo / _hi
+  band_quantiles: [0.05, 0.95]
+  min_region_events: 30       # per-region fallback only where the test has at least this many events
+  honest:
+    # step 5: target-day weather with real IFS forecast errors (data/forecast/ifs_errors.parquet from
+    # fetch_weather.py errors). Used to choose features, to score the weather tier and, if chosen on validation,
+    # to train it on noisy weather. draws = noisy copies of the test set.
+    enabled: true
+    draws: 3
+  weather:
+    # weather feature set of the daily models chosen on validation (fit 2012-2019, validate 2020-2021, mean gain
+    # of big_fire_day over these leads); candidates in features/weather.py WEATHER_SETS
+    selection_leads: [1, 3, 5, 7, 10]
+  weekly:
+    weeks_ahead: [2, 3, 4]
+    window_weeks: 1
+    l2: 1.0
+    # weekly activity = sum of log1p(FRP) over the week. frp_harm drifts with the number of VIIRS satellites
+    # (share of days with FRP > 0: 0.32 -> 0.41-0.45 after NOAA-20/21). frp_snpp was tested (14.11.2026) and
+    # drifts the other way in the test years (SNPP detections -12 %); RPSS and ECE were not better.
+    # Kept at the original definition until the team decides. Options: frp_harm | frp_snpp
+    activity_frp: frp_harm
+
+# Proposal, team decision. The first draft (low/normal overlapping) made "low" unreachable; fixed here.
+risk_class:
+  ratio_low: 0.67
+  ratio_elevated: 1.5
+  ratio_high: 3.0
+  ratio_very_high: 6.0
+  p_high: 0.25
+  p_very_high: 0.5
+  p_floor: 0.02
+
+kpi:
+  B1_gain_lead1: 0.10
+  B2_gain_lead3: 0.05
+  B5_auc_lead1: 0.87
+  B6_ece: 0.015
+  B6_slope: [0.8, 1.2]
+  C2_ece: 0.03
+  C3_ratio: [0.75, 1.33]
+  D3_ece: 0.05
+  E1_share_years: 0.80
+  F5_train_minutes: 10
+  F5_predict_minutes: 1
+
+# Daily job (daily.py, started by cron on the server)
+daily:
+  meteomatics_valid_until: "2026-11-22"   # hackathon account; afterwards the fallback provider
+  fallback_provider: open-meteo           # no key, non-commercial, CC BY 4.0; null = no weather after the account ends
+  required_groups: [core]                 # groups the weather model needs (core feature sets only)
+  ensemble: true                          # ECMWF ensemble from Open-Meteo for p_big_fire_day_lo / _hi
+  max_forecast_age_days: 1                # an older weather forecast is not used
+  keep_forecast_files: 14                 # newest weather forecast files kept per group
+  max_issue_date_age_days: 2              # warn if data/harmonised/ ends earlier (FIRMS update missing)

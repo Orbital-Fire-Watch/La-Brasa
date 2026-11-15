@@ -25,7 +25,7 @@ export function SyncButton() {
     : state.reason === "unavailable" ? t("sync.unavailableHint")
     : state.message ?? null;
   return (
-    <div className="ow-sync">
+    <div className="ow-sync" data-tour="fetch">
       <button type="button" className="ow-headbtn" onClick={run} disabled={running} aria-busy={running}
         title={`${t("sync.title")}\n${t("sync.version", { version: dataVersion })}`}>
         {running ? <Spinner label={t("sync.running")} /> : (

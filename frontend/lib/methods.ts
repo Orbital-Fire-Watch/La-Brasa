@@ -22,7 +22,7 @@ export const METHOD_HELP: Record<Method, string> = {
     "Summe der harmonisierten Gewichte: MODIS-Aqua-äquivalente Hotspots. Jahre mit unterschiedlicher Satellitenflotte bleiben vergleichbar.",
   frp_sum: "Fire Radiative Power, harmonisiert: durchschnittliche FRP-Summe pro aktivem Sensor in Megawatt.",
   events:
-    "Ereignisse = räumlich und zeitlich zusammenhängende Hotspots (wahrscheinlich derselbe Brand). Anzahl hängt von der Satellitenflotte ab, Jahre nur eingeschränkt vergleichbar.",
+    "Ereignisse = mindestens 2 räumlich und zeitlich zusammenhängende Hotspots (wahrscheinlich derselbe Brand). Anzahl hängt von der Satellitenflotte ab, Jahre nur eingeschränkt vergleichbar.",
 };
 
 export function seriesKeyFor(method: Method): SeriesKey {

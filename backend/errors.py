@@ -98,7 +98,7 @@ def install_error_handlers(app: FastAPI) -> None:
 # Error responses for /docs and the TypeScript types (same set as in stub_app.py)
 def _error_doc():
     from dtos import ErrorResponse
-    return {code: {"model": ErrorResponse} for code in (400, 404, 413, 500, 501, 504)}
+    return {code: {"model": ErrorResponse} for code in (400, 404, 413, 500, 501, 503, 504)}
 
 
 ERRORS_DOC = _error_doc()

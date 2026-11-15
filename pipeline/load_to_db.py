@@ -17,6 +17,8 @@ What it does:
     - fills `regions` with the distinct regions of activity_daily_harmonised
     - replaces ALL tables in ONE transaction, so the database always holds one complete
       harmonisation run, never a half-loaded table or a mix of two runs
+    - also loads the cloud cover (raw/clouds/cloud_daily.parquet from ingestion/fetch_clouds.py) into
+      `cloud_daily` when that file exists; --incremental replaces its last CLOUD_OVERLAP_DAYS days and newer
 
 It does not clean or compute anything. That happens only in harmonisation/.
 
@@ -61,6 +63,10 @@ INCREMENTAL_TABLES = {"hotspots_harmonised": "obs_date", "activity_daily_harmoni
 # Schema version of the harmonised tables that db/init/001_schema.sql describes.
 # 2 = VIIRS reference n_viirs / frp_viirs from SNPP, NOAA-20 and NOAA-21 (harmonisation/docs/viirs_extension.md).
 SCHEMA_VERSION = 2
+# Cloud cover, not harmonised: copied as fetched (db/init/003_clouds.sql). Optional, the app works without it.
+CLOUD_TABLE = "cloud_daily"
+CLOUD_FILE = Path("raw") / "clouds" / "cloud_daily.parquet"
+CLOUD_OVERLAP_DAYS = 2             # = OVERLAP_DAYS of fetch_clouds.py: these days may have been re-fetched
 RECREATE_HINT = "An existing database keeps its old tables: recreate it with docker compose down -v && docker compose up -d db."
 
 
@@ -124,6 +130,16 @@ def read_tables(harmonised_dir: Path) -> dict[str, pa.Table]:
         check_no_nan(name, table)
         tables[name] = table
     return tables
+
+
+def read_clouds(data_dir: Path) -> dict[str, pa.Table]:
+    """{CLOUD_TABLE: table} if the cloud file exists, else {}."""
+    path = data_dir / CLOUD_FILE
+    if not path.exists():
+        return {}
+    table = pq.read_table(path)
+    check_no_nan(CLOUD_TABLE, table)
+    return {CLOUD_TABLE: table}
 
 
 def check_no_nan(name: str, table: pa.Table) -> None:
@@ -206,6 +222,18 @@ def load_since(conn: psycopg.Connection, harmonised_dir: Path, since: dt.date) -
         return counts
 
 
+def load_clouds_since_last(conn: psycopg.Connection, table: pa.Table) -> int:
+    """Replace the cloud rows from (newest day in the database - CLOUD_OVERLAP_DAYS + 1) on; all rows if it is empty."""
+    with conn.transaction(), conn.cursor() as cur:
+        check_columns(CLOUD_TABLE, table, database_columns(cur, CLOUD_TABLE))
+        newest = cur.execute(sql.SQL("SELECT max(date) FROM {}").format(sql.Identifier(CLOUD_TABLE))).fetchone()[0]
+        if newest is not None:
+            since = newest - dt.timedelta(days=CLOUD_OVERLAP_DAYS - 1)
+            table = table.filter(pc.greater_equal(table["date"], pa.scalar(since, pa.date32())))
+            cur.execute(sql.SQL("DELETE FROM {} WHERE date >= %s").format(sql.Identifier(CLOUD_TABLE)), (since,))
+        return copy_table(cur, CLOUD_TABLE, table)
+
+
 def analyze(conn: psycopg.Connection, names: Sequence[str]) -> None:
     """Refresh the planner statistics after a full reload."""
     conn.execute(sql.SQL("ANALYZE {}").format(sql.SQL(", ").join(map(sql.Identifier, names))))
@@ -232,7 +260,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return main_incremental(args)
     try:
         check_schema_version(args.data_dir / "harmonised")
-        tables = read_tables(args.data_dir / "harmonised")
+        tables = {**read_tables(args.data_dir / "harmonised"), **read_clouds(args.data_dir)}
         with connect(args.database_url) as conn:
             if args.dry_run:
                 with conn.transaction(force_rollback=True):
@@ -253,22 +281,26 @@ def main(argv: Sequence[str] | None = None) -> int:
 def main_incremental(args: argparse.Namespace) -> int:
     harmonised_dir = args.data_dir / "harmonised"
     pending = harmonised_dir / PENDING_LOAD
-    if not pending.exists():
-        print("Nothing new to load.")
-        return 0
-    since = dt.date.fromisoformat(json.loads(pending.read_text(encoding="utf-8"))["since"])
+    since = dt.date.fromisoformat(json.loads(pending.read_text(encoding="utf-8"))["since"]) if pending.exists() else None
     try:
-        check_schema_version(harmonised_dir)
+        clouds = read_clouds(args.data_dir)
+        counts: dict[str, int] = {}
         with connect(args.database_url) as conn:
-            counts = load_since(conn, harmonised_dir, since)
-            analyze(conn, list(counts))
+            if since is not None:
+                check_schema_version(harmonised_dir)
+                counts = load_since(conn, harmonised_dir, since)
+            if clouds:
+                counts[CLOUD_TABLE] = load_clouds_since_last(conn, clouds[CLOUD_TABLE])
+            if counts:
+                analyze(conn, list(counts))
     except (LoadError, psycopg.Error) as err:
         print(f"Error: {err}", file=sys.stderr)
         return 1
-    pending.unlink()
+    if since is not None:
+        pending.unlink()
     for name, rows in counts.items():
         print(f"{name:<28} {rows:>9} rows")
-    print(f"Rows from {since} on replaced.")
+    print(f"Rows from {since} on replaced." if since is not None else "No new harmonised days to load.")
     return 0
 
 

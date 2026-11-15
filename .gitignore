@@ -1,5 +1,6 @@
 # secrets
 .env
+.env.local
 
 # local data (folder layout stays tracked)
 !data/**/.gitkeep
@@ -7,7 +8,10 @@ data/raw/*
 !data/raw/.gitkeep
 !data/raw/fixtures/
 data/processed/*
-data/harmonised/csv
+data/harmonised/*
+!data/harmonised/.gitkeep
+data/logs/
+data/forecast/
 
 # python
 __pycache__/
@@ -27,7 +31,6 @@ dist/
 .DS_Store
 
 
-.env.local
-
-# design mock: working prompts, stay local
-frontend/design-mock/PROMPT*.md
+# prompts for AI agents (local only, never push; also covers frontend/design-mock/PROMPT*.md)
+*[Pp][Rr][Oo][Mm][Pp][Tt]*.md
+*[Pp][Rr][Oo][Mm][Pp][Tt]*.txt

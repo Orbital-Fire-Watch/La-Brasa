@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, dateFromDayOfYear, dayOfYear, daysBetween, formatDate, isIsoDate, shiftYears } from "./dates";
+import { addDays, dateFromDayOfYear, dayOfYear, daysBetween, isIsoDate, shiftYears } from "./dates";
 
 describe("dates", () => {
   it("shifts Feb 29 to Feb 28 in non-leap years", () => {
@@ -24,10 +24,5 @@ describe("dates", () => {
     expect(isIsoDate("2025-02-29")).toBe(false);
     expect(isIsoDate("2024-02-29")).toBe(true);
     expect(isIsoDate("14.08.2025")).toBe(false);
-  });
-
-  it("formats German dates", () => {
-    expect(formatDate("2025-08-14")).toBe("14. Aug. 2025");
-    expect(formatDate("2025-05-01")).toBe("1. Mai 2025");
   });
 });

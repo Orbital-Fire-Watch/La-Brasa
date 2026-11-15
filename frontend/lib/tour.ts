@@ -15,16 +15,28 @@ export const TOUR_LOOKBACK = 7;
 
 export const TOUR_STORAGE_KEY = "la-brasa:tour";
 /** Raise this when the tutorial changes a lot: everybody sees it once more. */
-export const TOUR_VERSION = 1;
+export const TOUR_VERSION = 2;
 
 /** Elements marked with data-tour="…" that a step can highlight. "map" is the free map area of the start page. */
 export type TourTarget =
   | "map" | "legend" | "infoboxes" | "settings" | "area" | "selection" | "exit" | "calendar" | "drawbar"
-  | "compare" | "display" | "analysis" | "hero" | "short" | "maptile" | "slider" | "season" | "year";
+  | "compare" | "display" | "home" | "fetch" | "analysis" | "forecast" | "short" | "maptile" | "slider" | "playback"
+  | "clouds" | "season" | "year";
 
 export type TourStepId =
   | "welcome" | "map" | "info" | "settings" | "area" | "selection" | "zoom" | "calendar" | "draw" | "compare"
-  | "analysis" | "hero" | "short" | "maptile" | "slider" | "charts";
+  | "header" | "analysis" | "forecast" | "short" | "maptile" | "anomaly" | "slider" | "playback" | "clouds" | "charts";
+
+/** Optional parts of the app: a step that needs one is left out when it is not available (no data, older backend). */
+export type TourFeature = "forecast" | "anomaly" | "clouds";
+export type TourFeatures = Record<TourFeature, boolean>;
+
+/** Placeholders the popup texts may use: the test area, the test date and the labels of the app (TourOverlay fills them). */
+export const TOUR_TEXT_VARS = [
+  "place", "date", "latest", "conf", "method", "draw", "display", "compare", "analysis", "satellite", "lookback", "unusual",
+  "tutorial", "fetch", "compareWith", "hideAnomalies",
+] as const;
+export type TourTextVar = (typeof TOUR_TEXT_VARS)[number];
 
 export interface TourStep {
   /** also the i18n key: tour.<id>.title, tour.<id>.text */
@@ -41,6 +53,10 @@ export interface TourStep {
   fit?: "zoom" | "fire";
   /** select the strongest fire on the analysis page */
   event?: boolean;
+  /** analysis map coloured by the difference from other years ("Show anomalies") */
+  anomaly?: boolean;
+  /** shown only when this optional part of the app is available */
+  requires?: TourFeature;
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
@@ -54,13 +70,23 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "calendar", targets: ["calendar"], page: "select", region: true, date: "test" },
   { id: "draw", targets: ["drawbar"], page: "select", region: true, date: "test" },
   { id: "compare", targets: ["compare", "display"], page: "select", region: true, date: "test", display: "compare" },
+  { id: "header", targets: ["home", "fetch"], page: "select", region: true, date: "test" },
   { id: "analysis", targets: ["analysis"], page: "select", region: true, date: "test" },
-  { id: "hero", targets: ["hero"], page: "analysis", region: true, date: "test" },
+  // The outlook covers the next days after the latest data, so this one step is on the latest day instead of the test date.
+  { id: "forecast", targets: ["forecast"], page: "analysis", region: true, date: "latest", requires: "forecast" },
   { id: "short", targets: ["short"], page: "analysis", region: true, date: "test" },
   { id: "maptile", targets: ["maptile"], page: "analysis", region: true, date: "test", fit: "fire", event: true },
+  { id: "anomaly", targets: ["maptile"], page: "analysis", region: true, date: "test", anomaly: true, requires: "anomaly" },
   { id: "slider", targets: ["slider"], page: "analysis", region: true, date: "test", fit: "fire", event: true },
+  { id: "playback", targets: ["playback"], page: "analysis", region: true, date: "test", fit: "fire", event: true },
+  { id: "clouds", targets: ["clouds"], page: "analysis", region: true, date: "test", requires: "clouds" },
   { id: "charts", targets: ["season", "year"], page: "analysis", region: true, date: "test" },
 ];
+
+/** The steps of this run: those whose optional part is missing are left out. */
+export function tourSteps(features: TourFeatures): TourStep[] {
+  return TOUR_STEPS.filter((s) => !s.requires || features[s.requires]);
+}
 
 export interface TourContextData {
   regionId: string | null;
@@ -81,7 +107,7 @@ export function stepState(step: TourStep, ctx: TourContextData): Partial<AppStat
     metric: "fires",
     conf: "nominal",
     view: "events",
-    anomaly: false,
+    anomaly: step.anomaly ?? false,
     compare: "all",
     event: step.event ? ctx.eventId : null,
     display: step.display ?? "harmonised",
@@ -106,12 +132,12 @@ export function returnSearch(search: string): string {
 
 export type TourStatus = "done" | "skipped";
 
-/** Starts by itself only on the first visit, with the real data, and not when a shared link was opened. */
-export function shouldAutoStart(opts: { live: boolean; search: string; stored: TourStatus | null }): boolean {
-  return opts.live && opts.stored === null && returnSearch(opts.search) === "" && !new URLSearchParams(opts.search).has("page");
+/** Starts by itself only on the first visit, and not when a shared link was opened. */
+export function shouldAutoStart(opts: { search: string; stored: TourStatus | null }): boolean {
+  return opts.stored === null && returnSearch(opts.search) === "" && !new URLSearchParams(opts.search).has("page");
 }
 
-/** `?tour=1` opens the tutorial in any mode (also with mock data, for development). */
+/** `?tour=1` opens the tutorial even after it was finished or skipped. */
 export const tourRequested = (search: string) => new URLSearchParams(search).has("tour");
 
 export function readTourStatus(): TourStatus | null {
