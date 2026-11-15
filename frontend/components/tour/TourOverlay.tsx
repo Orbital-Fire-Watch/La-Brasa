@@ -9,7 +9,7 @@ import { usePrefs } from "../../hooks/usePrefs";
 import { useTour } from "../../hooks/useTour";
 import { useI18n } from "../../i18n/I18n";
 import type { MessageKey } from "../../i18n/types";
-import { placePopup, type Rect, type TourTarget } from "../../lib/tour";
+import { placePopup, type Rect, type TourTarget, type TourTextVar } from "../../lib/tour";
 
 /** Room around a highlighted element. */
 const PAD = 6;
@@ -142,10 +142,11 @@ export function TourOverlay() {
   const narrow = layout.vw < NARROW_PX;
   const pos = placePopup(layout.holes[0] ?? null, { w: layout.pw, h: layout.ph }, { w: layout.vw, h: layout.vh });
   // Labels of the app, so the texts name the buttons exactly as they read in the chosen language.
-  const vars = {
+  const vars: Record<TourTextVar, string> = {
     place: tour.placeName, date: f.dateLong(tour.date), latest: t("settings.latest"), conf: t("conf.label"), method: t("settings.method"),
     draw: t("draw.label"), display: t("display.label"), compare: t("display.compare"), analysis: t("start.analysis"),
     satellite: t("map.satellite"), lookback: t("an.lookback"), unusual: t("an.unusual"), tutorial: t("tour.button"),
+    fetch: t("sync.button"), compareWith: t("an.compareWith"), hideAnomalies: t("an.hideAnomalies"),
   };
 
   return createPortal(

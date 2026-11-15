@@ -151,7 +151,7 @@ function HomeLink() {
     goHome();
   };
   return (
-    <a className="ow-home" href={window.location.pathname} aria-label={t("header.home")} onClick={onClick}>
+    <a className="ow-home" href={window.location.pathname} aria-label={t("header.home")} onClick={onClick} data-tour="home">
       <Logo />
     </a>
   );

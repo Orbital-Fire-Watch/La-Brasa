@@ -48,22 +48,3 @@ export function dateFromDayOfYear(year: number, doy: number): string {
   const offset = isLeapYear(year) && doy >= 60 ? doy : doy - 1;
   return toIso(Date.UTC(year, 0, 1) + offset * DAY_MS);
 }
-
-const MONTHS_SHORT = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
-const MONTHS_LONG = [
-  "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember",
-];
-
-export const monthShort = (m: number): string => MONTHS_SHORT[m - 1];
-export const monthLong = (m: number): string => MONTHS_LONG[m - 1];
-
-/** "14. Aug. 2025" */
-export function formatDate(date: string): string {
-  const [y, m, d] = date.split("-").map(Number);
-  return `${d}. ${monthShort(m)}${m === 5 ? "" : "."} ${y}`;
-}
-
-/** "14.08." */
-export function formatDayMonth(date: string): string {
-  return `${date.slice(8, 10)}.${date.slice(5, 7)}.`;
-}

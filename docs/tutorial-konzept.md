@@ -62,7 +62,7 @@ Seite:
 
 ## 3. Die Schritte
 
-Die 18 Schritte aus `tutorial.md` werden zu **16 Popups** zusammengefasst. Jeder Schritt legt fest:
+Die 21 Schritte aus `tutorial.md` werden zu **20 Popups** zusammengefasst. Jeder Schritt legt fest:
 
 - welches Element hell ist (das *Ziel*),
 - welchen App-Zustand er braucht,
@@ -80,12 +80,33 @@ Die 18 Schritte aus `tutorial.md` werden zu **16 Popups** zusammengefasst. Jeder
 | 8 | Start | Kachel *Calendar* | wie 5 | Jahre × Monate, Klick setzt den Stichtag |
 | 9 | Start | Leiste *Select area* | wie 5 | Rechteck, Kreis, Polygon, Freihand; Umriss nur in diesem Tab |
 | 10 | Start | Umschalter *Data view* + Vergleichskarten | `display=compare` | Harmonisiert und roh, gleiche Farbskala |
-| 11 | Start | Knopf *Analysis* | `display=harmonised` | „Hier geht es zur Auswertung“ |
-| 12 | Auswertung | Blöcke seit Jahresbeginn | `page=analysis`, Galicia, 15.08.2025 | Vergleich mit Vorjahr und Rekord |
-| 13 | Auswertung | Kachel *Short-term analysis* | wie 12 | Die vier Karten in einem Satz je Karte |
-| 14 | Auswertung | Karte + Feuerliste | stärkstes Feuer ausgewählt (`event=…`) | Look-back, Events/Zellen, Liste, Sortierung, *Unusual* |
-| 15 | Auswertung | Zeitregler | wie 14, `event` entfernt | ±60 Tage, alles folgt dem Regler |
-| 16 | Auswertung | Saisonkurve + Jahresübersicht, dann Mitte | wie 15 | Vergleichsjahre, Heatmap/Ring, Klick setzt Stichtag; danach „Fertig“ |
+| 11 | Start | Logo + *Fetch* (`home`, `fetch`) | wie 5, `display=harmonised` | **neu:** Logo führt zur Startseite ohne Auswahl, *Fetch* holt neue Daten und zeigt den Stand |
+| 12 | Start | Knopf *Analysis* | wie 11 | „Hier geht es zur Auswertung“ |
+| 13 | Auswertung | Ausblick (`forecast`) | `page=analysis`, Galicia, **letzter Tag** (`date` leer) | **neu:** Ausblick für 10 Tage im Vergleich zum Üblichen; nur nahe am letzten Datentag, deshalb hier nicht der 15.08.2025 |
+| 14 | Auswertung | Kachel *Short-term analysis* | Galicia, 15.08.2025 | Die vier Karten in einem Satz je Karte |
+| 15 | Auswertung | Karte + Feuerliste | stärkstes Feuer ausgewählt (`event=…`) | Look-back, Events/Zellen, Liste, Sortierung, *Show anomalies* |
+| 16 | Auswertung | Karte + Feuerliste | `anomaly=1`, kein Feuer ausgewählt | **neu:** Anomalien rot/blau, Klick auf Zelle, *Compare with*, *Hide anomalies* |
+| 17 | Auswertung | Zeitregler | wie 15 | ±60 Tage, alles folgt dem Regler |
+| 18 | Auswertung | ▶ + Geschwindigkeit (`playback`) | wie 15 | **neu:** Abspielen Tag für Tag, 0.5×/1×/2×, was die Wiedergabe anhält |
+| 19 | Auswertung | Wolkenstreifen + Hinweis (`clouds`) | Galicia, 15.08.2025, kein Feuer ausgewählt | **neu:** Bewölkung pro Tag, volle Felder = bewölkt, gestrichelte Feuer = wahrscheinlich verdeckt |
+| 20 | Auswertung | Saisonkurve + Jahresübersicht | wie 19 | Vergleichsjahre, Heatmap/Ring, Klick setzt Stichtag; danach „Fertig“ |
+
+Die Blöcke „seit Jahresbeginn“ (früher Schritt 12) gibt es auf der Auswertungsseite nicht mehr, ihr Schritt ist entfallen.
+
+### Optionale Teile (Version 2)
+
+Drei Schritte zeigen Teile, die nicht jede Installation hat. Sie tragen in `lib/tour.ts` ein `requires`, und
+`tourSteps()` lässt sie weg, wenn der Teil fehlt. Fortschritt („Schritt 3 von 18“) und Punkte zählen dann nur die
+gezeigten Schritte.
+
+| Schritt | `requires` | Woran das Tutorial es erkennt |
+|---|---|---|
+| *forecast* | `forecast` | `meta.features.forecast` (Tabelle `forecast_daily` hat Zeilen) |
+| *anomaly* | `anomaly` | `meta.features.anomaly` und `meta.features.anomaly_window` |
+| *clouds* | `clouds` | `/api/daily` für das Testgebiet liefert `cloud_day` (Tabelle `cloud_daily`). Die Abfrage läuft beim Start; bis zur Antwort bleibt der Schritt in der Liste |
+
+`useTour` merkt sich den laufenden Schritt über seine `id`, nicht über die Position. So bleibt der Nutzer auf seinem
+Schritt, auch wenn die Liste während des Laufs einen Schritt verliert.
 
 ### Echte Daten
 
@@ -200,7 +221,7 @@ Dinge, die nicht in der URL stehen, erledigt ein optionales `before(ctx)` im Sch
 
 ## 5. Erster Besuch und Zurücksetzen
 
-- **Merken:** In `localStorage` unter `la-brasa:tour` steht `{ "version": 1, "status": "done" | "skipped" }`, mit
+- **Merken:** In `localStorage` unter `la-brasa:tour` steht `{ "version": 2, "status": "done" | "skipped" }`, mit
   try/catch wie bei `usePrefs`. Ist der Speicher blockiert, startet das Tutorial bei jedem Besuch. Das ist besser, als
   es nie zu zeigen.
 - **Automatisch** startet es nur, wenn
@@ -210,7 +231,8 @@ Dinge, die nicht in der URL stehen, erledigt ein optionales `before(ctx)` im Sch
 
   Wer einen geteilten Link öffnet (z. B. `?page=analysis&region=ES11`), soll erst sehen, was ihm geschickt wurde, und
   nicht in ein Tutorial mit anderem Gebiet geworfen werden.
-- **Version:** Ändert sich das Tutorial stark, wird `version` erhöht und alle sehen es einmal neu.
+- **Version:** Ändert sich das Tutorial stark, wird `version` erhöht und alle sehen es einmal neu. Mit den fünf neuen
+  Schritten (Kopfzeile, Ausblick, Anomalien, Abspielen, Wolken) steht sie auf **2**.
 - **Vorherigen Zustand wiederherstellen:** Beim Start merkt sich `useTour` die aktuelle Adresse (`location.search`).
   Bei *Fertig* und *Überspringen* setzt es sie zurück (`replaceState`) und zoomt die Karte wieder auf das vorige
   Gebiet.
@@ -229,6 +251,30 @@ Dinge, die nicht in der URL stehen, erledigt ein optionales `before(ctx)` im Sch
 | Erster Besuch | Startet bei leerem Speicher ohne URL-Parameter, startet nicht mit Parametern und nicht nach `done` |
 | Mock-Modus | Kein automatischer Start, kein Knopf; `?tour=1` öffnet es trotzdem |
 | Von Hand | Mit dem echten Backend und vollständig geladener Datenbank, alle drei Themes, Textgröße A++, Reduce motion, 375 px Breite, nur Tastatur, Screenreader (NVDA oder VoiceOver) |
+
+### Qualitätskennzahlen (KPIs)
+
+Die Kennzahlen 1–7 prüft `lib/tour.test.ts` bei jedem `npm test`. Die Kennzahlen 8–12 prüft ein Durchlauf im Browser
+(Playwright) gegen das echte Backend.
+
+| # | Kennzahl | Ziel |
+|---|---|---|
+| 1 | Abdeckung: jedes neue Feature hat einen Schritt (*header, forecast, anomaly, playback, clouds*) | 5 von 5 |
+| 2 | Die Schritte der ersten Fassung bleiben in ihrer Reihenfolge erhalten | ja |
+| 3 | Länge des Tutorials | höchstens 20 Schritte |
+| 4 | Jeder Platzhalter `{…}` in einem Text wird vom Popup gefüllt (`TOUR_TEXT_VARS`) | 0 offene Platzhalter |
+| 5 | Einheitliche Popups: Titel ≤ 40 Zeichen, Text ≤ 340 Zeichen und ≤ 4 Sätze, in EN, ES und PT | 0 Ausreißer |
+| 6 | ES und PT sind übersetzt (kein Text gleich dem englischen) | 100 % |
+| 7 | Jeder Schritt setzt den vollständigen Zustand (gleiche Schlüssel), Anomalien nur im eigenen Schritt | ja |
+| 8 | Jedes Ziel eines Schritts erscheint, ist sichtbar und hat einen hellen Ausschnitt | 100 % der Schritte |
+| 9 | Das Popup liegt vollständig im Bildschirm, wenn das Layout steht | 100 % der Schritte |
+| 10 | Nach *Fertig* und Esc stimmt die Adresse mit der vor dem Start überein, `localStorage` hat Version 2 | ja |
+| 11 | Keine Fehler in der Browser-Konsole während des ganzen Laufs | 0 |
+| 12 | Fehlt Ausblick oder Wolken, entfallen genau diese Schritte (18 statt 20); wer Version 1 gesehen hat, bekommt das Tutorial einmal automatisch | ja |
+
+Stand 15.11.2026: Alle Kennzahlen sind auf dem Desktop erfüllt (1440 × 900 EN, 1280 × 800 ES, 1366 × 768 PT). Bei
+390 px Breite erfüllen die neuen Schritte alle Kennzahlen. Drei Schritte der ersten Fassung (*map*, *selection*,
+*zoom*) haben dort zwei Ziele, von denen eins außerhalb des Bildschirms liegt (Legende bzw. *Exit*).
 
 ## 7. Umfang und Reihenfolge
 

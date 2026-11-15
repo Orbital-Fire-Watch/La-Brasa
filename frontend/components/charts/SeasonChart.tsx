@@ -10,7 +10,8 @@ import {
   climatology, movingAverage, yearSeries, yearTotals, type DailySeries, type SeriesKey, type Values,
 } from "../../lib/analysis";
 import { COMPARE_COLORS, SELECTED_LINE_COLOR } from "../../lib/colors";
-import { dateFromDayOfYear, dayOfYear, formatDayMonth, monthShort, yearOf } from "../../lib/dates";
+import { dateFromDayOfYear, dayOfYear, yearOf } from "../../lib/dates";
+import { useI18n } from "../../i18n/I18n";
 
 const W = 900;
 const H = 280;
@@ -29,6 +30,7 @@ interface SeasonChartProps {
 }
 
 export function SeasonChart({ daily, seriesKey, date, compareYears, onCompareYears, formatValue, unitLabel, minYear }: SeasonChartProps) {
+  const { t, f } = useI18n();
   const year = yearOf(date);
   const firstYear = Math.max(yearOf(daily.start), minYear ?? 0);
   const lastYear = yearOf(daily.end);
@@ -84,17 +86,17 @@ export function SeasonChart({ daily, seriesKey, date, compareYears, onCompareYea
   return (
     <div className="season">
       <svg className="season__svg" viewBox={`0 0 ${W} ${H}`} role="img" onMouseMove={onMove} onMouseLeave={() => setHoverDoy(null)}
-        aria-label={`Saisonkurve ${unitLabel} pro Tag. Ausgewähltes Jahr ${year}${compareYears.length ? `, Vergleich ${compareYears.join(", ")}` : ""}.`}>
-        {y.ticks(5).map((t) => (
-          <g key={t}>
-            <line x1={M.left} x2={W - M.right} y1={y(t)} y2={y(t)} className="chart__grid" />
-            <text x={M.left - 6} y={y(t) + 4} textAnchor="end" className="chart__tick">{formatValue(t)}</text>
+        aria-label={t("curve.aria", { unit: unitLabel, year: String(year), compare: compareYears.length ? t("curve.ariaCompare", { years: compareYears.join(", ") }) : "" })}>
+        {y.ticks(5).map((tick) => (
+          <g key={tick}>
+            <line x1={M.left} x2={W - M.right} y1={y(tick)} y2={y(tick)} className="chart__grid" />
+            <text x={M.left - 6} y={y(tick) + 4} textAnchor="end" className="chart__tick">{formatValue(tick)}</text>
           </g>
         ))}
         {MONTH_START_DOY.map((d, m) => (
           <g key={m}>
             <line x1={x(d)} x2={x(d)} y1={H - M.bottom} y2={H - M.bottom + 4} className="chart__axis" />
-            <text x={x(d) + (x(MONTH_START_DOY[m + 1] ?? 366) - x(d)) / 2} y={H - 8} textAnchor="middle" className="chart__tick">{monthShort(m + 1)}</text>
+            <text x={x(d) + (x(MONTH_START_DOY[m + 1] ?? 366) - x(d)) / 2} y={H - 8} textAnchor="middle" className="chart__tick">{f.monthShort(m + 1)}</text>
           </g>
         ))}
         <line x1={M.left} x2={W - M.right} y1={H - M.bottom} y2={H - M.bottom} className="chart__axis" />
@@ -107,7 +109,7 @@ export function SeasonChart({ daily, seriesKey, date, compareYears, onCompareYea
         {dValue !== null && (
           <g>
             <circle cx={x(dDoy)} cy={y(dValue)} r={6} fill={SELECTED_LINE_COLOR} stroke="#fff" strokeWidth={2} />
-            <text x={x(dDoy)} y={y(dValue) - 10} textAnchor="middle" className="chart__tick chart__tick--strong">{formatDayMonth(date)}</text>
+            <text x={x(dDoy)} y={y(dValue) - 10} textAnchor="middle" className="chart__tick chart__tick--strong">{f.dayMonth(date)}</text>
           </g>
         )}
         {hoverDoy !== null && <line x1={x(hoverDoy)} x2={x(hoverDoy)} y1={M.top} y2={H - M.bottom} className="chart__hover" />}
@@ -115,45 +117,45 @@ export function SeasonChart({ daily, seriesKey, date, compareYears, onCompareYea
       <div className="season__readout" aria-live="polite">
         {hoverDoy !== null ? (
           <>
-            <strong>{formatDayMonth(dateFromDayOfYear(2025, hoverDoy))}</strong>
+            <strong>{f.dayMonth(dateFromDayOfYear(2025, hoverDoy))}</strong>
             {lines.map((l) => {
               const v = valueAt(l.values, hoverDoy);
               return (
                 <span key={l.year} style={{ color: l.color }}>
-                  {l.year}: {v === null ? "keine Daten" : formatValue(v)}
+                  {l.year}: {v === null ? t("status.nodata") : formatValue(v)}
                 </span>
               );
             })}
-            {clim && <span className="muted">Median: {formatValue(clim.median[hoverDoy - 1])}</span>}
+            {clim && <span className="muted">{t("curve.medianValue", { value: formatValue(clim.median[hoverDoy - 1]) })}</span>}
           </>
         ) : (
-          <span className="muted">Mit der Maus über die Kurve fahren, um Werte zu sehen. {unitLabel} pro Tag, über 7 Tage geglättet.</span>
+          <span className="muted">{t("curve.hint", { unit: unitLabel })}</span>
         )}
       </div>
       <div className="season__controls">
-        <span className="legend__item"><span className="legend__line" style={{ background: SELECTED_LINE_COLOR }} />{year} (gewählt)</span>
+        <span className="legend__item"><span className="legend__line" style={{ background: SELECTED_LINE_COLOR }} />{t("curve.selected", { year: String(year) })}</span>
         {compareYears.filter((c) => c !== year).map((c, i) => (
-          <button key={c} type="button" className="chip" onClick={() => toggle(c)} aria-label={`${c} entfernen`}>
+          <button key={c} type="button" className="chip" onClick={() => toggle(c)} aria-label={t("curve.remove", { year: String(c) })}>
             <span className="legend__line" style={{ background: COMPARE_COLORS[i % COMPARE_COLORS.length] }} />
             {c} ✕
           </button>
         ))}
-        <span className="legend__item"><span className="legend__band" />typisch (25–75 %)</span>
-        <span className="legend__item"><span className="legend__line legend__line--dashed" />Median</span>
+        <span className="legend__item"><span className="legend__band" />{t("curve.typical")}</span>
+        <span className="legend__item"><span className="legend__line legend__line--dashed" />{t("curve.median")}</span>
         <label className="field field--inline">
-          <span className="visually-hidden">Vergleichsjahr hinzufügen</span>
+          <span className="visually-hidden">{t("curve.addYearLabel")}</span>
           <select className="input input--small" value="" onChange={(e) => e.target.value && toggle(Number(e.target.value))}>
-            <option value="">+ Jahr vergleichen</option>
+            <option value="">{t("curve.addYear")}</option>
             {years.filter((y) => y !== year && !compareYears.includes(y)).map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
         </label>
         {strongest && strongest.year !== year && !compareYears.includes(strongest.year) && (
-          <button type="button" className="btn btn--small" onClick={() => toggle(strongest.year)}>Stärkstes Jahr ({strongest.year})</button>
+          <button type="button" className="btn btn--small" onClick={() => toggle(strongest.year)}>{t("curve.strongest", { year: String(strongest.year) })}</button>
         )}
         {weakest && weakest.year !== year && !compareYears.includes(weakest.year) && (
-          <button type="button" className="btn btn--small" onClick={() => toggle(weakest.year)}>Schwächstes Jahr ({weakest.year})</button>
+          <button type="button" className="btn btn--small" onClick={() => toggle(weakest.year)}>{t("curve.weakest", { year: String(weakest.year) })}</button>
         )}
       </div>
     </div>

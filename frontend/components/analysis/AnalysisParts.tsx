@@ -159,14 +159,16 @@ export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel,
   return (
     <div className="ow-slider" data-tour="slider">
       <div className="ow-slider__head">
-        <button type="button" className="ow-btn ow-btn--small ow-btn--icon ow-slider__play" onClick={playback.onToggle} disabled={total === 0}
-          aria-pressed={playback.playing} aria-label={t(playback.playing ? "slider.pause" : "slider.play")} title={t(playback.playing ? "slider.pause" : "slider.play")}>
-          {playback.playing
-            ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z" fill="currentColor" /></svg>
-            : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z" fill="currentColor" /></svg>}
-        </button>
-        <Segmented label={t("slider.speed")} hideLabel size="small" value={playback.speed} onChange={playback.onSpeed}
-          options={PLAYBACK_SPEEDS.map((s) => ({ value: s, label: `${f.factor(s)}×` }))} />
+        <div className="ow-slider__playback" data-tour="playback">
+          <button type="button" className="ow-btn ow-btn--small ow-btn--icon ow-slider__play" onClick={playback.onToggle} disabled={total === 0}
+            aria-pressed={playback.playing} aria-label={t(playback.playing ? "slider.pause" : "slider.play")} title={t(playback.playing ? "slider.pause" : "slider.play")}>
+            {playback.playing
+              ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z" fill="currentColor" /></svg>
+              : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z" fill="currentColor" /></svg>}
+          </button>
+          <Segmented label={t("slider.speed")} hideLabel size="small" value={playback.speed} onChange={playback.onSpeed}
+            options={PLAYBACK_SPEEDS.map((s) => ({ value: s, label: `${f.factor(s)}×` }))} />
+        </div>
         <button type="button" className="ow-btn ow-btn--small ow-btn--icon" onClick={() => onChange(addDays(value, -1))} disabled={value <= min} aria-label={t("slider.back")}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
         </button>
@@ -209,7 +211,7 @@ function CloudStrip({ days, min, pos }: { days: (DayCloudInfo | null)[]; min: st
   const { t, f } = useI18n();
   const pct = (v: number | null) => (v == null ? t("ui.na") : `${f.int(v * 100)} %`);
   return (
-    <svg className="ow-slider__clouds" viewBox={`0 0 ${days.length} 11`} preserveAspectRatio="none" role="img" aria-label={t("cloud.strip")}>
+    <svg className="ow-slider__clouds" data-tour="clouds" viewBox={`0 0 ${days.length} 11`} preserveAspectRatio="none" role="img" aria-label={t("cloud.strip")}>
       {days.map((c, i) => c && (
         <rect key={i} x={i} y={0} width={0.86} height={11} style={{ fillOpacity: cloudOpacity(c) }}
           className={`ow-slider__cloud${c.cloudy ? " ow-slider__cloud--cloudy" : ""}${c.hiddenFire ? " ow-slider__cloud--hidden" : ""}${i === pos ? " ow-slider__cloud--on" : ""}`}>
@@ -233,7 +235,7 @@ function CloudNote({ info, hiddenFires, announce }: { info: DayCloudInfo | null;
   const text = t("cloud.note", { day: pct(info.day), night: pct(info.night) });
   const warning = hiddenFires > 0 ? t("cloud.noteFires", { count: hiddenFires }) : info.cloudy ? t("cloud.noteHidden") : null;
   return (
-    <div className={`ow-cloudnote${info.cloudy || hiddenFires > 0 ? " ow-cloudnote--cloudy" : ""}`}>
+    <div className={`ow-cloudnote${info.cloudy || hiddenFires > 0 ? " ow-cloudnote--cloudy" : ""}`} data-tour="clouds">
       <svg viewBox="0 0 16 16" role="img" aria-label={t("cloud.label")}><path d={CLOUD_ICON} /></svg>
       <span aria-live={announce ? "polite" : "off"}>{warning ? `${text} – ${warning}` : text}</span>
       <Tip text={t("cloud.help", { pct: pct(CLOUDY_THRESHOLD) })} label={t("cloud.about")} />

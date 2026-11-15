@@ -472,6 +472,7 @@ a { color: var(--ow-blue); }
 
 .ow-slider { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--ow-tile-border); border-radius: var(--ow-radius); background: var(--ow-surface); }
 .ow-slider__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ow-slider__playback { display: inline-flex; align-items: center; gap: 8px; }
 .ow-slider__play { min-width: 28px; }
 .ow-slider__play[aria-pressed="true"] { background: var(--ow-blue); border-color: var(--ow-blue); color: var(--ow-blue-text); }
 .ow-slider__value { display: inline-flex; gap: 10px; align-items: baseline; font-weight: 600; font-variant-numeric: tabular-nums; }

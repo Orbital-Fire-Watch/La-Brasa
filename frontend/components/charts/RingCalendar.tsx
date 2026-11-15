@@ -2,15 +2,16 @@
 import { arc } from "d3-shape";
 import { useMemo, useState } from "react";
 import { periodColumns } from "../../lib/analysis";
-import { monthShort } from "../../lib/dates";
+import { useI18n } from "../../i18n/I18n";
 import { HeatLegend } from "./HeatLegend";
-import { cellLabel, STATUS_TEXT, useHeatmapScale, type HeatmapProps } from "./YearHeatmap";
+import { cellLabel, statusText, useHeatmapScale, type HeatmapProps } from "./YearHeatmap";
 
 const SIZE = 420;
 const INNER = 46;
 const OUTER = 186;
 
 export function RingCalendar({ cells, mode, selectedDate, onSelect, formatValue, unitLabel, minYear, ariaLabel }: HeatmapProps) {
+  const { t, f } = useI18n();
   const cols = periodColumns(mode);
   const years = useMemo(() => [...new Set(cells.map((c) => c.year))].sort((a, b) => a - b), [cells]);
   const { max, color } = useHeatmapScale(cells, minYear);
@@ -61,7 +62,7 @@ export function RingCalendar({ cells, mode, selectedDate, onSelect, formatValue,
           const a = ((m + 0.5) / 12) * 2 * Math.PI;
           return (
             <text key={m} x={Math.sin(a) * (OUTER + 14)} y={-Math.cos(a) * (OUTER + 14) + 4} textAnchor="middle" className="heatmap__label">
-              {monthShort(m + 1)}
+              {f.monthShort(m + 1)}
             </text>
           );
         })}
@@ -71,8 +72,8 @@ export function RingCalendar({ cells, mode, selectedDate, onSelect, formatValue,
       </svg>
       <p className="heatmap__readout" aria-live="polite">
         {hover
-          ? `${cellLabel(hover, mode)}: ${hover.value === null || disabled(hover) ? "–" : `${formatValue(hover.value)} ${unitLabel}`}${STATUS_TEXT[hover.status]}`
-          : "Ringe = Jahre (ältestes innen). Feld anklicken, um den Stichtag zu setzen."}
+          ? `${cellLabel(hover, mode, f)}: ${hover.value === null || disabled(hover) ? "–" : `${formatValue(hover.value)} ${unitLabel}`}${statusText(hover.status, t)}`
+          : t("heat.ringHint")}
       </p>
       <HeatLegend max={max} color={color} formatValue={formatValue} unitLabel={unitLabel} />
     </div>

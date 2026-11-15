@@ -38,7 +38,7 @@ export function ForecastBox({ regionId, regionName }: { regionId: string; region
   const tone = main.kind === "lower" ? "low" : main.kind === "same" ? "normal" : main.kind === "higher" ? "elevated" : "high";
 
   return (
-    <section className="ow-forecast" data-tone={tone} aria-label={t("fc.title", { region: regionName })}>
+    <section className="ow-forecast" data-tone={tone} aria-label={t("fc.title", { region: regionName })} data-tour="forecast">
       <p className="ow-forecast__head">
         <span>{t("fc.title", { region: regionName })}</span>
         <Tip text={t("fc.help")} label={t("fc.about")} />
