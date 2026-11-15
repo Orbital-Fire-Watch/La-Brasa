@@ -3,7 +3,7 @@
 Diese Anleitung ist für die Person, die den Server einrichtet. Sie beschreibt Schritt für Schritt, was auf den Server
 muss, damit die tägliche Brandgefahr-Vorhersage automatisch läuft. Was die Vorhersage rechnet, steht in
 [../README.md](../README.md) und [weather_model.md](weather_model.md). Wie Backend und Frontend die Ergebnisse nutzen,
-steht in [integration_backend_frontend.md](integration_backend_frontend.md).
+steht in [../../docs/forecast_backend_frontend.md](../../docs/forecast_backend_frontend.md).
 
 Stand: 15.11.2026, mit Schritt 5, Ensemble und Open-Meteo nach dem 22.11. ([honest_evaluation.md](honest_evaluation.md)).
 
@@ -255,7 +255,7 @@ oben eingebunden.
    Dafür ist `pipeline/update_daily.py` gedacht, das laut Haupt-README noch nicht umgesetzt ist.
 2. **Ergebnisse in die Datenbank und eine API dafür.** `forecast_daily`, `forecast_weekly` und `forecast_skill` liegen
    bisher nur als Dateien vor. Der Vorschlag dazu (Tabellen, Lader, Endpoints) steht in
-   [integration_backend_frontend.md](integration_backend_frontend.md). Der Lader läuft dann direkt nach `daily.py`.
+   [../../docs/forecast_backend_frontend.md](../../docs/forecast_backend_frontend.md). Der Lader läuft dann direkt nach `daily.py`.
 3. **Dockerfile für `forecast/`**, falls ihr den Weg über Docker nehmt (Abschnitt 8).
 
 ---

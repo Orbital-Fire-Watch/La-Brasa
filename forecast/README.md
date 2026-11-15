@@ -301,7 +301,7 @@ Team-Aufgabe. Bis dahin holt `daily.py` zwar jeden Tag neues Wetter, der Ausgabe
 
 In der crontab muss `%` als `\%` geschrieben werden. Mit Docker startet Cron auf dem Rechner stattdessen
 `docker compose run --rm forecast python daily.py`, mit einem Dienst `forecast` wie in
-[docs/integration_backend_frontend.md](docs/integration_backend_frontend.md), 3.4. Diesen Dienst gibt es noch nicht.
+[docs/server_setup.md](docs/server_setup.md), Abschnitt 8. Diesen Dienst gibt es noch nicht.
 
 **Prüfen, ob es läuft:**
 
