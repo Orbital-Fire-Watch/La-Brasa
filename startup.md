@@ -53,6 +53,17 @@ docker compose up -d --build db backend
 python pipeline/load_to_db.py
 ```
 
+**Vorhersage (Warnbox auf der Analyseseite):** Die Tabellen kommen aus `db/init/003_forecast.sql`. In einer
+bestehenden Datenbank einmal anlegen, dann den letzten Lauf aus `data/forecast/` laden:
+
+```bash
+docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /docker-entrypoint-initdb.d/003_forecast.sql'
+python pipeline/load_forecast_to_db.py            # --dry-run: nur prüfen
+```
+
+Täglich erledigt das `python3 pipeline/update_daily.py --load-db`. Ohne geladene Vorhersage ist
+`features.forecast` falsch und die Box wird nicht gezeigt.
+
 ## 4. Website im Live-Modus starten
 
 ```bash
