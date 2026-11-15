@@ -8,8 +8,6 @@ export const pt: Messages = {
   "header.info": "Informação",
   "header.accessibility": "Acessibilidade",
   "header.language": "Idioma",
-  "header.mock": "Dados de teste",
-  "header.mockTitle": "Os dados vêm da API de teste no navegador, não do servidor.",
 
   "a11y.dialog": "Definições de acessibilidade",
   "a11y.theme": "Tema de cores",
@@ -35,7 +33,6 @@ export const pt: Messages = {
   "ui.flagOf": "Bandeira de {country}",
   "ui.na": "s/d",
 
-  "splash.mock": "A gerar dados de teste",
   "splash.live": "A ligar à Fire API",
 
   "error.network": "Sem ligação ao servidor. Tente novamente mais tarde.",
@@ -135,6 +132,14 @@ export const pt: Messages = {
   "box.noCompare": "Sem comparação disponível",
   "box.above": "Mais do que os {value} até {date}",
   "box.below": "Menos do que os {value} até {date}",
+  "cloud.label": "Nebulosidade",
+  "cloud.note": "{day} de dia · {night} de noite",
+  "cloud.noteHidden": "os fogos podem estar ocultos",
+  "cloud.noteBridged": "fogo provavelmente oculto (detetado no dia anterior e no seguinte)",
+  "cloud.strip": "Nebulosidade diária no intervalo do controlo",
+  "cloud.legend": "preenchido = nublado nas duas passagens do satélite",
+  "cloud.legendHidden": "fogo provavelmente oculto",
+  "cloud.dayTitle": "{date}: nebulosidade {day} de dia, {night} de noite",
 
   "legend.aria": "Legenda do mapa",
   "legend.byAge": "Focos por antiguidade",
@@ -196,7 +201,6 @@ export const pt: Messages = {
   "an.refDate": "Data de referência",
   "an.conf": "Confiança",
   "an.download": "Descarregar CSV",
-  "an.exporting": "A exportar",
   "an.exportTitle": "Todos os focos dos {window} até {date}",
   "an.noExport": "As áreas desenhadas localmente não podem ser exportadas.",
   "an.edit": "Alterar seleção",

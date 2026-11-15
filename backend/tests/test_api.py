@@ -136,6 +136,24 @@ def test_daily_zero_is_not_null():
     assert all(v is not None for v in r["fires"])                  # all days up to last_date are complete
 
 
+CLOUDS = PARQUET.parent / "raw" / "clouds" / "cloud_daily.parquet"
+
+
+@pytest.mark.skipif(not CLOUDS.exists(), reason="no cloud data (pipeline/ingestion/fetch_clouds.py)")
+def test_daily_clouds_of_one_cell():
+    clouds = pd.read_parquet(CLOUDS)
+    row = clouds.dropna().iloc[-1]                                   # a cell and day with both values
+    i, j = map(int, row["cell_id"].split("_"))
+    lon, lat = (j + 0.4) * 0.25, (i + 0.4) * 0.25                     # a small square inside that one cell
+    square = [[lon, lat], [lon + 0.05, lat], [lon + 0.05, lat + 0.05], [lon, lat + 0.05], [lon, lat]]
+    r = post("/api/daily", {"geometry": {"type": "Polygon", "coordinates": [square]}})
+    assert len(r["cloud_day"]) == len(r["cloud_night"]) == len(r["fires"])
+    k = (row["date"] - pd.Timestamp(r["start"]).date()).days
+    if 0 <= k < len(r["fires"]):
+        assert r["cloud_day"][k] == pytest.approx(row["cloud_day"], abs=0.006)
+        assert r["cloud_night"][k] == pytest.approx(row["cloud_night"], abs=0.006)
+
+
 def test_confidence_high_is_subset(hot):
     a = post("/api/daily", {"region_id": "PT11", "min_confidence": "nominal"})
     b = post("/api/daily", {"region_id": "PT11", "min_confidence": "high"})

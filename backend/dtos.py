@@ -78,6 +78,7 @@ Position = tuple[float, float]                       # [lon, lat]
 BBox = tuple[float, float, float, float]             # [minLon, minLat, maxLon, maxLat]
 NonNegFloat = Annotated[float, Field(ge=0)]
 NonNegInt = Annotated[int, Field(ge=0)]
+Share = Annotated[float, Field(ge=0, le=1)]
 
 RegionId = Annotated[str, Field(min_length=2, max_length=10, examples=["ES-OR"])]
 AreaId = Annotated[str, Field(pattern=r"^a_[0-9a-f]{12}$", examples=["a_7f3c9e2b41d0"])]
@@ -323,11 +324,15 @@ class DailyResponse(ResponseModel):
     events_active: list[NonNegInt | None] | None = Field(
         None, description="omitted while events are not available (features.events = false)")
     events_new: list[NonNegInt | None] | None = None
+    cloud_day: list[Share | None] | None = Field(
+        None, description="share of the sky covered at the VIIRS day pass (about 13:45 UTC), mean over the 0.25° cells "
+                          "of the selection; null = no cloud value for that day; omitted without cloud data")
+    cloud_night: list[Share | None] | None = Field(None, description="the same at the night pass (about 01:45 UTC)")
 
     @model_validator(mode="after")
     def _same_length(self):
         n = (self.end - self.start).days + 1
-        for name in ("fires", "hotspots", "frp_sum", "n_sensors", "events_active", "events_new"):
+        for name in ("fires", "hotspots", "frp_sum", "n_sensors", "events_active", "events_new", "cloud_day", "cloud_night"):
             arr = getattr(self, name)
             if arr is not None and len(arr) != n:
                 raise ValueError(f"{name} has {len(arr)} values, expected {n} (start to end).")

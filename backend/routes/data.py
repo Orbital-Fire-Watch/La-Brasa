@@ -15,6 +15,7 @@ from dtos import (
 )
 from errors import ERRORS_DOC
 from services.areas import register_area
+from services.clouds import daily_clouds
 from services.events import daily_event_counts, event_detail, get_index, list_events
 from services.grid import build_grid
 from services.hotspots import build_hotspots, export_rows
@@ -56,7 +57,8 @@ def daily(body: DailyRequest):
     with connect() as conn:
         out = build_daily(conn, build_scope(conn, body))
         no_data = [v is None for v in out["fires"]]
-        return {**out, **daily_event_counts(conn, body, out["start"], out["end"], no_data)}
+        return {**out, **daily_event_counts(conn, body, out["start"], out["end"], no_data),
+                **daily_clouds(conn, body, out["start"], out["end"])}
 
 
 @router.post("/daily/sensors", response_model=SensorDailyResponse, responses=ERRORS_DOC, tags=["Kann"])

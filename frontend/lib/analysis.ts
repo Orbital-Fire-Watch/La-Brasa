@@ -3,13 +3,14 @@
  * Pure functions without UI so they can be tested on their own.
  */
 import { median, quantile } from "d3-array";
+import type { CloudSeries } from "./clouds";
 import { addDays, daysBetween, dayOfYear, isLeapYear, shiftYears, toIso, toMs, DAY_MS, yearOf } from "./dates";
 
 /** Columns of /api/daily that can be analysed. */
 export type SeriesKey = "fires" | "hotspots" | "frp_sum" | "events_new" | "events_active";
 
 /** Structural subset of DailyResponse – keeps lib/ independent of the API layer. */
-export interface DailySeries {
+export interface DailySeries extends CloudSeries {
   start: string;
   end: string;
   fires: (number | null)[];

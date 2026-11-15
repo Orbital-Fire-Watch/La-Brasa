@@ -10,8 +10,6 @@ export const en = {
   "header.info": "Info",
   "header.accessibility": "Accessibility",
   "header.language": "Language",
-  "header.mock": "Mock data",
-  "header.mockTitle": "The data comes from the mock API in the browser, not from the backend.",
 
   "a11y.dialog": "Accessibility settings",
   "a11y.theme": "Colour theme",
@@ -37,7 +35,6 @@ export const en = {
   "ui.flagOf": "Flag of {country}",
   "ui.na": "n/a",
 
-  "splash.mock": "Generating mock data",
   "splash.live": "Connecting to the Fire API",
 
   "error.network": "No connection to the server. Please try again later.",
@@ -137,6 +134,14 @@ export const en = {
   "box.noCompare": "No comparison available",
   "box.above": "More than the {value} by {date}",
   "box.below": "Less than the {value} by {date}",
+  "cloud.label": "Cloud cover",
+  "cloud.note": "{day} by day · {night} at night",
+  "cloud.noteHidden": "fires may be hidden",
+  "cloud.noteBridged": "fire probably hidden (detected the day before and after)",
+  "cloud.strip": "Cloud cover per day in the slider range",
+  "cloud.legend": "solid = cloudy at both satellite passes",
+  "cloud.legendHidden": "fire probably hidden",
+  "cloud.dayTitle": "{date}: cloud cover {day} by day, {night} at night",
 
   "legend.aria": "Map legend",
   "legend.byAge": "Hotspots by age",
@@ -198,7 +203,6 @@ export const en = {
   "an.refDate": "Reference date",
   "an.conf": "Confidence",
   "an.download": "Download CSV",
-  "an.exporting": "Exporting",
   "an.exportTitle": "All hotspots in the {window} up to {date}",
   "an.noExport": "Locally drawn areas cannot be exported.",
   "an.edit": "Edit selection",

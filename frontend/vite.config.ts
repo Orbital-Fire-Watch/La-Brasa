@@ -7,7 +7,7 @@ export default defineConfig({
     // Spec §11: in development the backend runs on :8000, the proxy avoids CORS
     proxy: { "/api": "http://localhost:8000" },
   },
-  // MapLibre and the mock API start their workers as ES modules ({ type: "module" })
+  // MapLibre starts its worker as ES modules ({ type: "module" })
   worker: { format: "es" },
   build: {
     chunkSizeWarningLimit: 1100,    // MapLibre alone is about 1.1 MB (300 KB gzip) and cannot be split further
@@ -26,6 +26,6 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["lib/**/*.test.ts", "services/**/*.test.ts"],
+    include: ["lib/**/*.test.ts"],
   },
 });

@@ -1,6 +1,5 @@
 /**
- * MapLibre map of the mock, used on both pages. Same layers and data flow as components/map/FireMap, with
- * the mock's layout: "Map / Satellite" sits directly above the +/− buttons, a fullscreen button below them,
+ * MapLibre map, used on both pages. Layout: "Map / Satellite" sits directly above the +/− buttons, a fullscreen button below them,
  * English popups, brand colours, and movestart/moveend callbacks for the sliding info boxes.
  */
 import type * as GeoJSON from "geojson";
@@ -137,7 +136,7 @@ function addLayers(map: MlMap) {
   });
 }
 
-/** Map instance with the mock's control order; created once per container. */
+/** Map instance with this control order; created once per container. */
 function useOrbitalMapInstance(
   container: RefObject<HTMLDivElement | null>,
   initialBbox: BBox,

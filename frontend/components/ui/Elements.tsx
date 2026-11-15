@@ -1,9 +1,9 @@
-/** Small building blocks of the mock: collapsible tile, viewport-safe tooltip, status blocks, flags. */
+/** Small building blocks: collapsible tile, viewport-safe tooltip, status blocks, flags. */
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { errorMessage, useI18n } from "../../i18n/I18n";
 
-/** Collapsible tile with a heading (EFFIS-style). No shadow, quiet metal surface (mock.css). */
+/** Collapsible tile with a heading (EFFIS-style). No shadow, quiet metal surface (styles/design.css). */
 export function Tile({ title, children, defaultOpen = true, aside, className }: {
   title: string; children: ReactNode; defaultOpen?: boolean; aside?: ReactNode; className?: string;
 }) {

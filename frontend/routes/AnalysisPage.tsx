@@ -1,6 +1,5 @@
 /**
- * Analysis page of the mock. Same content and data flow as routes/AnalysisPage, with the new design:
- * header blocks with year-to-date figures (EFFIS style), then collapsible tiles for the short-term analysis,
+ * Analysis page: header blocks with year-to-date figures (EFFIS style), then collapsible tiles for the short-term analysis,
  * the map with time slider and fire list, the season curve and the year overview.
  */
 import { useMemo, useState } from "react";
@@ -21,7 +20,7 @@ import {
   EVENTS_COMPARABLE_FROM_YEAR, gridMetricFor, HOTSPOT_MIN_ZOOM, LOOKBACKS, METHODS, seriesKeyFor, SLIDER_RANGE_DAYS,
 } from "../lib/methods";
 import { ApiError } from "../services/api/errors";
-import { downloadMockCsv, exportCsvUrl, fireApi } from "../services/api/fireApi";
+import { exportCsvUrl, fireApi } from "../services/api/fireApi";
 import { isGridAnomaly, isGridCount, type EventSort, type ExportQuery } from "../services/api/types";
 import { ActiveCard, FireList, HeroBlocks, inSentence, SeasonCard, StrongestCard, TimeSlider, WeekCard } from "../components/analysis/AnalysisParts";
 import { Header } from "../components/Header";
@@ -32,8 +31,9 @@ import { useSensorDaily } from "../hooks/useSensorDaily";
 import { SensorCompare } from "../components/SensorCompare";
 import { OrbitalMap, type MapView } from "../components/map/OrbitalMap";
 import { Empty, ErrorNote, Loading, Spinner, Tile, Tip } from "../components/ui/Elements";
-import { fineResolutionForZoom } from "../lib/uiConfig";
-import { errorMessage, useI18n } from "../i18n/I18n";
+import { CLOUDY_THRESHOLD, fineResolutionForZoom } from "../lib/uiConfig";
+import { cloudDays } from "../lib/clouds";
+import { useI18n } from "../i18n/I18n";
 import { anomalyCells, cellsByAge, eventShapes, hotspotPoints } from "../lib/mapFeatures";
 import { useAppState } from "../hooks/useAppState";
 import { ageColors } from "../lib/palette";
@@ -239,6 +239,7 @@ export function AnalysisPage() {
     if (!dailyData) return null;
     return Array.from({ length: daysBetween(sliderMin, sliderMax) + 1 }, (_, i) => valueAt(dailyData, seriesKey, addDays(sliderMin, i)));
   }, [dailyData, seriesKey, sliderMin, sliderMax]);
+  const sliderClouds = useMemo(() => (dailyData ? cloudDays(dailyData, sliderMin, sliderMax, CLOUDY_THRESHOLD) : null), [dailyData, sliderMin, sliderMax]);
   const fmt = (x: number) => f.method(method, x);
   const methodLong = t(`method.${method}.long`);
   const gridLong = t(`method.${gridMetric}.long`);
@@ -359,7 +360,7 @@ export function AnalysisPage() {
                   {mapError && mapError.status === "error" && <ErrorNote error={mapError.error} onRetry={mapError.reload} />}
                 </section>
               </OrbitalMap>
-              <TimeSlider value={D} anchor={D0} min={sliderMin} max={sliderMax} onChange={(d) => setState({ d })} bars={sliderBars} barsLabel={methodLong} />
+              <TimeSlider value={D} anchor={D0} min={sliderMin} max={sliderMax} onChange={(d) => setState({ d })} bars={sliderBars} barsLabel={methodLong} clouds={sliderClouds} />
             </div>
 
             <aside className="ow-maplayout__list" aria-labelledby="ow-list-title">
@@ -473,31 +474,9 @@ function AnomalyLegend({ max, unit, years }: { max: number; unit: string; years:
   );
 }
 
-/** CSV of all hotspots in the look-back window: a link against the backend, built in the browser in mock mode. */
+/** CSV of all hotspots in the look-back window: a link against the backend. */
 function ExportButton({ query, title }: { query: ExportQuery | null; title: string }) {
   const { t } = useI18n();
-  const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const href = query ? exportCsvUrl(query) : null;
-  if (href) return <a className="ow-btn" href={href} title={title}>{t("an.download")}</a>;
-  const download = async () => {
-    if (!query) return;
-    setError(null);
-    setExporting(true);
-    try {
-      await downloadMockCsv(query);
-    } catch (e) {
-      setError(errorMessage(e, t));
-    } finally {
-      setExporting(false);
-    }
-  };
-  return (
-    <>
-      <button type="button" className="ow-btn" onClick={() => void download()} disabled={!query || exporting} title={query ? title : t("an.noExport")}>
-        {t(exporting ? "an.exporting" : "an.download")}
-      </button>
-      {error && <p className="ow-error" role="alert">{error}</p>}
-    </>
-  );
+  if (query) return <a className="ow-btn" href={exportCsvUrl(query)} title={title}>{t("an.download")}</a>;
+  return <button type="button" className="ow-btn" disabled title={t("an.noExport")}>{t("an.download")}</button>;
 }

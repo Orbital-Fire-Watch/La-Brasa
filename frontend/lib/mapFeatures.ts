@@ -1,4 +1,4 @@
-/** GeoJSON for the mock's maps: same geometry as lib/mapFeatures, with translated popups and palette-aware colours. */
+/** GeoJSON for the maps, with translated popups and palette-aware colours. */
 import type * as GeoJSON from "geojson";
 import { cellToBoundary } from "h3-js";
 import { ageClass, divergingScale, type AgeClass } from "./colors";

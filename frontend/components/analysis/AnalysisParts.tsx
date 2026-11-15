@@ -1,6 +1,7 @@
 /** Building blocks of the analysis page: EFFIS-style header blocks, short-term cards, time slider, fire list. */
 import { useMemo, useState, type ReactNode } from "react";
 import type { DailySeries, SeasonPhase, SeriesKey, Values, WindowAnomaly } from "../../lib/analysis";
+import type { DayCloudInfo } from "../../lib/clouds";
 import { addDays, dateFromDayOfYear, dayOfYear, daysBetween, monthOf } from "../../lib/dates";
 import type { FireUnit } from "../../lib/fireUnits";
 import type { Method } from "../../lib/methods";
@@ -201,8 +202,10 @@ export function StrongestCard({ unit, name, loading, onShow }: { unit: FireUnit 
 
 // ------------------------------------------------------------------ time slider
 
-export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel }: {
+export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel, clouds }: {
   value: string; anchor: string; min: string; max: string; onChange: (d: string) => void; bars: Values | null; barsLabel: string;
+  /** cloud cover per day from min to max (lib/clouds.ts cloudDays); null = no cloud data */
+  clouds?: (DayCloudInfo | null)[] | null;
 }) {
   const { t, f } = useI18n();
   const total = daysBetween(min, max);
@@ -234,6 +237,7 @@ export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel 
           ))}
         </svg>
       )}
+      {clouds?.some(Boolean) && <CloudStrip days={clouds} min={min} pos={pos} />}
       <div className="ow-slider__track">
         <span className="ow-slider__anchor" style={{ insetInlineStart: `${pct(anchorPos)}%` }} aria-hidden="true" />
         <input type="range" min={0} max={total} step={1} value={pos} className="ow-slider__input" aria-label={t("slider.aria")} aria-valuetext={f.date(value)}
@@ -244,7 +248,54 @@ export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel 
         <span>{t("slider.reference", { date: f.dayMonth(anchor) })}</span>
         <span>{f.dayMonth(max)}</span>
       </div>
+      {clouds && <CloudNote info={clouds[pos] ?? null} />}
     </div>
+  );
+}
+
+/** Clear days stay faint (up to 0.45), cloudy days (at or above the threshold) are nearly solid. */
+const cloudOpacity = (c: DayCloudInfo): number => (c.cover === null ? 0.08 : c.cloudy ? 0.8 + 0.2 * c.cover : 0.08 + 0.37 * c.cover);
+
+const CLOUD_ICON = "M4.5 12.5h7.2a2.8 2.8 0 0 0 .3-5.6 3.9 3.9 0 0 0-7.4 1.1 2.3 2.3 0 0 0-.1 4.5z";
+
+/** One cell per day under the fire bars: stronger = both satellite passes more covered, solid from the threshold on; ▲ = fire probably hidden. */
+function CloudStrip({ days, min, pos }: { days: (DayCloudInfo | null)[]; min: string; pos: number }) {
+  const { t, f } = useI18n();
+  const pct = (v: number | null) => (v == null ? t("ui.na") : `${f.int(v * 100)} %`);
+  return (
+    <>
+      <svg className="ow-slider__clouds" viewBox={`0 0 ${days.length} 17`} preserveAspectRatio="none" role="img" aria-label={t("cloud.strip")}>
+        {days.map((c, i) => c && (
+          <g key={i}>
+            <rect x={i} y={0} width={0.86} height={11} style={{ fillOpacity: cloudOpacity(c) }}
+              className={`ow-slider__cloud${c.cloudy ? " ow-slider__cloud--cloudy" : ""}${i === pos ? " ow-slider__cloud--on" : ""}`}>
+              <title>{t("cloud.dayTitle", { date: f.date(addDays(min, i)), day: pct(c.day), night: pct(c.night) })}</title>
+            </rect>
+            {c.hidden && <polygon className="ow-slider__hidden" points={`${i + 0.03},17 ${i + 0.43},12.5 ${i + 0.83},17`} />}
+          </g>
+        ))}
+      </svg>
+      <p className="ow-slider__cloudlegend">
+        <svg className="ow-slider__cloudicon" viewBox="0 0 16 16" role="img" aria-label={t("cloud.label")}><path d={CLOUD_ICON} /></svg>
+        <span className="ow-slider__cloudswatch" aria-hidden="true" />{t("cloud.legend")}
+        <span className="ow-slider__hiddenmark" aria-hidden="true">▲</span>{t("cloud.legendHidden")}
+      </p>
+    </>
+  );
+}
+
+/** Cloud cover on the day the slider shows (its date is right above); warns when fires may be hidden. */
+function CloudNote({ info }: { info: DayCloudInfo | null }) {
+  const { t, f } = useI18n();
+  if (!info) return null;
+  const pct = (v: number | null) => (v == null ? t("ui.na") : `${f.int(v * 100)} %`);
+  const text = t("cloud.note", { day: pct(info.day), night: pct(info.night) });
+  const warning = info.hidden ? "cloud.noteBridged" : info.cloudy ? "cloud.noteHidden" : null;
+  return (
+    <p className={`ow-cloudnote${info.cloudy ? " ow-cloudnote--cloudy" : ""}`} aria-live="polite">
+      <svg viewBox="0 0 16 16" role="img" aria-label={t("cloud.label")}><path d={CLOUD_ICON} /></svg>
+      <span>{warning ? `${text} – ${t(warning)}` : text}</span>
+    </p>
   );
 }
 

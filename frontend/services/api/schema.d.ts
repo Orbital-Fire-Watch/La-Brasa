@@ -451,6 +451,16 @@ export interface components {
             events_active?: (number | null)[] | null;
             /** Events New */
             events_new?: (number | null)[] | null;
+            /**
+             * Cloud Day
+             * @description share of the sky covered at the VIIRS day pass (about 13:45 UTC), mean over the 0.25° cells of the selection; null = no cloud value for that day; omitted without cloud data
+             */
+            cloud_day?: (number | null)[] | null;
+            /**
+             * Cloud Night
+             * @description the same at the night pass (about 01:45 UTC)
+             */
+            cloud_night?: (number | null)[] | null;
         };
         /** ErrorDetail */
         ErrorDetail: {

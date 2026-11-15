@@ -1,6 +1,6 @@
 /**
  * Settings from the menus top right: language, theme, data palette, text size, motion.
- * Stored per browser (a viewer convenience) and applied as data attributes on <html>, where mock.css reads them.
+ * Stored per browser (a viewer convenience) and applied as data attributes on <html>, where styles/design.css reads them.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { browserLocale, isLocale, type Locale } from "../i18n/locales";

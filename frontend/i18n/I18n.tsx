@@ -1,5 +1,5 @@
 /**
- * Translation and formatting for the mock. `t(key, vars)` picks the text of the current language (falling back to
+ * Translation and formatting. `t(key, vars)` picks the text of the current language (falling back to
  * English), chooses the plural form from `vars.count` and fills in {placeholders}. All number, date, month,
  * relative-time and country formatting comes from Intl, so a new language needs no formatting code.
  */

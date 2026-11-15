@@ -25,6 +25,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       FIRMS_MAP_KEY: ${FIRMS_MAP_KEY}
+      METEOMATICS_USERNAME: ${METEOMATICS_USERNAME}
+      METEOMATICS_PASSWORD: ${METEOMATICS_PASSWORD}
     volumes:
       - ./data:/app/data           # raw CSVs in, harmonised tables out (the sync writes here)
     ports:
@@ -36,7 +38,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - backend
 
