@@ -9,7 +9,7 @@ const square = (x: number): AreaGeometry => ({ type: "Polygon", coordinates: [[[
 const unit = (extra: Partial<FireUnit>): FireUnit => ({
   id: "e_1", kind: "event", geometry: square(0), coreGeometry: null, extensionGeometry: null, bbox: [0, 0, 1, 1],
   first_seen: "2025-08-01", last_seen: "2025-08-02", duration_days: 2, days_since_last: 0, active: true, isNew: false,
-  hotspots: 5, fires: 5, frp_sum: 50, area_km2: 1, trend: null, province_id: null, centroid: [0.5, 0.5], ...extra,
+  hotspots: 5, fires: 5, frp_sum: 50, area_km2: 1, trend: null, province_id: null, centroid: [0.5, 0.5], cloud: null, seenNextDay: null, ...extra,
 });
 
 describe("eventShapes", () => {

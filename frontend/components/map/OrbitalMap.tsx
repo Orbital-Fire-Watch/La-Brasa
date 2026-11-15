@@ -1,6 +1,5 @@
 /**
- * MapLibre map of the mock, used on both pages. Same layers and data flow as components/map/FireMap, with
- * the mock's layout: "Map / Satellite" sits directly above the +/− buttons, a fullscreen button below them,
+ * MapLibre map, used on both pages. Layout: "Map / Satellite" sits directly above the +/− buttons, a fullscreen button below them,
  * English popups, brand colours, and movestart/moveend callbacks for the sliding info boxes.
  */
 import type * as GeoJSON from "geojson";
@@ -15,7 +14,7 @@ import { CONFIG } from "../../lib/config";
 import { worldWithout, type AreaGeometry, type BBox, type PolygonGeometry } from "../../lib/geo";
 import type { RegionFeature } from "../../services/api/types";
 import { useI18n } from "../../i18n/I18n";
-import type { PopupData } from "../../lib/mapFeatures";
+import { HIDDEN_COLOR, type PopupData } from "../../lib/mapFeatures";
 
 export interface MapView {
   bbox: BBox;
@@ -107,22 +106,29 @@ function addLayers(map: MlMap) {
     paint: { "fill-color": ["get", "color"], "fill-opacity": ["coalesce", ["get", "opacity"], 0.55] },
   }, labels);
   map.addLayer({
-    id: "events-line", type: "line", source: "events", filter: ["!=", ["get", "part"], "extension"],
+    id: "events-line", type: "line", source: "events",
+    filter: ["all", ["!=", ["get", "part"], "extension"], ["!=", ["get", "hidden"], true]],
     paint: { "line-color": ["get", "stroke"], "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 12, 1.5] },
   });
   // extension of an event (cells joined to the core only through the wider ring): dashed, so it reads as "loosely attached"
   map.addLayer({
-    id: "events-extension-line", type: "line", source: "events", filter: ["==", ["get", "part"], "extension"],
+    id: "events-extension-line", type: "line", source: "events",
+    filter: ["all", ["==", ["get", "part"], "extension"], ["!=", ["get", "hidden"], true]],
     paint: {
       "line-color": ["get", "stroke"], "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 12, 1.5],
       "line-dasharray": [2, 1.5],
     },
   });
+  // fires probably hidden under clouds on D (lib/clouds.ts probablyHiddenFire): dashed, a dash pattern cannot depend on the feature
+  map.addLayer({
+    id: "events-hidden", type: "line", source: "events", filter: ["==", ["get", "hidden"], true],
+    paint: { "line-color": HIDDEN_COLOR, "line-width": 2, "line-dasharray": [2, 1.5] },
+  });
   map.addLayer({
     id: "event-points", type: "circle", source: "event-points", maxzoom: 10,
     paint: {
       "circle-color": ["get", "color"], "circle-radius": ["get", "radius"], "circle-opacity": ["coalesce", ["get", "opacity"], 0.85],
-      "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
+      "circle-stroke-color": ["coalesce", ["get", "ring"], "#ffffff"], "circle-stroke-width": ["coalesce", ["get", "ringWidth"], 1],
     },
   });
   map.addLayer({ id: "events-selected", type: "line", source: "events", filter: ["==", ["get", "id"], ""], paint: { "line-color": BLUE, "line-width": 3 } });
@@ -145,7 +151,7 @@ function addLayers(map: MlMap) {
   });
 }
 
-/** Map instance with the mock's control order; created once per container. */
+/** Map instance with this control order; created once per container. */
 function useOrbitalMapInstance(
   container: RefObject<HTMLDivElement | null>,
   initialBbox: BBox,

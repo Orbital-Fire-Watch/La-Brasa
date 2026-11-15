@@ -174,6 +174,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/events/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Events Hidden
+         * @description Days on which a fire was probably hidden under clouds (time slider of the analysis page).
+         */
+        post: operations["events_hidden_api_events_hidden_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events/{event_id}": {
         parameters: {
             query?: never;
@@ -451,6 +471,16 @@ export interface components {
             events_active?: (number | null)[] | null;
             /** Events New */
             events_new?: (number | null)[] | null;
+            /**
+             * Cloud Day
+             * @description share of the sky covered at the VIIRS day pass (about 13:45 UTC), mean over the 0.25° cells of the selection; null = no cloud value for that day; omitted without cloud data
+             */
+            cloud_day?: (number | null)[] | null;
+            /**
+             * Cloud Night
+             * @description the same at the night pass (about 01:45 UTC)
+             */
+            cloud_night?: (number | null)[] | null;
         };
         /** ErrorDetail */
         ErrorDetail: {
@@ -598,6 +628,21 @@ export interface components {
              * @description cells joined to the core only through the wider ring (2 cells); null = no extension
              */
             extension_geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
+            /**
+             * Cloud Day
+             * @description only for events last seen the day before D (POST /api/events): share of the sky covered at the VIIRS day pass on D at the event (0.25° cell of its centroid); null = no cloud data
+             */
+            cloud_day?: number | null;
+            /**
+             * Cloud Night
+             * @description the same at the night pass
+             */
+            cloud_night?: number | null;
+            /**
+             * Seen Next Day
+             * @description only for events last seen the day before D: points on D + 1 in its cells or their direct neighbours; null when D is the newest day
+             */
+            seen_next_day?: boolean | null;
         };
         /** EventsRequest */
         EventsRequest: {
@@ -912,6 +957,62 @@ export interface components {
              * @enum {string}
              */
             metric?: "fires" | "hotspots" | "frp_sum";
+        };
+        /** HiddenFiresRequest */
+        HiddenFiresRequest: {
+            /**
+             * Min Confidence
+             * @description §2 Confidence: 'nominal' = nominal + high, 'high' = high only
+             * @default nominal
+             * @enum {string}
+             */
+            min_confidence?: "nominal" | "high";
+            /**
+             * Region Id
+             * @description ID from /api/regions
+             */
+            region_id?: string | null;
+            /**
+             * Area Id
+             * @description ID from POST /api/areas
+             */
+            area_id?: string | null;
+            /**
+             * Geometry
+             * @description Interim solution until /api/areas exists
+             */
+            geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+        };
+        /**
+         * HiddenFiresResponse
+         * @description Column-oriented: index i = day start + i.
+         */
+        HiddenFiresResponse: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Cover
+             * @description per day: cloud cover of the most covered fire in the area that was seen the day before and the day after but not on the day (the lower of the two VIIRS passes at the fire); null = no such fire. The frontend marks the day when it reaches its cloudy threshold (frontend/lib/clouds.ts)
+             */
+            cover: (number | null)[];
         };
         /** HotspotFeature */
         HotspotFeature: {
@@ -2074,6 +2175,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    events_hidden_api_events_hidden_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HiddenFiresRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HiddenFiresResponse"];
                 };
             };
             /** @description Bad Request */

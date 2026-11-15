@@ -1,4 +1,4 @@
-/** GeoJSON for the mock's maps: same geometry as lib/mapFeatures, with translated popups and palette-aware colours. */
+/** GeoJSON for the maps, with translated popups and palette-aware colours. */
 import type * as GeoJSON from "geojson";
 import { cellToBoundary } from "h3-js";
 import { ageClass, divergingScale, type AgeClass } from "./colors";
@@ -7,6 +7,9 @@ import type { FireUnit } from "./fireUnits";
 import type { AnomalyCell, GridCell, HotspotFeature } from "../services/api/types";
 import type { Fmt, Translate } from "../i18n/I18n";
 
+
+/** Outline of fires probably hidden under clouds (the warning colour of the cloud note). */
+export const HIDDEN_COLOR = "#e3b341";
 export interface PopupData {
   title: string;
   rows: [string, string][];
@@ -135,24 +138,27 @@ export function unitAge(u: FireUnit): AgeClass {
 /** Fill opacity of an event's core; its extension (cells joined only through the wider ring) is paler. */
 const CORE_OPACITY = { live: 0.6, ended: 0.3 };
 const EXTENSION_OPACITY = { live: 0.22, ended: 0.12 };
+const HIDDEN_OPACITY = { core: 0.15, extension: 0.06 };
 
-export function eventShapes(units: FireUnit[], colors: Record<AgeClass, string>) {
+/** `hidden`: fires probably hidden under clouds on D (lib/clouds.ts), drawn dashed and faint. */
+export function eventShapes(units: FireUnit[], colors: Record<AgeClass, string>, hidden: (u: FireUnit) => boolean = () => false) {
   const maxFrp = Math.max(1, ...units.map((u) => u.frp_sum));
   const polygons: GeoJSON.FeatureCollection = {
     type: "FeatureCollection",
     features: units.flatMap((u): GeoJSON.Feature[] => {
       const age = unitAge(u);
       const state = age === "ended" ? "ended" : "live";
-      const style = { id: u.id, color: colors[age], stroke: age === "ended" ? "#757575" : "#3f1d0b" };
+      const isHidden = hidden(u);
+      const style = { id: u.id, color: colors[age], stroke: age === "ended" ? "#757575" : "#3f1d0b", hidden: isHidden };
       const core: GeoJSON.Feature = {
         type: "Feature",
-        properties: { ...style, part: "core", opacity: CORE_OPACITY[state] },
+        properties: { ...style, part: "core", opacity: isHidden ? HIDDEN_OPACITY.core : CORE_OPACITY[state] },
         geometry: u.extensionGeometry && u.coreGeometry ? u.coreGeometry : u.geometry,
       };
       if (!u.extensionGeometry || !u.coreGeometry) return [core];
       return [core, {
         type: "Feature",
-        properties: { ...style, part: "extension", opacity: EXTENSION_OPACITY[state] },
+        properties: { ...style, part: "extension", opacity: isHidden ? HIDDEN_OPACITY.extension : EXTENSION_OPACITY[state] },
         geometry: u.extensionGeometry,
       }];
     }),
@@ -163,7 +169,10 @@ export function eventShapes(units: FireUnit[], colors: Record<AgeClass, string>)
       const age = unitAge(u);
       return {
         type: "Feature",
-        properties: { id: u.id, color: colors[age], radius: 4 + 10 * Math.sqrt(u.frp_sum / maxFrp), opacity: age === "ended" ? 0.45 : 0.9 },
+        properties: {
+          id: u.id, color: colors[age], radius: 4 + 10 * Math.sqrt(u.frp_sum / maxFrp), opacity: hidden(u) ? 0.3 : age === "ended" ? 0.45 : 0.9,
+          ...(hidden(u) ? { ring: HIDDEN_COLOR, ringWidth: 2 } : {}),
+        },
         geometry: { type: "Point", coordinates: u.centroid },
       };
     }),

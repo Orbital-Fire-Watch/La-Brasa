@@ -1,9 +1,5 @@
-/**
- * The one place for HTTP: base URL, timeout, JSON, and turning failures into ApiError.
- * In mock mode the same calls go to the in-browser mock API instead of the network.
- */
+/** The one place for HTTP: base URL, timeout, JSON, and turning failures into ApiError. */
 import { CONFIG } from "../../lib/config";
-import { mockRequest } from "../mock/mockClient";
 import { ApiError } from "./errors";
 import type { ErrorCode, ErrorResponse, paths } from "./types";
 
@@ -39,10 +35,6 @@ export async function apiRequest<T>(
   path: string,
   opts: { query?: Query; body?: unknown; signal?: AbortSignal } = {},
 ): Promise<T> {
-  if (CONFIG.apiMode === "mock") {
-    const query = Object.fromEntries(toSearchParams(opts.query));
-    return mockRequest<T>(method, path, { query, body: opts.body, signal: opts.signal });
-  }
   const { signal, done } = withTimeout(opts.signal);
   try {
     const res = await fetch(apiUrl(path, opts.query), {

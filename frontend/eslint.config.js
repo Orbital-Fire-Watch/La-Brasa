@@ -12,6 +12,5 @@ export default defineConfig(
   tseslint.configs.recommended,
   reactHooks.configs.flat["recommended-latest"],
   { languageOptions: { globals: globals.browser } },
-  { files: ["scripts/**", "vite.config.ts", "eslint.config.js"], languageOptions: { globals: globals.node } },
-  { files: ["services/mock/worker.ts"], languageOptions: { globals: globals.worker } },
+  { files: ["vite.config.ts", "eslint.config.js"], languageOptions: { globals: globals.node } },
 );

@@ -89,7 +89,7 @@ Die 18 Schritte aus `tutorial.md` werden zu **16 Popups** zusammengefasst. Jeder
 
 ### Echte Daten
 
-Das Tutorial zeigt **die echten Daten aus dem Backend** (`VITE_API_MODE=live`), nicht die Mock-Daten. Daraus folgt:
+Das Tutorial zeigt **die echten Daten aus dem Backend** (das Frontend hat keinen Mock mehr). Daraus folgt:
 
 - **Testgebiet:** Galicia ist im Backend die NUTS-2-Region **`ES11`**. Die ID steht fest in `lib/tourSteps.ts`. Zur
   Sicherheit prüft das Tutorial beim Start, ob `ES11` in `/api/regions` vorkommt. Fehlt sie, sucht es nach dem Namen

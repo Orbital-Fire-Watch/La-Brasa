@@ -1,5 +1,5 @@
 /*
- * La Brasa design mock. Quiet, tool-like styling: flat surfaces, a restrained metal finish on the tiles,
+ * La Brasa design. Quiet, tool-like styling: flat surfaces, a restrained metal finish on the tiles,
  * sentence case, two accents (blue = selection, orange = main action and fire data), no glow, blur or
  * decorative animation. Tokens are defined once per theme; components only use tokens.
  */
@@ -34,6 +34,8 @@
   --ow-orange-strong: #c9550a;
   --ow-orange-text: #ffffff;
   --ow-danger: #f08a80;
+  --ow-cloud: #c9d1db;
+  --ow-warn: #e3b341;
   --ow-focus: #8ab8ec;
   --ow-overlay: #1b1e22;
   --ow-icon-filter: invert(1) brightness(1.3);
@@ -56,6 +58,8 @@
   --ow-orange-strong: #a3360a;
   --ow-orange-text: #ffffff;
   --ow-danger: #b42318;
+  --ow-cloud: #4b5563;
+  --ow-warn: #9a6700;
   --ow-focus: #0b4f8a;
   --ow-overlay: #ffffff;
   --ow-icon-filter: none;
@@ -78,6 +82,8 @@
   --ow-orange-strong: #ffe766;
   --ow-orange-text: #000000;
   --ow-danger: #ff6b6b;
+  --ow-cloud: #ffffff;
+  --ow-warn: #ffd400;
   --ow-focus: #00e5ff;
   --ow-overlay: #000000;
   --ow-icon-filter: invert(1);
@@ -173,7 +179,6 @@ a { color: var(--ow-blue); }
 .ow-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 0.857rem; cursor: pointer; }
 .ow-switch input { width: 16px; height: 16px; accent-color: var(--ow-blue); }
 
-.ow-mocknote { font-size: 0.786rem; color: var(--ow-muted); }
 
 .ow-flag { width: 18px; height: 12px; flex: none; border-radius: var(--ow-radius-sm); outline: 1px solid rgb(0 0 0 / 20%); vertical-align: middle; }
 .ow-flags { display: inline-flex; gap: 4px; }
@@ -321,6 +326,7 @@ a { color: var(--ow-blue); }
 .ow-swatch { width: 12px; height: 12px; border-radius: var(--ow-radius-sm); border: 1px solid rgb(0 0 0 / 25%); }
 /* extension of a fire event: pale fill in the age colour (currentColor) with a dashed outline, as on the map */
 .ow-swatch--extension { background: color-mix(in srgb, currentColor 25%, transparent); border: 1px dashed #3f1d0b; }
+.ow-swatch--hidden { border: 2px dashed #e3b341; background: none; }  /* = HIDDEN_COLOR in lib/mapFeatures.ts */
 
 /* ================================================================ start page */
 
@@ -474,6 +480,14 @@ a { color: var(--ow-blue); }
 .ow-slider__input { width: 100%; margin: 0; accent-color: var(--ow-blue); }
 .ow-slider__anchor { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-inline-start: -1px; background: var(--ow-muted); pointer-events: none; }
 .ow-slider__scale { display: flex; justify-content: space-between; font-size: 0.714rem; color: var(--ow-muted); }
+/* cloud strip under the fire bars (lib/clouds.ts): fill-opacity = cloud cover, set inline */
+.ow-slider__clouds { width: 100%; height: 11px; display: block; }
+.ow-slider__cloud { fill: var(--ow-cloud); }
+.ow-slider__cloud--hidden { stroke: #e3b341; stroke-width: 1.5px; stroke-dasharray: 2 1.5; vector-effect: non-scaling-stroke; }  /* = HIDDEN_COLOR */
+.ow-slider__cloud--on { stroke: var(--ow-orange); stroke-width: 2px; stroke-dasharray: none; vector-effect: non-scaling-stroke; }
+.ow-cloudnote { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.857rem; color: var(--ow-muted); }
+.ow-cloudnote svg { flex: none; width: 16px; height: 16px; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.ow-cloudnote--cloudy { color: var(--ow-warn); font-weight: 600; }
 
 .ow-selected { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--ow-blue); border-radius: var(--ow-radius); background: var(--ow-blue-soft); }
 .ow-selected__name { font-weight: 600; }

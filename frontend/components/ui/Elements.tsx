@@ -1,4 +1,4 @@
-/** Small building blocks of the mock: collapsible tile, viewport-safe tooltip, status blocks, flags. */
+/** Small building blocks: collapsible tile, viewport-safe tooltip, status blocks, flags. */
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { errorMessage, useI18n } from "../../i18n/I18n";
@@ -6,7 +6,7 @@ import { useTour } from "../../hooks/useTour";
 import type { TourTarget } from "../../lib/tour";
 
 /**
- * Collapsible tile with a heading (EFFIS-style). No shadow, quiet metal surface (mock.css).
+ * Collapsible tile with a heading (EFFIS-style). No shadow, quiet metal surface (styles/design.css).
  * `tour` names the tile for the tutorial: it is highlighted there and kept open while the tutorial talks about it.
  */
 export function Tile({ title, children, defaultOpen = true, aside, className, tour }: {

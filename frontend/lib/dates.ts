@@ -67,6 +67,3 @@ export function formatDate(date: string): string {
 export function formatDayMonth(date: string): string {
   return `${date.slice(8, 10)}.${date.slice(5, 7)}.`;
 }
-
-/** Today in UTC – only for the mock's "last_date"; the UI uses meta.last_date as "today". */
-export const utcToday = (): string => toIso(Date.now());

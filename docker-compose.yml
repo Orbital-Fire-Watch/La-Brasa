@@ -34,6 +34,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       FIRMS_MAP_KEY: ${FIRMS_MAP_KEY}
+      METEOMATICS_USERNAME: ${METEOMATICS_USERNAME}
+      METEOMATICS_PASSWORD: ${METEOMATICS_PASSWORD}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - ./data:/app/data           # raw CSVs in, harmonised tables out (the sync writes here)
@@ -47,7 +49,7 @@ services:
     build: ./frontend
     logging: *logging
     ports:
-      - "8080:80"
+      - "${FRONTEND_PORT:-8080}:80"   # another port locally: FRONTEND_PORT in .env
     depends_on:
       - backend
 
