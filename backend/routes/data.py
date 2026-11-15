@@ -9,14 +9,16 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from core.db import connect
 from dtos import (
     AreaRequest, AreaResponse, ByRegionRequest, ByRegionResponse, CalendarRequest, CalendarResponse, DailyRequest,
-    DailyResponse, EventDetailResponse, EventId, EventsRequest, EventsResponse, ExportQuery, GridAnomalyResponse,
-    GridByDayResponse, GridCountResponse, GridRequest, HiddenFiresRequest, HiddenFiresResponse, HotspotsRequest,
-    HotspotsResponse, MetaResponse, RegionsResponse, SensorDailyRequest, SensorDailyResponse,
+    DailyResponse, EventDetailResponse, EventId, EventsRequest, EventsResponse, ExportQuery, ForecastDailyResponse,
+    ForecastStatusResponse, GridAnomalyResponse, GridByDayResponse, GridCountResponse, GridRequest, HiddenFiresRequest,
+    HiddenFiresResponse, HotspotsRequest, HotspotsResponse, MetaResponse, RegionsResponse, SensorDailyRequest,
+    SensorDailyResponse,
 )
 from errors import ERRORS_DOC
 from services.areas import register_area
 from services.clouds import daily_clouds
 from services.events import daily_event_counts, event_detail, get_index, hidden_fires, list_events
+from services.forecast import build_forecast_daily, build_forecast_status
 from services.grid import build_grid
 from services.hotspots import build_hotspots, export_rows
 from services.meta import build_meta
@@ -129,3 +131,21 @@ def event(event_id: Annotated[EventId, Path()], date: Annotated[dt.date, Query(d
 def by_region(body: ByRegionRequest):
     with connect() as conn:
         return build_by_region(conn, build_scope(conn, body), body)
+
+
+# Forecast (docs/forecast_backend_frontend.md, section 5): new values once a day, so responses may be cached for an hour
+FORECAST_CACHE = {"Cache-Control": "public, max-age=3600"}
+
+
+@router.get("/forecast/daily", response_model=ForecastDailyResponse, responses=ERRORS_DOC, tags=["Kann"])
+def forecast_daily(region_id: str | None = None, target_date: dt.date | None = None):
+    with connect() as conn:
+        body = ForecastDailyResponse.model_validate(build_forecast_daily(conn, region_id, target_date))
+    return JSONResponse(body.model_dump(mode="json"), headers=FORECAST_CACHE)
+
+
+@router.get("/forecast/status", response_model=ForecastStatusResponse, responses=ERRORS_DOC, tags=["Kann"])
+def forecast_status():
+    with connect() as conn:
+        body = ForecastStatusResponse.model_validate(build_forecast_status(conn))
+    return JSONResponse(body.model_dump(mode="json"), headers=FORECAST_CACHE)

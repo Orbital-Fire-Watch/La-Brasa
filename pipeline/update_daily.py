@@ -7,6 +7,7 @@ Steps (each in the Python environment of its folder):
 2. Harmonisation: harmonisation/run_pipeline.py            data/raw/ -> data/harmonised/ (unchanged stages skipped)
 3. Database:      pipeline/load_to_db.py                   only with --load-db (the database is connected later)
 4. Forecast:      forecast/daily.py                        weather + forecast for the new issue date
+5. Forecast → DB: pipeline/load_forecast_to_db.py          only with --load-db, after step 4
 
 A failed step does not stop the following ones: with no new FIRMS data the harmonisation keeps the last state, and
 the forecast still gets fresh weather. Every run appends one JSON line to data/logs/update_daily.jsonl and writes
@@ -123,6 +124,16 @@ def step_load_db() -> dict:
     return res
 
 
+def step_load_forecast_db() -> dict:
+    """pipeline/load_forecast_to_db.py: loads nothing (exit 1) when the forecast run was not ok, the old rows stay."""
+    code, tail, sec = run([interpreter("PIPELINE_PYTHON", "pipeline"), "load_forecast_to_db.py"], REPO / "pipeline", 600)
+    res = {"exit": code, "seconds": sec}
+    if code != 0:
+        res["warning"] = f"load_forecast_to_db failed (exit {code})"
+        res["log_tail"] = tail
+    return res
+
+
 def step_forecast() -> dict:
     code, tail, sec = run([interpreter("FORECAST_PYTHON", "forecast"), "daily.py"], REPO / "forecast", 1800)
     res = {"exit": code, "seconds": sec}
@@ -175,6 +186,9 @@ def main() -> int:
     if not args.no_forecast:
         print("[update_daily] 4/4 forecast", flush=True)
         steps["forecast"] = step_forecast()
+        if args.load_db:
+            print("[update_daily] 5/5 forecast -> database", flush=True)
+            steps["load_forecast_db"] = step_load_forecast_db()
 
     warnings = [s["warning"] for s in steps.values() if s.get("warning")]
     record = {"started_utc": started, "finished_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),

@@ -729,3 +729,23 @@ a { color: var(--ow-blue); }
 @media (max-width: 900px) {
   .ow-tour-maparea { top: 0; left: 0; right: 0; bottom: auto; height: 78vh; }
 }
+
+/* ================================================================ forecast outlook box (above the short-term tile) */
+
+.ow-forecast {
+  --ow-forecast-tone: #fecc5c;
+  margin: 0 0 10px; padding: 8px 12px; border: 1px solid var(--ow-tile-border); border-left: 4px solid var(--ow-forecast-tone);
+  border-radius: var(--ow-radius-lg); color: var(--ow-text); font-size: 0.857rem; line-height: 1.35; display: grid; gap: 4px;
+}
+.ow-forecast[data-tone="low"] { --ow-forecast-tone: #4daf4a; }
+.ow-forecast[data-tone="elevated"] { --ow-forecast-tone: #fd8d3c; }
+.ow-forecast[data-tone="high"] { --ow-forecast-tone: #e31a1c; }
+.ow-forecast__head { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ow-muted); }
+.ow-forecast__main { margin: 0; font-size: 1.07rem; font-weight: 600; }
+.ow-forecast__arrow { display: inline-block; width: 1.2em; color: var(--ow-forecast-tone); }
+.ow-forecast__parts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; }
+.ow-forecast__part { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ow-forecast__dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--ow-tile-border); }
+.ow-forecast__when { color: var(--ow-muted); font-variant-numeric: tabular-nums; }
+.ow-forecast__foot { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 0; font-size: 0.75rem; color: var(--ow-muted); }
+.ow-forecast__warn { color: var(--ow-text); font-weight: 600; }

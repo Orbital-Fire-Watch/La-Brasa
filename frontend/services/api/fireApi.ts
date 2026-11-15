@@ -1,12 +1,15 @@
 /** One small typed function per endpoint of the Fire-API v3 (spec §3). */
 import { apiPost, apiRequest, apiUrl } from "./client";
 import type {
-  AreaRequest, CalendarRequest, DailyRequest, EventDetailResponse, EventsRequest, ExportQuery, GridRequest, HiddenFiresRequest,
-  HotspotsRequest, MetaResponse, RegionsResponse,
+  AreaRequest, CalendarRequest, DailyRequest, EventDetailResponse, EventsRequest, ExportQuery, ForecastDailyResponse,
+  ForecastStatusResponse, GridRequest, HiddenFiresRequest, HotspotsRequest, MetaResponse, RegionsResponse,
 } from "./types";
 
 export const fireApi = {
   meta: (signal?: AbortSignal) => apiRequest<MetaResponse>("GET", "/api/meta", { signal }),
+  forecastDaily: (query: { region_id?: string; target_date?: string }, signal?: AbortSignal) =>
+    apiRequest<ForecastDailyResponse>("GET", "/api/forecast/daily", { query, signal }),
+  forecastStatus: (signal?: AbortSignal) => apiRequest<ForecastStatusResponse>("GET", "/api/forecast/status", { signal }),
   regions: (signal?: AbortSignal) => apiRequest<RegionsResponse>("GET", "/api/regions", { signal }),
   calendar: (body: CalendarRequest, signal?: AbortSignal) => apiPost("/api/calendar", body, signal),
   daily: (body: DailyRequest, signal?: AbortSignal) => apiPost("/api/daily", body, signal),

@@ -1,5 +1,6 @@
 /** Colour scales (colour-blind-safe, see spec §7.7). Every map and chart also has a legend. */
 import { interpolateRdBu, interpolateYlOrRd } from "d3-scale-chromatic";
+import type { RiskClass } from "../services/api/types";
 
 /**
  * Sequential log-like scale – extreme months must not flatten everything else (spec §7.7).
@@ -30,6 +31,14 @@ export function ageClass(daysSinceLast: number): AgeClass {
   return "older";
 }
 
+/** Forecast risk classes (sequential YlOrRd, lightness strictly falling). Colour by class, never by risk_ratio. */
+export const RISK_COLOR: Record<RiskClass, string> = {
+  low: "#ffffb2",
+  normal: "#fecc5c",
+  elevated: "#fd8d3c",
+  high: "#e31a1c",
+  very_high: "#800026",
+};
 export const AGE_COLOR: Record<AgeClass, string> = {
   today: "#b2182b",
   recent: "#ef6c2f",
