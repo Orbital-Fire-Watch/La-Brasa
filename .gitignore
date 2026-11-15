@@ -8,6 +8,7 @@ data/raw/*
 !data/raw/fixtures/
 data/processed/*
 data/harmonised/csv
+data/logs/
 data/forecast/
 
 # python
