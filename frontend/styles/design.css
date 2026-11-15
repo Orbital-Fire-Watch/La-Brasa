@@ -36,10 +36,6 @@
   --ow-danger: #f08a80;
   --ow-focus: #8ab8ec;
   --ow-overlay: #1b1e22;
-  --ow-hero-bg: #172231;
-  --ow-hero-text: #e8eef6;
-  --ow-hero-muted: #a9b7c8;
-  --ow-hero-line: #26364a;
   --ow-icon-filter: invert(1) brightness(1.3);
 }
 
@@ -62,10 +58,6 @@
   --ow-danger: #b42318;
   --ow-focus: #0b4f8a;
   --ow-overlay: #ffffff;
-  --ow-hero-bg: #dfe7f7;
-  --ow-hero-text: #0f1c33;
-  --ow-hero-muted: #3a4a66;
-  --ow-hero-line: #c6d3ec;
   --ow-icon-filter: none;
 }
 
@@ -88,10 +80,6 @@
   --ow-danger: #ff6b6b;
   --ow-focus: #00e5ff;
   --ow-overlay: #000000;
-  --ow-hero-bg: #000000;
-  --ow-hero-text: #ffffff;
-  --ow-hero-muted: #ffffff;
-  --ow-hero-line: #ffffff;
   --ow-icon-filter: invert(1);
 }
 
@@ -445,15 +433,6 @@ a { color: var(--ow-blue); }
 .ow-toolbar__group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* header blocks: big rectangular blocks side by side on one flat band (EFFIS) */
-.ow-hero { max-width: 1440px; margin: 0 auto; padding: 0 24px; }
-.ow-hero__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--ow-hero-bg); color: var(--ow-hero-text); border: 1px solid var(--ow-hero-line); border-radius: var(--ow-radius-lg); }
-.ow-hero__block { display: grid; align-content: start; gap: 4px; min-height: 168px; padding: 22px 26px; }
-.ow-hero__block + .ow-hero__block { border-inline-start: 1px solid var(--ow-hero-line); }
-.ow-hero__value { font-size: 1.857rem; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
-.ow-hero__unit { font-size: 1.071rem; font-weight: 400; }
-.ow-hero__sentence { font-size: 1rem; }
-.ow-hero__compare { margin-top: 6px; font-size: 0.857rem; color: var(--ow-hero-muted); max-width: 46ch; }
-.ow-hero__asof { margin-top: 6px; font-size: 0.786rem; color: var(--ow-muted); text-align: end; }
 
 .ow-content { max-width: 1440px; margin: 0 auto; padding: 16px 24px 24px; display: grid; gap: 12px; }
 
@@ -570,10 +549,8 @@ a { color: var(--ow-blue); }
 }
 
 @media (max-width: 720px) {
-  .ow-hero__grid { grid-template-columns: minmax(0, 1fr); }
-  .ow-hero__block + .ow-hero__block { border-inline-start: 0; border-top: 1px solid var(--ow-hero-line); }
   .ow-cards { grid-template-columns: minmax(0, 1fr); }
-  .ow-toolbar, .ow-content, .ow-hero { padding-left: 16px; padding-right: 16px; }
+  .ow-toolbar, .ow-content { padding-left: 16px; padding-right: 16px; }
   .ow-maplayout__map .ow-map { height: 60vh; }
 }
 

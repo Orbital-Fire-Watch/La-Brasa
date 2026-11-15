@@ -20,11 +20,11 @@ export const TOUR_VERSION = 1;
 /** Elements marked with data-tour="…" that a step can highlight. "map" is the free map area of the start page. */
 export type TourTarget =
   | "map" | "legend" | "infoboxes" | "settings" | "area" | "selection" | "exit" | "calendar" | "drawbar"
-  | "compare" | "display" | "analysis" | "hero" | "short" | "maptile" | "slider" | "season" | "year";
+  | "compare" | "display" | "analysis" | "short" | "maptile" | "slider" | "season" | "year";
 
 export type TourStepId =
   | "welcome" | "map" | "info" | "settings" | "area" | "selection" | "zoom" | "calendar" | "draw" | "compare"
-  | "analysis" | "hero" | "short" | "maptile" | "slider" | "charts";
+  | "analysis" | "short" | "maptile" | "slider" | "charts";
 
 export interface TourStep {
   /** also the i18n key: tour.<id>.title, tour.<id>.text */
@@ -55,7 +55,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "draw", targets: ["drawbar"], page: "select", region: true, date: "test" },
   { id: "compare", targets: ["compare", "display"], page: "select", region: true, date: "test", display: "compare" },
   { id: "analysis", targets: ["analysis"], page: "select", region: true, date: "test" },
-  { id: "hero", targets: ["hero"], page: "analysis", region: true, date: "test" },
   { id: "short", targets: ["short"], page: "analysis", region: true, date: "test" },
   { id: "maptile", targets: ["maptile"], page: "analysis", region: true, date: "test", fit: "fire", event: true },
   { id: "slider", targets: ["slider"], page: "analysis", region: true, date: "test", fit: "fire", event: true },

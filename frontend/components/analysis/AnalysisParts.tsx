@@ -1,84 +1,20 @@
 /** Building blocks of the analysis page: EFFIS-style header blocks, short-term cards, time slider, fire list. */
 import { useMemo, useState, type ReactNode } from "react";
-import type { DailySeries, SeasonPhase, SeriesKey, Values, WindowAnomaly } from "../../lib/analysis";
+import type { SeasonPhase, Values, WindowAnomaly } from "../../lib/analysis";
 import { addDays, dateFromDayOfYear, dayOfYear, daysBetween, monthOf } from "../../lib/dates";
 import type { FireUnit } from "../../lib/fireUnits";
 import type { Method } from "../../lib/methods";
 import type { EventSort } from "../../services/api/types";
 import { useI18n } from "../../i18n/I18n";
-import type { MessageKey } from "../../i18n/types";
 import { unitAge } from "../../lib/mapFeatures";
 import { ageColors } from "../../lib/palette";
 import { usePrefs } from "../../hooks/usePrefs";
-import { ytdStat, type YtdStat } from "../../lib/ytd";
 import { Spinner, Tip } from "../ui/Elements";
 import { Segmented } from "../ui/Segmented";
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from "../../hooks/usePlayback";
 
 /** Lower-case first letter, for method names used inside a sentence. */
 export const inSentence = (s: string) => s.charAt(0).toLocaleLowerCase() + s.slice(1);
-
-// ------------------------------------------------------------------ header blocks (year to date, side by side)
-
-interface HeroSpec {
-  id: string;
-  key: SeriesKey;
-  unit: string;
-  sentence: MessageKey;
-  /** counts (events, detections) are shown without decimals */
-  integer?: boolean;
-}
-
-function HeroBlock({ spec, stat, loading }: { spec: HeroSpec; stat: YtdStat | null; loading: boolean }) {
-  const { t, f } = useI18n();
-  const num = (v: number) => (spec.integer && Math.abs(v) < 1e6 ? f.int(v) : f.compact(v));
-  let compare: ReactNode = t(loading ? "hero.loading" : "hero.noCompare");
-  if (stat && stat.value !== null && stat.lastYear) {
-    const pct = stat.lastYear.value > 0 ? f.pctChange((stat.value - stat.lastYear.value) / stat.lastYear.value) : "–";
-    const vars = { value: `${num(stat.lastYear.value)} ${spec.unit}`, date: f.dateLong(stat.lastYear.date), pct };
-    compare = (
-      <>
-        {t(stat.value >= stat.lastYear.value ? "hero.above" : "hero.below", vars)}
-        {stat.record && <> {stat.value > stat.record.value ? t("hero.newRecord") : t("hero.record", { value: num(stat.record.value), year: String(stat.record.year) })}</>}
-      </>
-    );
-  }
-  return (
-    <article className="ow-hero__block">
-      <p className="ow-hero__value">
-        {stat?.value == null ? (loading ? <Spinner /> : t("ui.na")) : num(stat.value)} <span className="ow-hero__unit">{spec.unit}</span>
-      </p>
-      <p className="ow-hero__sentence">{t(spec.sentence)}</p>
-      <p className="ow-hero__compare">{compare}</p>
-    </article>
-  );
-}
-
-/** Year to date for the selection: harmonised hotspots, FRP, and new events (raw detections without events). */
-export function HeroBlocks({ daily, date, loading }: { daily: DailySeries | null; date: string; loading: boolean }) {
-  const { t, f } = useI18n();
-  const specs: HeroSpec[] = [
-    { id: "fires", key: "fires", unit: t("unit.hotspots"), sentence: "hero.fires" },
-    { id: "frp", key: "frp_sum", unit: "MW", sentence: "hero.frp" },
-    daily?.events_new
-      ? { id: "events", key: "events_new", unit: t("unit.events"), sentence: "hero.events", integer: true }
-      : { id: "raw", key: "hotspots", unit: t("unit.detections"), sentence: "hero.raw", integer: true },
-  ];
-  const stats = useMemo(
-    () => (daily ? { fires: ytdStat(daily, "fires", date), frp_sum: ytdStat(daily, "frp_sum", date), events_new: ytdStat(daily, "events_new", date), hotspots: ytdStat(daily, "hotspots", date) } : null),
-    [daily, date],
-  );
-  return (
-    <section className="ow-hero" aria-label={t("hero.aria")} data-tour="hero">
-      <div className="ow-hero__grid">
-        {specs.map((s) => (
-          <HeroBlock key={s.id} spec={s} stat={stats ? stats[s.key as "fires" | "frp_sum" | "events_new" | "hotspots"] : null} loading={loading} />
-        ))}
-      </div>
-      <p className="ow-hero__asof">{t("hero.asOf", { date: f.dateLong(date) })}</p>
-    </section>
-  );
-}
 
 // ------------------------------------------------------------------ short-term cards
 
