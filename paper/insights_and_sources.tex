@@ -1,0 +1,245 @@
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{array,booktabs,longtable}
+\usepackage{amsmath,amssymb}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[round,authoryear]{natbib}
+\usepackage[colorlinks=true,linkcolor=MidnightBlue,citecolor=MidnightBlue,urlcolor=MidnightBlue]{hyperref}
+\usepackage{doi}
+\usepackage{enumitem}
+
+% Fit labels at the start of each description
+\newcommand{\fitlabel}[2]{\textcolor{#1}{\textbf{#2}}}
+\newcommand{\confirms}{\fitlabel{ForestGreen}{Confirms:}}
+\newcommand{\consistent}{\fitlabel{RoyalBlue}{Consistent:}}
+\newcommand{\method}{\fitlabel{Plum}{Method:}}
+\newcommand{\own}{\fitlabel{BurntOrange}{Own finding:}}
+\newcommand{\abs}{$^\dagger$}   % content only checked via abstract or summary
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.25}
+
+% One table per topic: our insight | supporting paper | short description
+\newenvironment{insighttable}{%
+  \small
+  \begin{longtable}{L{0.36\textwidth} L{0.17\textwidth} L{0.41\textwidth}}
+  \toprule
+  \textbf{Our insight} & \textbf{Supporting paper} & \textbf{Short description} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+}{%
+  \end{longtable}
+}
+
+\title{\textbf{MODIS $\rightarrow$ VIIRS harmonisation for Iberia}\\[2pt]
+       \large Our insights and the research behind them}
+\author{La-Brasa team, NASA Space Apps Challenge 2026}
+\date{15 November 2026}
+
+\begin{document}
+\maketitle
+
+\noindent
+This overview lists what we found while harmonising the NASA FIRMS hotspots of MODIS (Terra, Aqua) and VIIRS
+(SNPP, NOAA-20, NOAA-21) for the Iberian Peninsula, and which research papers support each finding.
+We found the insights in our own data (\texttt{harmonisation/data\_analysis/}). The papers show the same effect
+elsewhere or justify the method we use. Each description starts with how well the paper fits:
+
+\begin{itemize}[nosep,leftmargin=1.5em]
+  \item \confirms\ the paper reports the same effect, often with a similar number.
+  \item \consistent\ the paper points the same way but measures something slightly different.
+  \item \method\ the paper is the standard source for a method we use.
+  \item \own\ no paper found. The evidence is our own validation: 42 KPIs in
+        \texttt{data/harmonised/} \texttt{kpi\_report.json}.
+\end{itemize}
+
+\medskip\noindent
+All numbers refer to Iberia, vegetation fires only (\texttt{type} $= 0$), calibration window 02/2012--12/2021.
+Bibliographic data of all papers was checked against Crossref. Papers marked \abs\ were only read as an abstract
+or summary; read the full text before relying on details.
+
+% ---------------------------------------------------------------------------
+\section{Sensors: why MODIS and VIIRS differ}
+
+\begin{insighttable}
+VIIRS SNPP reports $6.0\times$ as many detections as Aqua and $\approx 3.0\times$ as many as Aqua + Terra
+(by day $4.1\times$, at night $11\times$).
+& \citet{vadrevu2018}
+& \confirms\ VIIRS detected $6.5\times$ as many fires as Aqua MODIS in an agricultural region of India. \\
+
+VIIRS sees many more small fires because of its 375\,m pixels.
+& \citet{schroeder2014}
+& \confirms\ describes the VIIRS 375\,m algorithm; it detects far more fire pixels than the coarser 750\,m
+product, especially at night. \\
+
+The difference is \emph{which} fires are detected: Aqua detects a VIIRS fire cluster with 50\,\% probability
+only from $\approx 34$\,MW (day) / 21\,MW (night). Aqua sees 24\,\% of the clusters, but they contain 83\,\% of the FRP.
+& \citet{giglio2016}; \citet{schroeder2008}; \citet{sofiev2026}\abs
+& \consistent\ MODIS detection probability depends mainly on fire size; detection limit 3.7\,MW (night, nadir)
+up to 40\,MW (day, off-nadir). Our 50\,\% point in MW is our own fit. \\
+
+The daily FRP sum is comparable between sensors (SNPP/Aqua $\approx 1.04$); the factor does not transfer
+worldwide (0.9--3.3).
+& \citet{li2018}; \citet{li2020}\abs
+& \confirms\ FRP of fire clusters is very comparable; differences $\approx 20$\,\% on a $1^\circ$ grid that vary
+by region. In Africa MODIS daily FRP is at least 42.8\,\% too low. \\
+
+Single-pixel FRP is not comparable (a VIIRS pixel is $0.45\times$ as strong as a MODIS pixel of the same fire).
+Only sums are.
+& \citet{li2018}; \citet{zheng2026}\abs
+& \consistent\ per-pixel FRP differs between sensors and MODIS FRP depends strongly on the view angle;
+Zheng et al.\ build a view-angle correction for MODIS FRP. \\
+
+\texttt{brightness} is not comparable: the VIIRS channel saturates at 367\,K (14\,\% of day detections sit
+exactly on this value). Dropped.
+& \citet{schroeder2014}
+& \confirms\ names saturation of the middle-infrared channel as a known limitation of VIIRS. \\
+
+VIIRS confidence ``h'' only means ``saturated'' (all h rows are at 367\,K); MODIS confidence rises with
+brightness. The classes are not comparable.
+& --
+& \own\ fits the saturation note in \citet{schroeder2014}, but no paper says it directly. \\
+
+Overpass time matters: fires burn strongest in the afternoon, so Aqua/SNPP ($\approx$ 13:30) and Terra
+($\approx$ 10:30) see different amounts. FRP before 2012 therefore comes from Aqua alone (H1).
+& \citet{giglio2006}; \citet{freeborn2011}; \citet{andela2015}
+& \confirms\ strong diurnal fire cycle; polar orbiters see only snapshots of it, and the overpass time
+changes what is measured. \\
+
+Orbit drift: in 2026 Aqua flies over at $\approx$ 14:53 instead of 13:05 local time (+108\,min), Terra at 9:21
+instead of 11:01 ($-101$\,min); SNPP is stable. Therefore no MODIS after 2021.
+& \citet{giglio2025}
+& \consistent\ confirms the dates (last Terra manoeuvre 2022, Aqua 2021) and the effect on diurnal sampling;
+the impact on fire products is ``under active investigation''. \textbf{Our drift in minutes is our own number.} \\
+
+Two identical VIIRS instruments (NOAA-20 vs.\ SNPP) differ by $\times 1.18$--$1.27$ per $1^\circ$ cell and month.
+The mean of all active VIIRS satellites hits a held-out satellite better than any single one (N3).
+& \citet{csiszar2018}\abs; \citet{zhou2023}\abs
+& \consistent\ overpasses $\approx 50$\,min apart, no perfect agreement expected; FRP of SNPP and NOAA-20
+consistent overall. The size of the noise floor and the benefit of the mean are our own result. \\
+\end{insighttable}
+
+% ---------------------------------------------------------------------------
+\section{Data cleaning}
+
+\begin{insighttable}
+Static sources (industry, gas flares) are 32\,\% of SNPP night detections but only 4\,\% for Aqua. They distort
+the sensor comparison and are removed via \texttt{type}.
+& \citet{giglio2016}; \citet{firms_type}
+& \method\ \texttt{type} separates vegetation fires from static land sources and offshore sources.
+The 32\,\% vs.\ 4\,\% is our own number. \\
+
+In the near-real-time data \texttt{type} is missing. A location mask learned from the archive replaces it
+(recall $\approx 93$\,\%, 1.5\,\% of real fires removed).
+& \citet{firms_type}; \citet{ma2020}\abs; \citet{gao2026}\abs
+& \consistent\ static sources are found through persistence at the same place over years (FIRMS: 400\,m grid,
+$\geq 5$ detections per year). Our thresholds and quality numbers are our own. \\
+\end{insighttable}
+
+% ---------------------------------------------------------------------------
+\section{\texorpdfstring{Calibration (MODIS $\rightarrow$ VIIRS equivalent)}{Calibration (MODIS to VIIRS equivalent)}}
+
+\begin{insighttable}
+The factor is the sum of VIIRS divided by the sum of MODIS over the whole window, not the mean of daily ratios.
+& \citet{cochran1977}\abs; \citet{gregoire2009}
+& \method\ the ratio of sums (ratio estimator) is much less biased than the mean of ratios, and days with
+0 MODIS detections cause no division by 0. \\
+
+The factor differs by region (2.5--5.1 against Aqua + Terra) but is stable over the years, because the
+typical fire size differs by region.
+& \citet{li2018}
+& \consistent\ the MODIS--VIIRS relationship varies between regions and spatial scales. \\
+
+Simple beats complex: of 17 conversions tested (factors per month, day/night, Poisson models, gradient boosting,
+quantile mapping, FRP-class weights), one factor per region hit the VIIRS class best (64\,\%).
+& \citet{hand2006}\abs
+& \consistent\ general argument that simple models often do as well as complex ones on new data.
+\textbf{The comparison itself is our own.} \\
+
+A sensor change must not show up as a jump in the series (without conversion the mean would seem to jump
+$2.2\times$ in 2012).
+& \citet{venema2012}
+& \method\ homogenisation of climate time series after instrument changes; the established framework for
+our problem. \\
+
+Related approach from the literature.
+& \citet{zheng2026}\abs
+& \consistent\ fuses Aqua MODIS and SNPP VIIRS FRP (2012--2024) with corrections. FRP only, no detection
+counts, no regional factors. Closest related work to compare against. \\
+\end{insighttable}
+
+% ---------------------------------------------------------------------------
+\section{Error model and aggregation}
+
+\begin{insighttable}
+The $0.25^\circ$ grid is too fine for comparison: $R^2$ (log) 0.37 per cell and month, 0.73 per NUTS-2 region
+and month, 0.89 per year. The error shrinks with area and time step (day $\times 2.08$, month $\times 1.5$,
+year $\times 1.12$).
+& \citet{openshaw1984}\abs; \citet{li2018}
+& \consistent\ results depend on the size of the aggregation unit (modifiable areal unit problem); the
+MODIS--VIIRS relationship changes with spatial scale. Our error per scale is our own measurement. \\
+
+The error depends on the size of the number: $\times 3.0$ at 0, $\times 2.3$ at 1--5, $\times 1.14$ above 500.
+A fixed factor ($\times 1.46$) would be far too optimistic for small numbers.
+& \citet{gehrels1986}\abs
+& \method\ counting statistics: random counts scatter by about $\sqrt{n}$, so the relative error is large
+for small counts. \\
+
+Before 2012, MODIS reports nothing on $\approx 60$\,\% of region-days on which VIIRS sees fire. A 0 before 2012
+often only means ``MODIS saw nothing''.
+& \citet{li2020}\abs
+& \consistent\ MODIS misses many low-intensity fires. The 60\,\% is our own number. \\
+
+Big fire days (FRP sum $\geq 100$\,MW per region and day): MODIS finds 62--67\,\%; the extreme class
+($\geq 500$\,MW) is right in 72--76\,\%. Medium days are poor.
+& \citet{sofiev2026}\abs; \citet{giglio2016}
+& \consistent\ MODIS detects powerful fires with $\approx 78$\,\% probability worldwide; detection rises with
+fire size. \\
+
+Climatology: the converted MODIS seasonal profile matches VIIRS with $R^2 = 0.94$ after smoothing over
+$\pm 7$ days, only 0.75 without.
+& \citet{giglio2006}; \citet{zhang2005}\abs
+& \consistent\ Terra and Aqua agree well on peak month and season length; a window around each calendar day
+is the standard way to stabilise day-of-year statistics. The $\pm 7$ days is our own choice from the test. \\
+\end{insighttable}
+
+% ---------------------------------------------------------------------------
+\section{Evaluation methods}
+
+\begin{insighttable}
+Leave-one-year-out cross-validation; error bands fitted on one half of the years and checked on the other.
+& \citet{roberts2017}
+& \method\ with time-dependent data, random cross-validation is too optimistic; blocking by time (here: by year)
+is the right choice. \\
+
+Error given as a factor, $\exp\left|\log(\text{prediction}/\text{measurement})\right|$ (e.g.\ D1 ``$\times 2.08$'').
+& \citet{morley2018}
+& \method\ log accuracy ratio and median symmetric accuracy, a symmetric error measure for data that spans
+orders of magnitude. \\
+
+Bands must hold their promise: the 50\,\% band contains the measurement in $\approx 50$\,\% of cases, the 90\,\% band
+in $\approx 90$\,\% (U1, U2).
+& \citet{gneiting2007}; \citet{lei2018}\abs
+& \method\ calibration of probabilistic predictions; empirical quantiles on held-out data correspond to split
+conformal prediction. \\
+
+Agreement of classes (month class, big fire day) measured with Cohen's kappa.
+& \citet{cohen1960}\abs; \citet{pontius2011}
+& \method\ (with caveat): kappa is standard but contested in remote sensing; Pontius \& Millones recommend
+also reporting quantity and allocation disagreement. \\
+\end{insighttable}
+
+\noindent
+General overview of active fire remote sensing: \citet{wooster2021}.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
