@@ -2,6 +2,18 @@
 
 Stand: 14.11.2026. Modellversion `0.2-weather` (Stufe mit Wetter), `0.1-noweather` (Stufe ohne Wetter).
 
+> **Aktualisiert am 15.11.2026:** Schritt 5 (ehrliche Güte mit echten Vorhersagefehlern) und mehrere Verbesserungen
+> stehen in [honest_evaluation.md](honest_evaluation.md). **Die Gewinne mit Wetter in den Abschnitten 4.3 und 5 hier sind
+> überholt.** Sie galten für das tatsächliche Wetter des Zieltags, also eine Obergrenze. Ehrlich gemessen sind es an
+> Tag 5 0,109 statt 0,158 und an Tag 10 0,053 statt 0,134.
+>
+> Außerdem geändert:
+> - Merkmale nur noch aus den Grundvariablen, Fosberg selbst berechnet, ohne die Meteomatics-Indizes,
+> - eine glattere Saisonkurve,
+> - eine Bias-Korrektur,
+> - eine Ensemble-Spanne,
+> - Open-Meteo als Wetterquelle nach dem 22.11.
+
 Dieses Dokument erklärt, was in den Schritten 2–4 dazugekommen ist:
 
 - **Schritt 2:** Wetterdaten prüfen.

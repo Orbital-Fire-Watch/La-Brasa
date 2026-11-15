@@ -8,12 +8,13 @@ Dieser Ordner baut eine Vorhersage der Feueraktivität je NUTS-2-Region:
 Er ist ein eigener Teil neben `harmonisation/`. Er liest nur `data/harmonised/*.parquet`, importiert keinen Code
 aus anderen Ordnern und schreibt nach `data/forecast/`.
 
-> **Stand 14.11.2026, nachts:** **Die Schritte 1–4 sind fertig.** Dazu gehören das Modell ohne Wetter (1.5), die
-> geprüften Wetterdaten, das eigene FWI-System und das Modell mit Wetter (1.6, Details in
-> [docs/weather_model.md](docs/weather_model.md)). Mit Wetter steigt der Gewinn an Tag 5 von 0,04 auf 0,16. Das ist
-> eine Obergrenze, gemessen mit dem tatsächlichen Wetter, nicht mit einer Vorhersage.
-> **Schritt 6 (15.11.):** Die Ausgabe vom 13.11. nutzt jetzt die IFS-Wettervorhersage für den 14.–24.11.
-> Meteomatics läuft am **22.11.2026** aus, bis dahin die Vorhersage täglich neu holen.
+> **Stand 15.11.2026:** **Die Schritte 1–6 sind fertig.**
+> - Modell ohne Wetter (1.5), Wetter, FWI und Modell mit Wetter (1.6, [docs/weather_model.md](docs/weather_model.md)).
+> - **Ehrliche Güte mit echten Vorhersagefehlern** und Verbesserungen
+>   ([docs/honest_evaluation.md](docs/honest_evaluation.md)): Gewinn gegenüber der Saisonkurve an Tag 5 0,109 mit
+>   Wetter gegenüber 0,037 ohne, an Tag 10 0,053 gegenüber 0,005.
+> - Die tägliche Vorhersage nutzt das Wetter und die ECMWF-Ensemble-Spanne.
+> - Nach dem 22.11.2026 übernimmt automatisch Open-Meteo als Wetterquelle.
 
 ---
 
@@ -183,18 +184,24 @@ Die Einzelheiten zu Dateien und Rechenweg stehen in [docs/weather_model.md](docs
   - Gegen die veröffentlichte Testtabelle (Van Wagner & Pickett 1985) liegt die größte Abweichung bei 0,005
     (A7: < 0,1).
 - **Schritt 4, Modell mit Wetter:**
-  - Merkmale des Zieltags: FWI-System, Temperatur, Feuchte, VPD, Böen, Regen davor, Abweichungen vom Üblichen und die
-    Meteomatics-Indizes. 21 Merkmale, ausgewählt auf der Validierung 2020–2021.
-  - Gewinn gegenüber der Saisonkurve im Test:
+  - Merkmale des Zieltags aus den Grundvariablen: FWI-System, Fosberg (selbst berechnet), Temperatur, Feuchte, VPD,
+    Böen, Regen davor, Abweichungen vom Üblichen und drei nichtlineare Terme. 22 Merkmale, ausgewählt auf der
+    Validierung 2020–2021.
+- **Schritt 5, ehrliche Güte** ([docs/honest_evaluation.md](docs/honest_evaluation.md)):
+  - Im Test bekommen die Vorhersagetage echte IFS-Fehler je Vorlauf (Open-Meteo Previous Runs 2025, gegen ERA5).
+  - Das Modell wird auf Wetter mit solchen Fehlern trainiert. Ohne das wäre es mit echten Vorhersagen schlechter als
+    ohne Wetter.
 
-    | Großfeuer-Tag | Tag 1 | Tag 3 | Tag 5 | Tag 7 | Tag 10 |
+    | Großfeuer-Tag, Gewinn gegenüber der Saisonkurve | Tag 1 | Tag 3 | Tag 5 | Tag 7 | Tag 10 |
     |---|---|---|---|---|---|
-    | ohne Wetter | 0,213 | 0,081 | 0,042 | 0,025 | 0,011 |
-    | mit Wetter (Obergrenze) | **0,269** | **0,181** | **0,158** | **0,143** | **0,134** |
+    | ohne Wetter | 0,213 | 0,078 | 0,037 | 0,020 | 0,005 |
+    | **mit Wetter, mit echten Vorhersagefehlern** | **0,250** | **0,147** | **0,109** | **0,077** | **0,053** |
 
-  - Kalibrierung: ECE ≤ 0,005, Steigung 0,95–1,05.
+  - Kalibrierung: ECE ≤ 0,009, Steigung 1,01–1,13.
   - B3 und B4 sind bestanden.
   - Beim Wochenausblick bringt das Wetter nichts, er bleibt bei der Stufe ohne Wetter.
+  - Weitere Verbesserungen: eine glattere Saisonkurve, die Bias-Korrektur der IFS-Vorhersage und eine
+    Ensemble-Spanne.
 - **KPIs:** Alle Pflicht-KPIs außer D3 sind bestanden (Wochenausblick, ECE 0,059 bei Schwelle 0,05, wie in Schritt 1).
 - **Ausgeliefert** wird je Vorlauf die Stufe mit Wetter, wenn sie im Test besser ist und für den Zieltag Wetter
   vorliegt. Sonst die Stufe ohne Wetter. `model_version` je Zeile sagt, welche.
@@ -212,17 +219,19 @@ Die Einzelheiten zu Dateien und Rechenweg stehen in [docs/weather_model.md](docs
 ```bash
 cd La-Brasa/forecast
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # einmalig
-.venv/bin/python -m pytest -q                                         # 36 Tests, ohne Internet
+.venv/bin/python -m pytest -q                                         # 50 Tests, ohne Internet
 
 .venv/bin/python fetch_weather.py points     # Wetterpunkte wählen (keine API-Anfrage)
 .venv/bin/python fetch_weather.py check      # Limits des Accounts + jeden Parameter testen (~23 Anfragen)
 .venv/bin/python fetch_weather.py history --start 2012-01-20 --end 2026-11-08   # ERA5 (core) + mix (fire), ~120 Anfragen
 .venv/bin/python fetch_weather.py recent --start 2026-11-09 --end 2026-11-13     # Tage nach dem Ende von ERA5 (IFS)
 .venv/bin/python fetch_weather.py forecast   # Vorhersage ab heute für 10 Tage (~8 Anfragen)
+.venv/bin/python fetch_weather.py errors --start 2025-01-01 --end 2025-12-31   # echte IFS-Fehler (Open-Meteo, einmalig)
+.venv/bin/python fetch_weather.py ensemble   # ECMWF-Ensemble für die Spanne (Open-Meteo)
 
 .venv/bin/python run_forecast.py weather-qc         # Wetter prüfen (A5/A6) -> data/forecast/weather_qc.json
-.venv/bin/python run_forecast.py train              # auswerten + trainieren -> models/bundle.pkl + Vorhersage + KPIs (~11 min)
-.venv/bin/python run_forecast.py predict            # tägliche Vorhersage aus bundle.pkl, ohne Training (~8 s)
+.venv/bin/python run_forecast.py train              # auswerten + trainieren -> models/bundle.pkl + Vorhersage + KPIs (~6,5 min)
+.venv/bin/python run_forecast.py predict            # tägliche Vorhersage aus bundle.pkl, ohne Training (~7 s)
 .venv/bin/python run_forecast.py train --no-weather # nur die Stufe ohne Wetter
 ```
 
@@ -233,7 +242,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # einmalig
 | Was | Auswertung beider Stufen, Auswahl der Merkmale, Produktionsmodelle samt Bootstrap, KPIs, Tests | lädt `models/bundle.pkl`, berechnet die Merkmale des Ausgabetags, wendet die Gewichte an |
 | Wann | wenn sich Daten-Archiv, Code oder `config.yaml` ändern, z. B. wöchentlich | täglich, nach neuen FIRMS-Daten und neuer Wettervorhersage |
 | Wo | Arbeitsrechner (Laptop) | Server |
-| Gemessen (14.11.2026) | 11 min, 1 Kern, max. 0,9 GB RAM | **8 s, 1 Kern, max. 0,9 GB RAM** |
+| Gemessen (15.11.2026) | 6,5 min, 1 Kern, max. 1,1 GB RAM | **7 s mit Ensemble, 1 Kern, max. 1,1 GB RAM** |
 
 Der Server hat 4 vCores, 8 GB RAM, davon höchstens 3,4 GB für diesen Teil. `predict` passt mit großem Abstand.
 Nach `train` wird nur `data/forecast/models/bundle.pkl` (~1 MB) auf den Server kopiert. `predict` prüft, ob
@@ -254,8 +263,10 @@ Eine Schritt-für-Schritt-Anleitung für den Server steht in [docs/server_setup.
 
 `daily.py` ist der tägliche Job. Er ermittelt die Daten selbst und macht der Reihe nach:
 
-1. **Wetter holen:** `recent` für die Tage nach dem Ende der Historie bis gestern, und `forecast` ab heute. Das sind
-   etwa 16 Anfragen.
+1. **Wetter holen:** `recent` für die Tage nach dem Ende der Historie bis gestern, `forecast` ab heute und das
+   Ensemble.
+   - Bis zum 22.11. von Meteomatics, etwa 16 Anfragen.
+   - Danach von Open-Meteo; dabei wird auch die ERA5-Historie verlängert.
 2. **`predict`** ausführen.
 3. **Aufräumen:** Es bleiben nur die letzten 14 Vorhersage-Dateien je Gruppe.
 4. **Protokoll:** eine Zeile je Lauf in `data/forecast/logs/daily_runs.jsonl`.
@@ -442,10 +453,12 @@ GET /api/v1/forecast/skill                           -> Güte je Vorlauf
 
 Erledigt: Schritt 1 (ohne Wetter), Schritt 2 (Wetter prüfen), Schritt 3 (FWI), Schritt 4 (Modell mit Wetter).
 
-5. **Ehrliche Auswertung** für die Tage 4–10: archivierte Vorhersagen, sofern Meteomatics sie liefert, sonst
-   verrauschtes Wetter je Vorlauf. Danach ist `skill_basis` nicht mehr `analysis`.
+5. ~~Ehrliche Auswertung~~ erledigt am 15.11.: Meteomatics hat keine archivierten Vorhersagen, deshalb werden echte
+   IFS-Fehler von Open-Meteo genutzt (`skill_basis = analysis_with_noise`,
+   [docs/honest_evaluation.md](docs/honest_evaluation.md)).
 6. ~~Live-Vorhersage mit Wetter~~ erledigt am 15.11.: `fetch_weather.py recent` + `forecast`, dann
    `run_forecast.py predict` ([docs/weather_model.md](docs/weather_model.md), Abschnitt 7). Bis zum 22.11. täglich.
-   Offener Punkt daraus: eine weichere Saisonkurve für Monate mit sehr wenigen Ereignissen.
-7. Täglicher Lauf: Vorhersage holen, dann die Tabellen schreiben. Nach dem 22.11. ohne Meteomatics nur die Stufe
-   ohne Wetter.
+   Die weichere Saisonkurve ist inzwischen umgesetzt.
+7. ~~Täglicher Lauf~~ erledigt: `daily.py`, nach dem 22.11. mit Open-Meteo.
+8. Offen, Team: tägliche Aktualisierung der Feuerdaten, Datenbank und Backend, Wochenziel (D3), Regel 3.5 je Region
+   ([docs/honest_evaluation.md](docs/honest_evaluation.md), Abschnitt 7).

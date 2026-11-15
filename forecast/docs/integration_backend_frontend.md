@@ -158,8 +158,15 @@ python forecast/daily.py                     # Wetter holen (bis 22.11.2026) + p
 python pipeline/load_forecast_to_db.py
 ```
 
-`daily.py` fällt selbst auf die Stufe ohne Wetter zurück, wenn Meteomatics nicht antwortet oder der Account
-abgelaufen ist (forecast/README.md, Abschnitt 2.2).
+`daily.py` nimmt nach dem 22.11. von selbst Open-Meteo als Wetterquelle. Es fällt auf die Stufe ohne Wetter zurück,
+wenn keine frische Wettervorhersage zu bekommen ist (forecast/README.md, Abschnitt 2.2).
+
+`data/forecast/status.json` sagt, wie aktuell die Vorhersage ist: `issue_date`, `issue_date_age_days`,
+`weather_used` und `warnings`. Ein Endpoint `GET /api/forecast/status` könnte diese Datei einfach durchreichen. Das
+Frontend zeigt dann z. B. „Stand 13.11.“ oder „ohne Wetter“.
+
+**Quellenangabe Pflicht:** Seit dem Ensemble (und nach dem 22.11. für alles Wetter) kommen Wetterdaten von
+Open-Meteo, Lizenz CC BY 4.0. Das Frontend muss sie nennen, z. B. „Wetterdaten: Open-Meteo.com (ECMWF IFS, ERA5)“.
 
 Für Docker gibt es zwei Möglichkeiten:
 

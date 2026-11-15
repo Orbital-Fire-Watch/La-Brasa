@@ -5,7 +5,7 @@ muss, damit die tägliche Brandgefahr-Vorhersage automatisch läuft. Was die Vor
 [../README.md](../README.md) und [weather_model.md](weather_model.md). Wie Backend und Frontend die Ergebnisse nutzen,
 steht in [integration_backend_frontend.md](integration_backend_frontend.md).
 
-Stand: 15.11.2026.
+Stand: 15.11.2026, mit Schritt 5, Ensemble und Open-Meteo nach dem 22.11. ([honest_evaluation.md](honest_evaluation.md)).
 
 ---
 
@@ -14,21 +14,22 @@ Stand: 15.11.2026.
 ```
 Laptop (bei Bedarf, z. B. wöchentlich)            Server (täglich, per Cron)
   run_forecast.py train  (11 min)                    1. Feuerdaten aktualisieren   (Team-Pipeline, noch offen)
-        │                                            2. forecast/daily.py          (~15 s)
+        │                                            2. forecast/daily.py          (~1 min)
         └── data/forecast/models/bundle.pkl ──────►      Wetter holen + predict
                                                      3. Ergebnis in die Datenbank  (noch offen)
 ```
 
-- Auf dem Server läuft **nur `daily.py`**: 1 Kern, etwa 1,1 GB RAM, etwa 15 Sekunden am Tag.
+- Auf dem Server läuft **nur `daily.py`**: 1 Kern, etwa 1,1 GB RAM, etwa 1 Minute am Tag. Davon ist das meiste
+  Warten auf die Wetter-APIs, `predict` selbst braucht 7 s.
 - Das schwere Training (`train`) läuft auf einem Arbeitsrechner. Danach wird nur die Datei `bundle.pkl` (1 MB)
   hochgeladen.
 - Der Server hat 4 vCores und 8 GB RAM, für diesen Teil stehen höchstens 3,4 GB zur Verfügung. Das reicht mit Abstand.
 
 | Lauf | Dauer | CPU | RAM (Spitze) | Netz |
 |---|---|---|---|---|
-| `daily.py` (Wetter + `predict`) | ~15 s | 1 Kern | 1,1 GB | 16 Meteomatics-Anfragen, wenige MB |
-| `run_forecast.py predict` allein | ~5–8 s | 1 Kern | 0,9–1,1 GB | keins |
-| `run_forecast.py train` (nicht auf dem Server empfohlen) | ~11 min auf dem Laptop, auf vCores eher 15–25 min (nicht gemessen) | 1 Kern | 0,9 GB | keins |
+| `daily.py` (Wetter + Ensemble + `predict`) | ~1 min | 1 Kern | 1,1 GB | bis 22.11. 16 Meteomatics-Anfragen + Ensemble (Open-Meteo), danach nur Open-Meteo (~800 gewichtete Aufrufe von 10.000 erlaubten); wenige MB |
+| `run_forecast.py predict` allein | ~7 s | 1 Kern | 1,1 GB | keins |
+| `run_forecast.py train` (nicht auf dem Server empfohlen) | ~6,5 min auf dem Laptop, auf vCores eher 10–15 min (nicht gemessen) | 1 Kern | 1,1 GB | keins |
 
 ---
 
@@ -37,7 +38,9 @@ Laptop (bei Bedarf, z. B. wöchentlich)            Server (täglich, per Cron)
 - Linux mit `cron`. Zum Messen ist `/usr/bin/time` nützlich, aber nicht nötig.
 - **Python 3.14.** Getestet ist nur 3.14.4, die Paketversionen in `forecast/requirements.txt` sind darauf
   festgelegt. Andere Versionen auf eigenes Risiko.
-- Ausgehender HTTPS-Zugang zu `api.meteomatics.com`, nur bis zum 22.11.2026.
+- Ausgehender HTTPS-Zugang zu:
+  - `api.meteomatics.com`, bis zum 22.11.2026,
+  - `api.open-meteo.com`, `archive-api.open-meteo.com` und `ensemble-api.open-meteo.com`, dauerhaft, ohne Schlüssel.
 - Etwa 400 MB Platz: Code, `data/harmonised/` mit 250 MB, `data/forecast/` mit 50 MB, dazu die virtuelle Umgebung.
 
 ---
@@ -59,7 +62,7 @@ git checkout <branch mit forecast/>       # derzeit weather_prediction, nach dem
 cd /srv/La-Brasa/forecast
 python3.14 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python -m pytest -q             # 41 Tests, ohne Internet, wenige Sekunden
+.venv/bin/python -m pytest -q             # 50 Tests, ohne Internet, wenige Sekunden
 ```
 
 `matplotlib` braucht nur die Datenanalyse und `pytest` nur die Tests. Wer es schlank will, kann beide weglassen, dann
@@ -87,7 +90,8 @@ Die Dateien `weather_*_recent_*` und `weather_*_forecast_*` holt `daily.py` selb
 dann funktioniert auch ein Lauf ohne Internet.
 
 Nur wer `train` auf dem Server laufen lassen will, braucht zusätzlich `data/harmonised/hotspots_harmonised.parquet`
-(24 MB).
+(24 MB) und `data/forecast/ifs_errors.parquet` (die gemessenen IFS-Fehler, 1,7 MB). Ohne die zweite Datei wird ohne
+Vorhersagefehler ausgewählt und ausgewertet.
 
 Beispiel vom Laptop aus:
 
@@ -123,6 +127,17 @@ chmod 600 /srv/La-Brasa/.env
 - Ab dem 23.11.2026 stellt `daily.py` keine Anfragen mehr und rechnet ohne Wetter
   (`config.yaml`, `daily.meteomatics_valid_until`). Die Zugangsdaten können dann aus `.env` entfernt werden.
 
+### 5.1 Ab dem 23.11.2026: Open-Meteo
+
+`daily.py` stellt von selbst auf Open-Meteo um (`config.yaml`, `daily.fallback_provider`). Auf dem Server ist dafür
+nichts zu tun. Zu beachten sind drei Dinge:
+- **Nur für nicht-kommerzielle Nutzung kostenlos.** Mit Werbung, Abos oder kommerziellem Einsatz braucht es einen
+  bezahlten Zugang.
+- **Lizenz CC BY 4.0:** Die App muss die Quelle nennen, z. B. im Fuß der Karte: „Wetterdaten: Open-Meteo.com (ECMWF
+  IFS, ERA5)“.
+- **Ganz ohne Wetter:** `daily.fallback_provider: null` setzen. Dann rechnet `daily.py` nach dem 22.11. nur noch mit
+  der Stufe ohne Wetter.
+
 ---
 
 ## 6. Erster Test von Hand
@@ -130,7 +145,7 @@ chmod 600 /srv/La-Brasa/.env
 ```bash
 cd /srv/La-Brasa/forecast
 .venv/bin/python daily.py --dry-run     # zeigt nur den Plan: welche Tage angefragt würden
-.venv/bin/python daily.py               # echter Lauf: ~15 s
+.venv/bin/python daily.py               # echter Lauf: ~1 min
 tail -1 ../data/forecast/logs/daily_runs.jsonl
 ```
 
@@ -139,10 +154,17 @@ In der letzten Zeile sollte stehen:
 | Feld | Erwartet |
 |---|---|
 | `predict_exit` | `0` |
-| `fetch` | alle Einträge `"ok"`, bis zum 22.11. |
+| `fetch` | alle Einträge `"ok"` (Meteomatics bis 22.11., danach `open-meteo:...`) |
 | `weather_used` | `true`, bis zum 22.11. |
 | `issue_date` | der letzte Tag der Feuerdaten |
 | `runtime_s` | etwa 15 |
+
+Außerdem schreibt jeder Lauf `data/forecast/status.json`:
+- `ok`, `issue_date` und dessen Alter in Tagen,
+- `weather_used` und `weather_provider`,
+- `warnings`, z. B. „fire data end on …“ oder „no fresh weather forecast“.
+
+Das Backend kann die Datei lesen und im Frontend „Stand vom …“ oder „Vorhersage ohne Wetter“ anzeigen.
 
 Danach liegen in `data/forecast/` die Ergebnisse `forecast_daily.parquet`, `forecast_weekly.parquet` und
 `forecast_skill.parquet` sowie CSV-Kopien unter `csv/`.
