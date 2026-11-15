@@ -1,0 +1,1219 @@
+{
+ "s1": {
+  "rows_total": 217304,
+  "regions": 23,
+  "period": [
+   "2001-01-01",
+   "2026-11-13"
+  ],
+  "measured_rows": 124108,
+  "measured_period": [
+   "2012-01-20",
+   "2026-11-13"
+  ],
+  "excluded_possible_gap": 368,
+  "excluded_incomplete": 0,
+  "provisional_days": 105,
+  "snpp_missing_on_measured": 253,
+  "train_rows": 83490,
+  "test_rows": 40618
+ },
+ "s2": {
+  "fire_snpp_rate": 0.278083242501312,
+  "fire_any_rate": 0.35103297128307603,
+  "big_rate": 0.028733038966061816,
+  "big_days": 3566,
+  "big_days_train": 2385,
+  "big_days_test": 1181,
+  "frp_share_on_big_days": 0.905663434102422,
+  "regions_lt30_train": [
+   "ES24",
+   "PT15",
+   "ES30",
+   "PT17",
+   "FRJ1",
+   "ES62",
+   "ES23",
+   "ES21"
+  ],
+  "per_region": [
+   {
+    "region_id": "PT11",
+    "region_name": "Norte",
+    "days": 5396,
+    "fire_snpp": 0.4299,
+    "fire_any": 0.4987,
+    "big_rate": 0.1218,
+    "big_days": 657.0,
+    "frp_share_on_big_days": 0.9516,
+    "big_days_train": 450.0
+   },
+   {
+    "region_id": "ES41",
+    "region_name": "Castilla y León",
+    "days": 5396,
+    "fire_snpp": 0.4927,
+    "fire_any": 0.5782,
+    "big_rate": 0.0769,
+    "big_days": 415.0,
+    "frp_share_on_big_days": 0.9443,
+    "big_days_train": 277.0
+   },
+   {
+    "region_id": "ES61",
+    "region_name": "Andalucía",
+    "days": 5396,
+    "fire_snpp": 0.6988,
+    "fire_any": 0.7876,
+    "big_rate": 0.0751,
+    "big_days": 405.0,
+    "frp_share_on_big_days": 0.807,
+    "big_days_train": 285.0
+   },
+   {
+    "region_id": "PT16",
+    "region_name": "Centro (PT)",
+    "days": 5396,
+    "fire_snpp": 0.3411,
+    "fire_any": 0.419,
+    "big_rate": 0.0697,
+    "big_days": 376.0,
+    "frp_share_on_big_days": 0.9742,
+    "big_days_train": 288.0
+   },
+   {
+    "region_id": "ES11",
+    "region_name": "Galicia",
+    "days": 5396,
+    "fire_snpp": 0.2526,
+    "fire_any": 0.3095,
+    "big_rate": 0.0506,
+    "big_days": 273.0,
+    "frp_share_on_big_days": 0.9598,
+    "big_days_train": 197.0
+   },
+   {
+    "region_id": "ES43",
+    "region_name": "Extremadura",
+    "days": 5396,
+    "fire_snpp": 0.4929,
+    "fire_any": 0.5847,
+    "big_rate": 0.0448,
+    "big_days": 242.0,
+    "frp_share_on_big_days": 0.7896,
+    "big_days_train": 146.0
+   },
+   {
+    "region_id": "ES12",
+    "region_name": "Principado de Asturias",
+    "days": 5396,
+    "fire_snpp": 0.2854,
+    "fire_any": 0.3527,
+    "big_rate": 0.0315,
+    "big_days": 170.0,
+    "frp_share_on_big_days": 0.8506,
+    "big_days_train": 107.0
+   },
+   {
+    "region_id": "FRI1",
+    "region_name": "Aquitaine",
+    "days": 5396,
+    "fire_snpp": 0.1142,
+    "fire_any": 0.1401,
+    "big_rate": 0.0291,
+    "big_days": 157.0,
+    "frp_share_on_big_days": 0.8888,
+    "big_days_train": 98.0
+   },
+   {
+    "region_id": "ES42",
+    "region_name": "Castilla-La Mancha",
+    "days": 5396,
+    "fire_snpp": 0.4724,
+    "fire_any": 0.5817,
+    "big_rate": 0.0261,
+    "big_days": 141.0,
+    "frp_share_on_big_days": 0.8079,
+    "big_days_train": 74.0
+   },
+   {
+    "region_id": "PT18",
+    "region_name": "Alentejo",
+    "days": 5396,
+    "fire_snpp": 0.3398,
+    "fire_any": 0.4296,
+    "big_rate": 0.0232,
+    "big_days": 125.0,
+    "frp_share_on_big_days": 0.6928,
+    "big_days_train": 95.0
+   },
+   {
+    "region_id": "ES13",
+    "region_name": "Cantabria",
+    "days": 5396,
+    "fire_snpp": 0.1781,
+    "fire_any": 0.2229,
+    "big_rate": 0.0204,
+    "big_days": 110.0,
+    "frp_share_on_big_days": 0.6672,
+    "big_days_train": 66.0
+   },
+   {
+    "region_id": "ES52",
+    "region_name": "Comunitat Valenciana",
+    "days": 5396,
+    "fire_snpp": 0.3229,
+    "fire_any": 0.4405,
+    "big_rate": 0.0176,
+    "big_days": 95.0,
+    "frp_share_on_big_days": 0.9306,
+    "big_days_train": 54.0
+   },
+   {
+    "region_id": "ES51",
+    "region_name": "Cataluña",
+    "days": 5396,
+    "fire_snpp": 0.4253,
+    "fire_any": 0.5397,
+    "big_rate": 0.0167,
+    "big_days": 90.0,
+    "frp_share_on_big_days": 0.7972,
+    "big_days_train": 60.0
+   },
+   {
+    "region_id": "FRJ2",
+    "region_name": "Midi-Pyrénées",
+    "days": 5396,
+    "fire_snpp": 0.0947,
+    "fire_any": 0.1332,
+    "big_rate": 0.0126,
+    "big_days": 68.0,
+    "frp_share_on_big_days": 0.5573,
+    "big_days_train": 46.0
+   },
+   {
+    "region_id": "ES22",
+    "region_name": "Comunidad Foral de Navarra",
+    "days": 5396,
+    "fire_snpp": 0.1941,
+    "fire_any": 0.2609,
+    "big_rate": 0.0119,
+    "big_days": 64.0,
+    "frp_share_on_big_days": 0.7108,
+    "big_days_train": 40.0
+   },
+   {
+    "region_id": "ES24",
+    "region_name": "Aragón",
+    "days": 5396,
+    "fire_snpp": 0.3239,
+    "fire_any": 0.4181,
+    "big_rate": 0.0111,
+    "big_days": 60.0,
+    "frp_share_on_big_days": 0.7771,
+    "big_days_train": 28.0
+   },
+   {
+    "region_id": "PT15",
+    "region_name": "Algarve",
+    "days": 5396,
+    "fire_snpp": 0.1008,
+    "fire_any": 0.1457,
+    "big_rate": 0.0063,
+    "big_days": 34.0,
+    "frp_share_on_big_days": 0.9623,
+    "big_days_train": 25.0
+   },
+   {
+    "region_id": "ES30",
+    "region_name": "Comunidad de Madrid",
+    "days": 5396,
+    "fire_snpp": 0.2269,
+    "fire_any": 0.306,
+    "big_rate": 0.0052,
+    "big_days": 28.0,
+    "frp_share_on_big_days": 0.8604,
+    "big_days_train": 17.0
+   },
+   {
+    "region_id": "PT17",
+    "region_name": "Área Metropolitana de Lisboa",
+    "days": 5396,
+    "fire_snpp": 0.12,
+    "fire_any": 0.1772,
+    "big_rate": 0.0032,
+    "big_days": 17.0,
+    "frp_share_on_big_days": 0.6719,
+    "big_days_train": 10.0
+   },
+   {
+    "region_id": "FRJ1",
+    "region_name": "Languedoc-Roussillon",
+    "days": 5396,
+    "fire_snpp": 0.0345,
+    "fire_any": 0.1038,
+    "big_rate": 0.0024,
+    "big_days": 13.0,
+    "frp_share_on_big_days": 0.6686,
+    "big_days_train": 9.0
+   },
+   {
+    "region_id": "ES62",
+    "region_name": "Región de Murcia",
+    "days": 5396,
+    "fire_snpp": 0.2162,
+    "fire_any": 0.3039,
+    "big_rate": 0.0022,
+    "big_days": 12.0,
+    "frp_share_on_big_days": 0.2784,
+    "big_days_train": 7.0
+   },
+   {
+    "region_id": "ES23",
+    "region_name": "La Rioja",
+    "days": 5396,
+    "fire_snpp": 0.0509,
+    "fire_any": 0.0721,
+    "big_rate": 0.0017,
+    "big_days": 9.0,
+    "frp_share_on_big_days": 0.4526,
+    "big_days_train": 3.0
+   },
+   {
+    "region_id": "ES21",
+    "region_name": "País Vasco",
+    "days": 5396,
+    "fire_snpp": 0.1879,
+    "fire_any": 0.268,
+    "big_rate": 0.0009,
+    "big_days": 5.0,
+    "frp_share_on_big_days": 0.3001,
+    "big_days_train": 3.0
+   }
+  ]
+ },
+ "s3": [
+  {
+   "year": 2012,
+   "fire_any": 0.3239,
+   "fire_snpp": 0.3239,
+   "big": 0.0439,
+   "mean_logfrp": 0.8425
+  },
+  {
+   "year": 2013,
+   "fire_any": 0.2871,
+   "fire_snpp": 0.2871,
+   "big": 0.0319,
+   "mean_logfrp": 0.7477
+  },
+  {
+   "year": 2014,
+   "fire_any": 0.2656,
+   "fire_snpp": 0.2656,
+   "big": 0.0194,
+   "mean_logfrp": 0.604
+  },
+  {
+   "year": 2015,
+   "fire_any": 0.3142,
+   "fire_snpp": 0.3142,
+   "big": 0.0303,
+   "mean_logfrp": 0.7728
+  },
+  {
+   "year": 2016,
+   "fire_any": 0.2707,
+   "fire_snpp": 0.2707,
+   "big": 0.031,
+   "mean_logfrp": 0.6895
+  },
+  {
+   "year": 2017,
+   "fire_any": 0.334,
+   "fire_snpp": 0.334,
+   "big": 0.0494,
+   "mean_logfrp": 0.9188
+  },
+  {
+   "year": 2018,
+   "fire_any": 0.3296,
+   "fire_snpp": 0.2549,
+   "big": 0.0119,
+   "mean_logfrp": 0.5853
+  },
+  {
+   "year": 2019,
+   "fire_any": 0.4243,
+   "fire_snpp": 0.3214,
+   "big": 0.0292,
+   "mean_logfrp": 0.8401
+  },
+  {
+   "year": 2020,
+   "fire_any": 0.3458,
+   "fire_snpp": 0.2566,
+   "big": 0.0206,
+   "mean_logfrp": 0.6877
+  },
+  {
+   "year": 2021,
+   "fire_any": 0.3751,
+   "fire_snpp": 0.2717,
+   "big": 0.019,
+   "mean_logfrp": 0.7162
+  },
+  {
+   "year": 2022,
+   "fire_any": 0.363,
+   "fire_snpp": 0.2501,
+   "big": 0.0353,
+   "mean_logfrp": 0.7771
+  },
+  {
+   "year": 2023,
+   "fire_any": 0.3968,
+   "fire_snpp": 0.2465,
+   "big": 0.0167,
+   "mean_logfrp": 0.6881
+  },
+  {
+   "year": 2024,
+   "fire_any": 0.3889,
+   "fire_snpp": 0.2266,
+   "big": 0.0168,
+   "mean_logfrp": 0.6604
+  },
+  {
+   "year": 2025,
+   "fire_any": 0.4111,
+   "fire_snpp": 0.2552,
+   "big": 0.0337,
+   "mean_logfrp": 0.8345
+  },
+  {
+   "year": 2026,
+   "fire_any": 0.4491,
+   "fire_snpp": 0.2981,
+   "big": 0.0452,
+   "mean_logfrp": 1.0168
+  }
+ ],
+ "s4": {
+  "share_zero_frp": 0.648967028716924,
+  "frp_quantiles_on_fire_days": {
+   "0.5": 4.890000000000001,
+   "0.75": 18.805,
+   "0.9": 76.845,
+   "0.95": 197.15250000000003,
+   "0.99": 1765.980666666663,
+   "0.999": 16331.916624999098
+  },
+  "frp_share_top_days": {
+   "0.001": 0.4586332419893053,
+   "0.01": 0.811270312716226,
+   "0.05": 0.9420580625518518
+  },
+  "n_harm_mean": 2.4054734586005737,
+  "n_harm_var": 688.7932928905578,
+  "dispersion_index": 286.34416664537855,
+  "frp_max": 116215.77
+ },
+ "s5": {
+  "share_big_jun_oct": 0.6449803701626472,
+  "peak_month_per_region": {
+   "PT11": 8,
+   "ES41": 8,
+   "ES61": 8,
+   "PT16": 8,
+   "ES11": 8,
+   "ES43": 8,
+   "ES12": 3,
+   "FRI1": 3,
+   "ES42": 7,
+   "PT18": 7,
+   "ES13": 3,
+   "ES52": 7,
+   "ES51": 6,
+   "FRJ2": 3,
+   "ES22": 2,
+   "ES24": 8,
+   "PT15": 8,
+   "ES30": 7,
+   "PT17": 7,
+   "FRJ1": 7,
+   "ES62": 6,
+   "ES23": 8,
+   "ES21": 3
+  },
+  "regions_peak_outside_jun_oct": [
+   "ES12",
+   "FRI1",
+   "ES13",
+   "FRJ2",
+   "ES22",
+   "ES21"
+  ]
+ },
+ "s6": {
+  "big_days_per_year": {
+   "2012": 347,
+   "2013": 268,
+   "2014": 163,
+   "2015": 254,
+   "2016": 261,
+   "2017": 415,
+   "2018": 100,
+   "2019": 245,
+   "2020": 173,
+   "2021": 159,
+   "2022": 296,
+   "2023": 140,
+   "2024": 140,
+   "2025": 281,
+   "2026": 324
+  },
+  "cv_full_years": 0.3860965341290319,
+  "top_years": {
+   "2017": 415,
+   "2012": 347,
+   "2026": 324,
+   "2022": 296
+  },
+  "country_corr_annual": {
+   "ES": {
+    "ES": 1.0,
+    "FR": 0.71,
+    "PT": 0.61
+   },
+   "FR": {
+    "ES": 0.71,
+    "FR": 1.0,
+    "PT": 0.14
+   },
+   "PT": {
+    "ES": 0.61,
+    "FR": 0.14,
+    "PT": 1.0
+   }
+  }
+ },
+ "s7": {
+  "table": [
+   {
+    "lag_days": 1,
+    "p_big_given_big_lag": 0.3969,
+    "p_clim_same_days": 0.1289,
+    "lift_vs_season": 3.0788,
+    "acf_logfrp_anomaly": 0.4029
+   },
+   {
+    "lag_days": 2,
+    "p_big_given_big_lag": 0.3071,
+    "p_clim_same_days": 0.1284,
+    "lift_vs_season": 2.3923,
+    "acf_logfrp_anomaly": 0.2811
+   },
+   {
+    "lag_days": 3,
+    "p_big_given_big_lag": 0.2664,
+    "p_clim_same_days": 0.1277,
+    "lift_vs_season": 2.0857,
+    "acf_logfrp_anomaly": 0.2188
+   },
+   {
+    "lag_days": 5,
+    "p_big_given_big_lag": 0.2085,
+    "p_clim_same_days": 0.1257,
+    "lift_vs_season": 1.6587,
+    "acf_logfrp_anomaly": 0.149
+   },
+   {
+    "lag_days": 7,
+    "p_big_given_big_lag": 0.1919,
+    "p_clim_same_days": 0.1227,
+    "lift_vs_season": 1.5649,
+    "acf_logfrp_anomaly": 0.1157
+   },
+   {
+    "lag_days": 10,
+    "p_big_given_big_lag": 0.1368,
+    "p_clim_same_days": 0.1126,
+    "lift_vs_season": 1.2149,
+    "acf_logfrp_anomaly": 0.0831
+   },
+   {
+    "lag_days": 14,
+    "p_big_given_big_lag": 0.1596,
+    "p_clim_same_days": 0.1072,
+    "lift_vs_season": 1.4888,
+    "acf_logfrp_anomaly": 0.0777
+   },
+   {
+    "lag_days": 21,
+    "p_big_given_big_lag": 0.1247,
+    "p_clim_same_days": 0.1014,
+    "lift_vs_season": 1.2296,
+    "acf_logfrp_anomaly": 0.0526
+   },
+   {
+    "lag_days": 30,
+    "p_big_given_big_lag": 0.1101,
+    "p_clim_same_days": 0.0927,
+    "lift_vs_season": 1.1883,
+    "acf_logfrp_anomaly": 0.0449
+   }
+  ],
+  "base_rate_train": 0.028566295364714337,
+  "episodes": 1439,
+  "episode_len_mean": 1.6574009728978458,
+  "share_single_day": 0.7074357192494788,
+  "episode_len_p90": 3.0
+ },
+ "s8": {
+  "pc_explained": [
+   0.18644504116984525,
+   0.09297877019061365,
+   0.06653723348823314,
+   0.046626393647684734,
+   0.04548680274752676,
+   0.04458382888093413,
+   0.043202791445292474,
+   0.041015452517499475
+  ],
+  "pc1_loadings": {
+   "ES11": 0.281,
+   "ES12": 0.286,
+   "ES13": 0.261,
+   "ES21": 0.161,
+   "ES22": 0.258,
+   "ES23": 0.104,
+   "ES24": 0.182,
+   "ES30": 0.095,
+   "ES41": 0.314,
+   "ES42": 0.176,
+   "ES43": 0.229,
+   "ES51": 0.165,
+   "ES52": 0.085,
+   "ES61": 0.173,
+   "ES62": 0.066,
+   "FRI1": 0.278,
+   "FRJ1": 0.106,
+   "FRJ2": 0.259,
+   "PT11": 0.323,
+   "PT15": 0.046,
+   "PT16": 0.281,
+   "PT17": 0.103,
+   "PT18": 0.154
+  },
+  "pc2_loadings": {
+   "ES11": -0.047,
+   "ES12": 0.243,
+   "ES13": 0.334,
+   "ES21": 0.173,
+   "ES22": 0.192,
+   "ES23": 0.04,
+   "ES24": -0.074,
+   "ES30": -0.079,
+   "ES41": -0.11,
+   "ES42": -0.21,
+   "ES43": -0.3,
+   "ES51": -0.069,
+   "ES52": -0.111,
+   "ES61": -0.269,
+   "ES62": -0.119,
+   "FRI1": 0.357,
+   "FRJ1": 0.106,
+   "FRJ2": 0.364,
+   "PT11": -0.178,
+   "PT15": -0.128,
+   "PT16": -0.232,
+   "PT17": -0.16,
+   "PT18": -0.313
+  },
+  "mean_pairwise_corr": 0.12711739247308662,
+  "neighbours": {
+   "ES11": [
+    "PT11",
+    "ES12",
+    "ES41"
+   ],
+   "ES12": [
+    "ES13",
+    "ES41",
+    "ES11"
+   ],
+   "ES13": [
+    "ES21",
+    "ES23",
+    "ES12"
+   ],
+   "ES21": [
+    "ES23",
+    "ES22",
+    "ES13"
+   ],
+   "ES22": [
+    "FRI1",
+    "ES23",
+    "ES21"
+   ],
+   "ES23": [
+    "ES22",
+    "ES21",
+    "FRI1"
+   ],
+   "ES24": [
+    "ES22",
+    "FRI1",
+    "ES23"
+   ],
+   "ES30": [
+    "ES42",
+    "ES41",
+    "ES43"
+   ],
+   "ES41": [
+    "ES12",
+    "ES13",
+    "PT11"
+   ],
+   "ES42": [
+    "ES30",
+    "ES62",
+    "ES52"
+   ],
+   "ES43": [
+    "PT18",
+    "PT16",
+    "ES61"
+   ],
+   "ES51": [
+    "FRJ1",
+    "FRJ2",
+    "ES24"
+   ],
+   "ES52": [
+    "ES62",
+    "ES42",
+    "ES24"
+   ],
+   "ES61": [
+    "ES43",
+    "PT15",
+    "PT18"
+   ],
+   "ES62": [
+    "ES52",
+    "ES42",
+    "ES30"
+   ],
+   "FRI1": [
+    "ES22",
+    "ES21",
+    "FRJ2"
+   ],
+   "FRJ1": [
+    "ES51",
+    "FRJ2",
+    "ES24"
+   ],
+   "FRJ2": [
+    "FRI1",
+    "FRJ1",
+    "ES51"
+   ],
+   "PT11": [
+    "ES11",
+    "PT16",
+    "ES41"
+   ],
+   "PT15": [
+    "PT18",
+    "PT17",
+    "ES61"
+   ],
+   "PT16": [
+    "PT11",
+    "ES43",
+    "PT17"
+   ],
+   "PT17": [
+    "PT18",
+    "PT15",
+    "PT16"
+   ],
+   "PT18": [
+    "PT17",
+    "PT15",
+    "ES43"
+   ]
+  },
+  "neighbour_table": [
+   {
+    "lag_days": 0,
+    "p_big_given_neighbour_big": 0.1888156837538165
+   },
+   {
+    "lag_days": 1,
+    "p_big_given_neighbour_big": 0.16227082663235767
+   }
+  ],
+  "base_rate": 0.028566295364714337
+ },
+ "s9": {
+  "lead_1": [
+   {
+    "feature": "clim",
+    "lead": 1,
+    "auc": 0.8899,
+    "pr_auc": 0.2003,
+    "spearman_with_target": 0.2347,
+    "missing": 0.0
+   },
+   {
+    "feature": "logfrp_mean3",
+    "lead": 1,
+    "auc": 0.8863,
+    "pr_auc": 0.3508,
+    "spearman_with_target": 0.2342,
+    "missing": 0.0003
+   },
+   {
+    "feature": "logfrp_mean7",
+    "lead": 1,
+    "auc": 0.8843,
+    "pr_auc": 0.2989,
+    "spearman_with_target": 0.2242,
+    "missing": 0.0008
+   },
+   {
+    "feature": "logfrp_last",
+    "lead": 1,
+    "auc": 0.8615,
+    "pr_auc": 0.3529,
+    "spearman_with_target": 0.2499,
+    "missing": 0.0011
+   },
+   {
+    "feature": "logfrp_mean30",
+    "lead": 1,
+    "auc": 0.8578,
+    "pr_auc": 0.198,
+    "spearman_with_target": 0.2068,
+    "missing": 0.0041
+   },
+   {
+    "feature": "fire_frac7",
+    "lead": 1,
+    "auc": 0.8538,
+    "pr_auc": 0.1596,
+    "spearman_with_target": 0.2089,
+    "missing": 0.0008
+   },
+   {
+    "feature": "fire_frac3",
+    "lead": 1,
+    "auc": 0.847,
+    "pr_auc": 0.1317,
+    "spearman_with_target": 0.2163,
+    "missing": 0.0003
+   },
+   {
+    "feature": "days_since_big",
+    "lead": 1,
+    "auc": 0.8387,
+    "pr_auc": 0.1853,
+    "spearman_with_target": -0.1967,
+    "missing": 0.0257
+   },
+   {
+    "feature": "big_frac30",
+    "lead": 1,
+    "auc": 0.8274,
+    "pr_auc": 0.1893,
+    "spearman_with_target": 0.2406,
+    "missing": 0.0041
+   },
+   {
+    "feature": "fire_frac30",
+    "lead": 1,
+    "auc": 0.8214,
+    "pr_auc": 0.1306,
+    "spearman_with_target": 0.186,
+    "missing": 0.0041
+   },
+   {
+    "feature": "nbr_logfrp_last",
+    "lead": 1,
+    "auc": 0.8111,
+    "pr_auc": 0.2006,
+    "spearman_with_target": 0.1852,
+    "missing": 0.0011
+   },
+   {
+    "feature": "iberia_logfrp_last",
+    "lead": 1,
+    "auc": 0.793,
+    "pr_auc": 0.1017,
+    "spearman_with_target": 0.169,
+    "missing": 0.0011
+   },
+   {
+    "feature": "days_since_fire",
+    "lead": 1,
+    "auc": 0.7858,
+    "pr_auc": 0.0743,
+    "spearman_with_target": -0.1674,
+    "missing": 0.0025
+   },
+   {
+    "feature": "fire_last",
+    "lead": 1,
+    "auc": 0.782,
+    "pr_auc": 0.0794,
+    "spearman_with_target": 0.2069,
+    "missing": 0.0011
+   },
+   {
+    "feature": "anom_mean7",
+    "lead": 1,
+    "auc": 0.7435,
+    "pr_auc": 0.212,
+    "spearman_with_target": 0.1406,
+    "missing": 0.0011
+   },
+   {
+    "feature": "big_last",
+    "lead": 1,
+    "auc": 0.6898,
+    "pr_auc": 0.1862,
+    "spearman_with_target": 0.3794,
+    "missing": 0.0011
+   }
+  ],
+  "lead_7": [
+   {
+    "feature": "clim",
+    "lead": 7,
+    "auc": 0.8899,
+    "pr_auc": 0.2003,
+    "spearman_with_target": 0.2347,
+    "missing": 0.0
+   },
+   {
+    "feature": "logfrp_mean30",
+    "lead": 7,
+    "auc": 0.8088,
+    "pr_auc": 0.1426,
+    "spearman_with_target": 0.1783,
+    "missing": 0.0058
+   },
+   {
+    "feature": "logfrp_mean7",
+    "lead": 7,
+    "auc": 0.7986,
+    "pr_auc": 0.1355,
+    "spearman_with_target": 0.1742,
+    "missing": 0.0025
+   },
+   {
+    "feature": "days_since_big",
+    "lead": 7,
+    "auc": 0.7912,
+    "pr_auc": 0.1066,
+    "spearman_with_target": -0.1689,
+    "missing": 0.0274
+   },
+   {
+    "feature": "fire_frac30",
+    "lead": 7,
+    "auc": 0.7789,
+    "pr_auc": 0.1055,
+    "spearman_with_target": 0.1613,
+    "missing": 0.0058
+   },
+   {
+    "feature": "logfrp_mean3",
+    "lead": 7,
+    "auc": 0.7733,
+    "pr_auc": 0.1304,
+    "spearman_with_target": 0.1657,
+    "missing": 0.0019
+   },
+   {
+    "feature": "fire_frac7",
+    "lead": 7,
+    "auc": 0.7702,
+    "pr_auc": 0.0905,
+    "spearman_with_target": 0.1596,
+    "missing": 0.0025
+   },
+   {
+    "feature": "big_frac30",
+    "lead": 7,
+    "auc": 0.7673,
+    "pr_auc": 0.1313,
+    "spearman_with_target": 0.1963,
+    "missing": 0.0058
+   },
+   {
+    "feature": "fire_frac3",
+    "lead": 7,
+    "auc": 0.7445,
+    "pr_auc": 0.0765,
+    "spearman_with_target": 0.1524,
+    "missing": 0.0019
+   },
+   {
+    "feature": "logfrp_last",
+    "lead": 7,
+    "auc": 0.7229,
+    "pr_auc": 0.1153,
+    "spearman_with_target": 0.1541,
+    "missing": 0.003
+   },
+   {
+    "feature": "days_since_fire",
+    "lead": 7,
+    "auc": 0.7205,
+    "pr_auc": 0.0578,
+    "spearman_with_target": -0.1293,
+    "missing": 0.0041
+   },
+   {
+    "feature": "nbr_logfrp_last",
+    "lead": 7,
+    "auc": 0.7031,
+    "pr_auc": 0.0821,
+    "spearman_with_target": 0.1209,
+    "missing": 0.003
+   },
+   {
+    "feature": "fire_last",
+    "lead": 7,
+    "auc": 0.6816,
+    "pr_auc": 0.0545,
+    "spearman_with_target": 0.1333,
+    "missing": 0.003
+   },
+   {
+    "feature": "iberia_logfrp_last",
+    "lead": 7,
+    "auc": 0.6706,
+    "pr_auc": 0.0497,
+    "spearman_with_target": 0.0984,
+    "missing": 0.003
+   },
+   {
+    "feature": "anom_mean7",
+    "lead": 7,
+    "auc": 0.5921,
+    "pr_auc": 0.0785,
+    "spearman_with_target": 0.0532,
+    "missing": 0.0028
+   },
+   {
+    "feature": "big_last",
+    "lead": 7,
+    "auc": 0.5843,
+    "pr_auc": 0.0688,
+    "spearman_with_target": 0.1684,
+    "missing": 0.003
+   }
+  ],
+  "base_rate_train": 0.028566295364714337
+ },
+ "s10": [
+  {
+   "weekday": "Mo",
+   "big": 0.0295,
+   "clim": 0.0285,
+   "fire": 0.2975,
+   "ratio_big_vs_season": 1.0322,
+   "ratio_fire_vs_mean": 1.0267
+  },
+  {
+   "weekday": "Di",
+   "big": 0.0285,
+   "clim": 0.0286,
+   "fire": 0.295,
+   "ratio_big_vs_season": 0.9972,
+   "ratio_fire_vs_mean": 1.018
+  },
+  {
+   "weekday": "Mi",
+   "big": 0.0269,
+   "clim": 0.0286,
+   "fire": 0.3025,
+   "ratio_big_vs_season": 0.9423,
+   "ratio_fire_vs_mean": 1.0438
+  },
+  {
+   "weekday": "Do",
+   "big": 0.0318,
+   "clim": 0.0285,
+   "fire": 0.3028,
+   "ratio_big_vs_season": 1.1123,
+   "ratio_fire_vs_mean": 1.0449
+  },
+  {
+   "weekday": "Fr",
+   "big": 0.0279,
+   "clim": 0.0285,
+   "fire": 0.289,
+   "ratio_big_vs_season": 0.9772,
+   "ratio_fire_vs_mean": 0.9972
+  },
+  {
+   "weekday": "Sa",
+   "big": 0.0276,
+   "clim": 0.0286,
+   "fire": 0.2792,
+   "ratio_big_vs_season": 0.9653,
+   "ratio_fire_vs_mean": 0.9634
+  },
+  {
+   "weekday": "So",
+   "big": 0.0279,
+   "clim": 0.0286,
+   "fire": 0.2625,
+   "ratio_big_vs_season": 0.9759,
+   "ratio_fire_vs_mean": 0.9059
+  }
+ ],
+ "s11": {
+  "pc_explained": [
+   0.4858906338087684,
+   0.1042899295441901,
+   0.07926716691744595,
+   0.06302923124361015,
+   0.05611272616630894,
+   0.05189645136886267,
+   0.0470501464758626,
+   0.02954406000810291,
+   0.024527810796268177,
+   0.02241079587171024,
+   0.01360910234573139,
+   0.011527320481939522,
+   0.005116811438297044,
+   0.002779110819553127,
+   0.001841451161866504,
+   0.0011072515514822928
+  ],
+  "n_components_90": 8,
+  "high_corr_pairs": [
+   [
+    "fire_last",
+    "logfrp_last",
+    0.9186663213242556
+   ],
+   [
+    "fire_frac3",
+    "logfrp_mean3",
+    0.9285939522517828
+   ],
+   [
+    "fire_frac3",
+    "fire_frac7",
+    0.8269191682835828
+   ],
+   [
+    "fire_frac3",
+    "days_since_fire",
+    -0.8220360948863831
+   ],
+   [
+    "logfrp_mean3",
+    "logfrp_mean7",
+    0.8217169140734103
+   ],
+   [
+    "fire_frac7",
+    "logfrp_mean7",
+    0.9366652231278768
+   ],
+   [
+    "fire_frac7",
+    "days_since_fire",
+    -0.851881025153772
+   ],
+   [
+    "logfrp_mean7",
+    "days_since_fire",
+    -0.8013124445486755
+   ],
+   [
+    "fire_frac30",
+    "logfrp_mean30",
+    0.9503118825934354
+   ]
+  ],
+  "vif": {
+   "clim": 4.8,
+   "big_last": 2.2,
+   "fire_last": 4.6,
+   "logfrp_last": 7.3,
+   "fire_frac3": 9.9,
+   "logfrp_mean3": 13.1,
+   "fire_frac7": 13.0,
+   "logfrp_mean7": 31.2,
+   "fire_frac30": 15.4,
+   "logfrp_mean30": 26.4,
+   "big_frac30": 6.1,
+   "anom_mean7": 9.0,
+   "days_since_fire": 1.3,
+   "days_since_big": 1.1,
+   "nbr_logfrp_last": 1.8,
+   "iberia_logfrp_last": 1.6
+  },
+  "n_rows": 81271
+ },
+ "s12": {
+  "table": [
+   {
+    "Zeitraum": "Test 2022–2026",
+    "region_days": 40618,
+    "big_rate": 0.0291,
+    "fire_snpp": 0.2538,
+    "fire_any": 0.4004,
+    "mean_logfrp": 0.7889
+   },
+   {
+    "Zeitraum": "Training 2012–2021",
+    "region_days": 83490,
+    "big_rate": 0.0286,
+    "fire_snpp": 0.2898,
+    "fire_any": 0.327,
+    "mean_logfrp": 0.7398
+   }
+  ],
+  "clim_mean_on_test": 0.029070635041879313,
+  "observed_on_test": 0.029075779211187158,
+  "region_ratio": {
+   "ES11": 0.79,
+   "ES12": 1.21,
+   "ES13": 1.37,
+   "ES21": 1.37,
+   "ES22": 1.23,
+   "ES23": 4.11,
+   "ES24": 2.35,
+   "ES30": 1.33,
+   "ES41": 1.02,
+   "ES42": 1.86,
+   "ES43": 1.35,
+   "ES51": 1.03,
+   "ES52": 1.56,
+   "ES61": 0.87,
+   "ES62": 1.47,
+   "FRI1": 1.24,
+   "FRJ1": 0.91,
+   "FRJ2": 0.98,
+   "PT11": 0.95,
+   "PT15": 0.74,
+   "PT16": 0.63,
+   "PT17": 1.44,
+   "PT18": 0.65
+  }
+ }
+}
