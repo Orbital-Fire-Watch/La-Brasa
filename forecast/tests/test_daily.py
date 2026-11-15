@@ -16,11 +16,15 @@ def test_no_recent_when_history_reaches_yesterday():
     assert p.fetch and p.recent == {}
 
 
-def test_no_requests_after_the_account_ended():
+def test_after_the_account_ended_open_meteo_takes_over():
     p = make_plan(date(2026, 11, 23), {"core": date(2026, 11, 8), "fire": date(2026, 11, 13)}, date(2026, 11, 22), True)
-    assert not p.fetch and "ended" in p.reason
+    assert p.fetch and p.provider == "open-meteo"
+    assert p.history_append == ["2026-11-09", "2026-11-17"]          # ERA5 up to 6 days before today
+    assert p.recent == {"core": ["2026-11-18", "2026-11-22"]}        # IFS for the rest, no fire group
     p = make_plan(date(2026, 11, 22), {"core": date(2026, 11, 8), "fire": date(2026, 11, 13)}, date(2026, 11, 22), True)
-    assert p.fetch                                     # the last valid day still fetches
+    assert p.fetch and p.provider == "meteomatics"     # the last valid day still uses Meteomatics
+    p = make_plan(date(2026, 11, 23), {"core": date(2026, 11, 8)}, date(2026, 11, 22), True, fallback=None)
+    assert not p.fetch and "ended" in p.reason
 
 
 def test_no_requests_without_history_or_with_no_fetch():
