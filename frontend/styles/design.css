@@ -149,6 +149,10 @@ a { color: var(--ow-blue); }
 .ow-btn--primary { background: var(--ow-orange); border-color: var(--ow-orange); color: var(--ow-orange-text); font-weight: 600; }
 .ow-btn--primary:hover:not(:disabled) { background: var(--ow-orange-strong); border-color: var(--ow-orange-strong); }
 .ow-btn--block { width: 100%; padding: 10px 16px; font-size: 1.071rem; }
+/* on/off button that should catch the eye (e.g. "Show anomalies"): blue outline when off, filled blue when on */
+.ow-btn--toggle { border-color: var(--ow-blue); background: var(--ow-blue-soft); color: var(--ow-blue); font-weight: 600; }
+.ow-btn--toggle:hover:not(:disabled) { border-color: var(--ow-blue); background: var(--ow-blue); color: var(--ow-blue-text); }
+.ow-btn--toggle[aria-pressed="true"] { background: var(--ow-blue); color: var(--ow-blue-text); }
 
 .ow-input {
   padding: 5px 8px; border: 1px solid var(--ow-tile-border); border-radius: var(--ow-radius-sm);
