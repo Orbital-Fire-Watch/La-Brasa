@@ -132,12 +132,14 @@ def climatology_for(d: pd.DataFrame, target: str, mask: np.ndarray, mc: dict, cl
 # =============================================================================================
 class Pipeline:
     def __init__(self, cfg: dict, use_weather: bool, neighbours: dict | None = None, weather_qc: bool = True,
-                 correction: BiasCorrection | None = None):
+                 correction: BiasCorrection | None = None, regions: list[str] | None = None):
         self.cfg = cfg
         self.mc = cfg["model"]
         self.train_end = pd.Timestamp(self.mc["train_end"])
         self.test_start = pd.Timestamp(self.mc["test_start"])
         self.d = load_daily(HARM, self.mc["viirs_start"])
+        if regions is not None:     # predict: only the regions the bundle was trained on
+            self.d = self.d[self.d["region_id"].isin(regions)].reset_index(drop=True)
         self.last_archive = self.d.loc[~self.d["is_provisional"], "date"].max()
         self.issue_date = self.d["date"].max()
         self.regions = sorted(self.d["region_id"].unique())
@@ -922,10 +924,13 @@ def cmd_predict(cfg: dict, use_weather: bool) -> int:
         print("warning: config.yaml changed since training (model / risk_class); retrain for consistent results",
               file=sys.stderr)
     pipe = Pipeline(cfg, use_weather=use_weather and bool(b["weather_cols"]), neighbours=b["neighbours"], weather_qc=False,
-                    correction=b.get("correction"))
-    if sorted(b["regions"]) != pipe.regions:
-        print("regions differ from the training data: run `run_forecast.py train` again", file=sys.stderr)
+                    correction=b.get("correction"), regions=b["regions"])
+    if not pipe.regions:
+        print("no region of the bundle is in the harmonised data: run `run_forecast.py train` again", file=sys.stderr)
         return 2
+    if sorted(b["regions"]) != pipe.regions:
+        print(f"note: bundle regions without harmonised data are skipped: "
+              f"{sorted(set(b['regions']) - set(pipe.regions))}", flush=True)
     daily_df, weekly_df = pipe.apply(b)
     skill_df = pipe.skill_table(b["skill_rows"])
     runtime = time.time() - t0
