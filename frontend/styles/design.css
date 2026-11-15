@@ -673,3 +673,53 @@ a { color: var(--ow-blue); }
 .ow-yc__swatch--nodata { background: var(--ow-yc-nodata); }
 .ow-yc__swatch--hatch { background: repeating-linear-gradient(45deg, transparent 0 2px, var(--ow-yc-hatch) 2px 3px); }
 .ow-yc__swatch--running { border: 1px dashed var(--ow-text); }
+
+/* ================================================================ guided tutorial (docs/tutorial-konzept.md) */
+
+:root { --ow-tour-dim: rgb(5 8 15 / 70%); }
+:root[data-theme="light"] { --ow-tour-dim: rgb(15 20 30 / 58%); }
+:root[data-theme="contrast"] { --ow-tour-dim: rgb(0 0 0 / 90%); }
+
+/* the tutorial scrolls targets to the top below the sticky header of the analysis page */
+[data-tour] { scroll-margin-top: calc(var(--ow-header-h) + 14px); }
+
+/* free part of the start page map between sidebar, corner and the bottom controls (only a target, never visible) */
+.ow-tour-maparea {
+  position: absolute; pointer-events: none; visibility: hidden;
+  top: calc(var(--ow-header-h) + 4px); left: calc(var(--ow-sidebar-w) + 24px); right: 300px; bottom: 110px;
+}
+
+/* covers the whole page and takes every click: the steps make the changes themselves */
+.ow-tour { position: fixed; inset: 0; z-index: 1000; }
+.ow-tour__dim { position: absolute; inset: 0; display: block; }
+.ow-tour__shade { fill: var(--ow-tour-dim); }
+.ow-tour__ring { fill: none; stroke: var(--ow-blue); stroke-width: 2; }
+
+.ow-tour__pop {
+  position: absolute; width: 320px; max-width: calc(100vw - 16px); padding: 12px 14px;
+  border: 1px solid var(--ow-tile-border); border-top-color: var(--ow-tile-edge); border-radius: var(--ow-radius-lg);
+  background: var(--ow-overlay); color: var(--ow-text);
+  transition: left 180ms ease-out, top 180ms ease-out;
+}
+.ow-tour__pop[data-narrow] { left: 8px; right: 8px; bottom: 8px; width: auto; max-width: none; }
+.ow-tour__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.ow-tour__progress { margin: 0; font-size: 0.786rem; color: var(--ow-muted); }
+.ow-tour__close {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid transparent;
+  border-radius: var(--ow-radius); background: none; color: var(--ow-muted); cursor: pointer;
+}
+.ow-tour__close svg { width: 14px; height: 14px; }
+.ow-tour__close:hover { color: var(--ow-text); border-color: var(--ow-tile-border); }
+.ow-tour__title { margin: 0 0 6px; font-size: 1.071rem; font-weight: 600; }
+.ow-tour__text { margin: 0 0 12px; font-size: 0.929rem; line-height: 1.5; }
+.ow-tour__dots { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 12px; padding: 0; list-style: none; }
+.ow-tour__dots li { width: 6px; height: 6px; border-radius: 50%; background: var(--ow-tile-border); }
+.ow-tour__dots li[data-state="done"] { background: var(--ow-muted); }
+.ow-tour__dots li[data-state="on"] { background: var(--ow-blue); }
+.ow-tour__foot { display: flex; align-items: center; gap: 6px; }
+.ow-tour__spacer { flex: 1; }
+.ow-tour__pop :focus-visible { outline: 2px solid var(--ow-focus); outline-offset: 2px; }
+
+@media (max-width: 900px) {
+  .ow-tour-maparea { top: 0; left: 0; right: 0; bottom: auto; height: 78vh; }
+}

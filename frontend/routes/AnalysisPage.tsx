@@ -40,6 +40,7 @@ import { ageColors } from "../lib/palette";
 import { usePrefs } from "../hooks/usePrefs";
 import { useRegionName, useSelectionInfo } from "../hooks/useSelectionInfo";
 import { compareSensors } from "../lib/sensors";
+import { useTour } from "../hooks/useTour";
 
 const FALLBACK_RESOLUTION = 6;
 const MIN_ANOMALY_WINDOW_DAYS = 7;
@@ -50,6 +51,7 @@ export function AnalysisPage() {
   const { prefs } = usePrefs();
   const { t, f } = useI18n();
   const regionName = useRegionName();
+  const tour = useTour();
   const colors = ageColors(prefs.palette);
   const { selection, withArea } = useSelection(state, setState);
   const info = useSelectionInfo(selection);
@@ -277,7 +279,7 @@ export function AnalysisPage() {
       {daily.status === "error" && <div className="ow-content"><ErrorNote error={daily.error} onRetry={daily.reload} /></div>}
 
       <main className="ow-content">
-        <Tile title={t("an.short", { date: DLabel })}>
+        <Tile title={t("an.short", { date: DLabel })} tour="short">
           <div className="ow-cards">
             <WeekCard anomaly={week} method={method} unit={unitOf(method)} loading={daily.status === "loading"} />
             <ActiveCard active={active} previous={previous} fresh={fresh} kind={kind} loading={unitsQuery.status === "loading"} />
@@ -287,7 +289,7 @@ export function AnalysisPage() {
           </div>
         </Tile>
 
-        <Tile title={t("an.mapTitle", { window: windowLabel, date: qDLabel })}
+        <Tile title={t("an.mapTitle", { window: windowLabel, date: qDLabel })} tour="maptile"
           aside={
             <div className="ow-tile__controls">
               <Segmented label={t("an.lookback")} value={L} size="small" onChange={(l) => setState({ lookback: l })}
@@ -320,7 +322,7 @@ export function AnalysisPage() {
                 ariaLabel={t("an.mapAria")}
                 countries={countries}
                 selection={selection.kind === "all" ? null : selection.geometry}
-                fitTo={fit ?? selectionFit}
+                fitTo={tour.fit ?? fit ?? selectionFit}
                 cells={cellsFc}
                 events={shapes?.polygons}
                 eventPoints={shapes?.points}
@@ -402,7 +404,7 @@ export function AnalysisPage() {
           <SensorCompare data={comparison} loading={raw.status === "loading"} error={raw.status === "error" ? raw.error : null} onRetry={raw.reload} />
         </Tile>
 
-        <Tile title={t("an.seasonTitle", { metric: methodLong })} aside={<Tip text={t("an.seasonHelp")} label={t("an.aboutSeason")} />}>
+        <Tile title={t("an.seasonTitle", { metric: methodLong })} tour="season" aside={<Tip text={t("an.seasonHelp")} label={t("an.aboutSeason")} />}>
           {method === "events" && <p className="ow-note">{t("an.eventsNote", { year: String(EVENTS_COMPARABLE_FROM_YEAR) })}</p>}
           {daily.status === "loading" && <Loading height={260} />}
           {dailyData && (
@@ -413,7 +415,7 @@ export function AnalysisPage() {
           )}
         </Tile>
 
-        <Tile title={t(heatMode === "week" ? "an.yearTitleWeek" : "an.yearTitleMonth", {
+        <Tile tour="year" title={t(heatMode === "week" ? "an.yearTitleWeek" : "an.yearTitleMonth", {
           metric: rawYear ? (yearDisplay === "compare" ? t("cmp.title") : t(`display.${yearDisplay}`)) : methodLong,
         })}
           aside={

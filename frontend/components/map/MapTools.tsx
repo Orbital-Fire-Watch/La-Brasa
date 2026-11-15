@@ -83,7 +83,7 @@ export function ExitButton({ info, isArea, onExit, escapeEnabled }: {
 export function DisplaySwitch({ value, onChange, help }: { value: DisplayMode; onChange: (d: DisplayMode) => void; help?: string }) {
   const { t } = useI18n();
   return (
-    <div className="ow-display" role="group" aria-label={t("display.label")}>
+    <div className="ow-display" role="group" aria-label={t("display.label")} data-tour="display">
       <span className="ow-display__label">{t("display.label")}</span>
       {DISPLAY_MODES.map((d) => (
         <button key={d} type="button" className="ow-display__btn" aria-pressed={value === d} onClick={() => onChange(d)}>

@@ -67,7 +67,7 @@ export function HeroBlocks({ daily, date, loading }: { daily: DailySeries | null
     [daily, date],
   );
   return (
-    <section className="ow-hero" aria-label={t("hero.aria")}>
+    <section className="ow-hero" aria-label={t("hero.aria")} data-tour="hero">
       <div className="ow-hero__grid">
         {specs.map((s) => (
           <HeroBlock key={s.id} spec={s} stat={stats ? stats[s.key as "fires" | "frp_sum" | "events_new" | "hotspots"] : null} loading={loading} />
@@ -212,7 +212,7 @@ export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel 
   const diff = daysBetween(anchor, value);
   const pct = (i: number) => (total === 0 ? 0 : (i / total) * 100);
   return (
-    <div className="ow-slider">
+    <div className="ow-slider" data-tour="slider">
       <div className="ow-slider__head">
         <button type="button" className="ow-btn ow-btn--small ow-btn--icon" onClick={() => onChange(addDays(value, -1))} disabled={value <= min} aria-label={t("slider.back")}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>

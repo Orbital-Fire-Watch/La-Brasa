@@ -6,6 +6,8 @@ import { useI18n } from "../i18n/I18n";
 import { LOCALE_CODES, LOCALES, type Locale } from "../i18n/locales";
 import type { MessageKey } from "../i18n/types";
 import { usePrefs, type Palette, type TextSize, type Theme } from "../hooks/usePrefs";
+import { useAppState } from "../hooks/useAppState";
+import { useTour } from "../hooks/useTour";
 import { SyncButton } from "./map/MapTools";
 
 export function Logo({ size = "normal" }: { size?: "normal" | "large" }) {
@@ -128,6 +130,23 @@ function LanguageSelect() {
   );
 }
 
+/** Opens the guided tutorial again; only on the start page, where the tutorial begins. */
+function TutorialButton() {
+  const { t } = useI18n();
+  const tour = useTour();
+  const [state] = useAppState();
+  if (!tour.available || state.page !== "select") return null;
+  return (
+    <button type="button" className="ow-headbtn" onClick={tour.start} aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.8-2.5 2.2-2.5 3.9M12 16.8v.3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+      <span>{t("tour.button")}</span>
+    </button>
+  );
+}
+
 export function Header({ children, floating = false }: { children?: ReactNode; floating?: boolean }) {
   const { t } = useI18n();
   return (
@@ -137,6 +156,7 @@ export function Header({ children, floating = false }: { children?: ReactNode; f
       <nav className="ow-header__actions" aria-label={t("header.nav")}>
         {CONFIG.apiMode === "mock" && <span className="ow-mocknote" title={t("header.mockTitle")}>{t("header.mock")}</span>}
         <SyncButton />
+        <TutorialButton />
         <LanguageSelect />
         <a className="ow-headbtn" href={INFO_PAGE_URL}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
