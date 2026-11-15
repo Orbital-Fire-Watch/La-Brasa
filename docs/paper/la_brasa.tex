@@ -1,0 +1,439 @@
+% La Brasa: Harmonised MODIS/VIIRS fire activity for the Iberian Peninsula
+% NASA Space Apps Challenge 2026 -- "Harmonization of MODIS and VIIRS Hot Spots"
+% Compile: pdflatex la_brasa.tex (twice). Self-contained, no external .bib needed.
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{siunitx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption}
+
+\sisetup{group-separator={,},group-minimum-digits=4,output-decimal-marker={.}}
+\captionsetup{font=small,labelfont=bf}
+\setlist{nosep,leftmargin=*}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{\textbf{La Brasa}: A harmonised, uncertainty-aware record of satellite
+fire activity for the Iberian Peninsula, 2001--2026\\[4pt]
+\large Technical report for the NASA Space Apps Challenge 2026,\\
+challenge \emph{Harmonization of MODIS and VIIRS Hot Spots}}
+\author{Team La Brasa}
+\date{November 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+Active-fire records from NASA FIRMS cover more than two decades but come from instruments with different
+spatial resolution and detection sensitivity: MODIS (\SI{1}{km}, Terra and Aqua, from 2000) and VIIRS
+(\SI{375}{m}, Suomi~NPP, NOAA-20, NOAA-21, from 2012). Simply joining both records produces a spurious
+step in 2012, so detection counts cannot be used directly for trends or year-to-year comparison.
+We present \emph{La Brasa}, an open-source pipeline and web application that harmonises all five
+satellites onto a common VIIRS-equivalent scale for the 21 NUTS-2 regions of mainland Spain, the Balearic
+Islands and Portugal. Conversion factors are estimated per region in the 2012--2021 sensor overlap and
+validated by leave-one-year-out cross-validation against pre-registered quality thresholds; every
+harmonised value carries an empirically calibrated 50\,\% and 90\,\% uncertainty band. On top of the
+harmonised record we derive a burning-activity calendar, regional fire seasons, anomalies relative to
+earlier years, fire events, a cloud-cover layer that marks where ``no detection'' may mean ``no view'',
+and a probabilistic 1--10-day forecast of large-fire days. Before 2012 the harmonised daily count has a
+typical error factor of $\times 2.08$, the monthly count $\times 1.46$; large-fire days are recovered with
+Cohen's $\kappa = 0.67$. With weather inputs perturbed by real forecast errors, the forecast improves the
+Brier score over seasonal climatology by 25\,\% on day~1 and 5\,\% on day~10.
+\end{abstract}
+
+% ---------------------------------------------------------------------------
+\section{Introduction}
+
+The Iberian Peninsula is one of Europe's most fire-affected regions. Emergency services, land managers
+and researchers repeatedly ask three questions: \emph{Is this season unusual? Where is fire activity rising?
+How far can we trust what the satellites show?} NASA's Fire Information for Resource Management System
+(FIRMS) provides the relevant observations, but as individual hotspots from instruments that are not
+directly comparable. VIIRS detects smaller and cooler fires than MODIS
+\cite{schroeder2014,giglio2016}; in our study area Suomi~NPP reports $6.0\times$ as many detections as
+MODIS-Aqua. A naive time series therefore shows an apparent surge in fire activity in 2012 that is a
+measurement artefact.
+
+The 2026 Space Apps challenge \emph{Harmonization of MODIS and VIIRS Hot Spots} asks teams to
+``combine MODIS and VIIRS fire records into a consistent calendar for examining burning activity and
+unusual conditions'' within a selected area of interest, in a web application for early-warning and
+emergency responders, scientists and land managers. This report describes how La Brasa addresses this.
+Its contributions are:
+\begin{enumerate}
+  \item a reproducible harmonisation of five satellites (Terra, Aqua, Suomi~NPP, NOAA-20, NOAA-21) with
+        region-specific factors and a magnitude-dependent, cross-validated uncertainty model
+        (Sections~\ref{sec:data}--\ref{sec:validation});
+  \item derived products that turn hotspots into answers: calendar, fire season, anomalies, events and a
+        cloud-obscuration layer (Section~\ref{sec:products});
+  \item a probabilistic short-range forecast evaluated with real weather-forecast errors
+        (Section~\ref{sec:forecast});
+  \item an open web application (English, Spanish, Portuguese) built on a documented API
+        (Section~\ref{sec:system}).
+\end{enumerate}
+Section~\ref{sec:compliance} maps every element of the challenge statement to the implementation.
+
+% ---------------------------------------------------------------------------
+\section{Data}\label{sec:data}
+
+\paragraph{Fire detections.}
+We use the FIRMS standard-processing archives MODIS Collection~6.1 (Terra and Aqua, from November 2000)
+and VIIRS 375\,m Collection~2 (Suomi~NPP from 20~January~2012, NOAA-20 from 1~April~2018, NOAA-21 from
+1~March~2023), extended with near-real-time (NRT) data up to mid-November 2026. One record is one pixel
+flagged as thermally anomalous during an overpass; it is an observation, not a fire and not an area.
+
+\paragraph{Study area.}
+All satellites are counted only inside the 21 NUTS-2 regions (NUTS 2021 \cite{nuts2021}) of mainland Spain
+with the Balearic Islands and of Portugal. Regions are assigned locally by point-in-polygon; each
+detection additionally receives a $0.25^\circ$ cell identifier and an H3 cell at resolution~8
+($\approx\SI{0.74}{km^2}$) \cite{h3}.
+
+\paragraph{Filtering.}
+Only vegetation fires are retained (\texttt{type}~=~0). Static land sources (industry, gas flares;
+\texttt{type}~=~2) are removed. Because NRT data lack the \texttt{type} field, a location mask learned from
+the archive is applied per sensor; it recovers 92.6\,\% of static detections and removes 1.5\,\% of true
+fires. Of \num{940293} raw records, \num{712097} are retained; the remainder are static sources
+(\num{133317}), offshore (\num{2450}), masked (\num{4274}) or outside the study regions (\num{88155}).
+
+\paragraph{Auxiliary data.}
+Weather for the forecast (ERA5 reanalysis \cite{hersbach2020} for history, ECMWF IFS and its ensemble for
+forecasts) and effective cloud cover at the overpass times are retrieved through Meteomatics, with
+Open-Meteo as the fallback source.
+
+% ---------------------------------------------------------------------------
+\section{Harmonisation method}\label{sec:method}
+
+\subsection{Findings that shaped the method}
+A preliminary analysis (calibration window February~2012 to December~2021) established:
+\begin{itemize}
+  \item \textbf{Detection threshold, not pixel size, drives the difference.} Aqua detects a VIIRS fire
+        cluster with 50\,\% probability only above $\approx\SI{34}{MW}$ (day) or \SI{21}{MW} (night). Aqua
+        sees 24\,\% of VIIRS clusters, which hold 83\,\% of the radiative power.
+  \item \textbf{FRP is far more comparable than counts.} The FRP sum ratio SNPP/Aqua is $\approx 1.04$,
+        whereas the count ratio is $6.0$ (Aqua) or $3.0$ (Aqua~+~Terra).
+  \item \textbf{Simple beats complex.} Of 17 candidate conversions (monthly or day/night factors, Poisson
+        models, gradient boosting, quantile mapping, FRP-class weights), a single factor per region gave the
+        best out-of-sample agreement.
+  \item \textbf{Orbital drift.} From 2022 the Terra and Aqua overpass times drift by more than 100 minutes.
+        MODIS is therefore used only up to 2021 and only for days without VIIRS.
+\end{itemize}
+
+\subsection{Reference and conversion}
+VIIRS is the reference whenever it operates. On a measured day $t$ with $k_t\in\{1,2,3\}$ active VIIRS
+satellites, the reference count in region $r$ is the mean
+\begin{equation}
+  V_{r,t} \;=\; \frac{1}{k_t}\sum_{s\in\mathcal{S}_t} n_{s,r,t},
+\end{equation}
+where an active satellite without detections contributes~0. The mean, not the sum, is used because the
+satellites observe the same fires about 50 minutes apart and cannot be de-duplicated; a sum would roughly
+double the series from 2018. The mean stays at the SNPP level (median ratio 1.006) and is less noisy.
+
+Before 2012 the series is converted from MODIS with region-specific factors estimated on the overlap
+window $\mathcal{T}_c$ (2012--2021) against Suomi~NPP:
+\begin{equation}
+  f_r \;=\; \frac{\sum_{t\in\mathcal{T}_c} V^{\mathrm{SNPP}}_{r,t}}{\sum_{t\in\mathcal{T}_c} M_{r,t}},
+  \qquad
+  n^{\mathrm{harm}}_{r,t} =
+  \begin{cases}
+    V_{r,t} & \text{VIIRS operating},\\
+    f^{\,\mathrm{A+T}}_r\,(n^{\mathrm{Aqua}}_{r,t}+n^{\mathrm{Terra}}_{r,t}) & \text{otherwise}.
+  \end{cases}
+\end{equation}
+Regions with fewer than 300 MODIS detections in $\mathcal{T}_c$ fall back to the pooled factor. Fire
+radiative power is converted from Aqua alone, which was more accurate than the Aqua~+~Terra pair
+($R^2$ 0.59 vs.\ 0.52); before July~2002 only Terra is available. The pooled factors are 2.996 (count,
+Aqua~+~Terra), 5.98 (count, Aqua) and 1.178 (FRP, Aqua). Sensors are never added together, so the series
+is VIIRS-equivalent throughout. The canonical product is region~$\times$~day; weekly, monthly and yearly
+values are derived by a tested aggregation module and are left empty for incomplete periods.
+
+\paragraph{Point weights.}
+To support freely drawn areas, each detection $i$ carries a weight $w_i$: $1/k_t$ for VIIRS points and
+$f_r$ for MODIS points that enter the series. By construction
+$\sum_{i\in(r,t)} w_i = n^{\mathrm{harm}}_{r,t}$ (verified to $\approx 10^{-16}$), so any spatial query
+returns values consistent with the regional series.
+
+\paragraph{Zero versus missing.}
+A harmonised 0 means ``no detection''; an empty value means ``no admissible observation''. Before 2012 a 0
+often only means that MODIS saw nothing, which the upper uncertainty band makes explicit.
+
+\subsection{Uncertainty model}
+The error of a converted value depends strongly on its magnitude. From leave-one-year-out
+cross-validation (2012--2021) we estimate multiplicative error factors per spatial scale (cell, NUTS-2,
+country, all), temporal scale (day to year) and magnitude class, e.g.\ for region~$\times$~month from
+$\times 3.0$ for converted zeros to $\times 1.14$ above 500 detections. A single factor ($\times 1.46$)
+would be far too optimistic for small values. Each value is published with 50\,\% and 90\,\% bands and a
+reliability label (\emph{measured}, \emph{converted\_solid}, \emph{converted\_rough}).
+
+% ---------------------------------------------------------------------------
+\section{Validation}\label{sec:validation}
+
+All quality indicators (KPIs) and their thresholds were fixed in the configuration \emph{before}
+measurement and were never relaxed. Converted MODIS values are evaluated against held-out VIIRS years
+(leave one year out, 2012--2021) on the 18 regions with at least \num{2000} VIIRS detections. All 42 KPIs
+pass; Table~\ref{tab:kpi} lists the central ones.
+
+\begin{table}[ht]
+\centering\small
+\caption{Selected out-of-sample KPIs of the harmonisation (converted MODIS vs.\ measured VIIRS).}
+\label{tab:kpi}
+\begin{tabularx}{\linewidth}{@{}lLr@{}}
+\toprule
+ID & Quantity & Result \\
+\midrule
+D1 & Typical daily error factor, region $\times$ day (90th percentile) & $\times 2.08$ ($\times 6.0$) \\
+D2 & Overall count bias & 0.1\,\% \\
+D3 & Monthly error factor; activity class agreement; $\kappa$ & $\times 1.46$; 63.7\,\%; 0.44 \\
+D4 & Daily FRP, $R^2$ (log); ratio & 0.59; 0.975 \\
+D5 & Large-fire day (FRP $\geq$ \SI{100}{MW}): $\kappa$, recall, precision & 0.67, 67\,\%, 70\,\% \\
+D7 & Extreme days ($\geq$ \SI{500}{MW}) correctly classified & 76\,\% \\
+D8 & Climatological season profile: $R^2$; error factor & 0.945; $\times 1.23$ \\
+D10/11 & Point weights sum exactly to regional series & $\approx 10^{-15}$ \\
+U1/U2 & Empirical coverage of 50\,\% / 90\,\% bands & 0.43--0.58 / 0.88--0.92 \\
+M1 & Static-source mask: recall / true fires lost & 92.6\,\% / 1.5\,\% \\
+N2 & VIIRS mean vs.\ SNPP alone, median ratio per region-year & 1.006 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Error shrinks with aggregation (day $\times 2.08$, week $\times 2.0$, month $\times 1.5$, year
+$\times 1.12$). The consequence for users is explicit in the application: pre-2012 values are always shown
+with bands, and daily pre-2012 values are suitable for identifying large-fire days and seasonal patterns,
+not for exact counts. Five documented hypothesis tests (e.g.\ solar instead of UTC date, a separate
+large-fire threshold for converted days) are reported with the decision taken.
+
+% ---------------------------------------------------------------------------
+\section{Derived products}\label{sec:products}
+
+\paragraph{Burning-activity calendar and fire season.}
+For any area the application shows a year $\times$ week/month heat map and a seasonal curve: the median
+and inter-quartile band per calendar day across all years, smoothed over 15 days. Season start and end
+are defined at 10\,\% and 90\,\% of the yearly total; the peak phase spans $\pm 7$ days around the peak.
+The current year-to-date is compared with the same calendar days of earlier years (no extrapolation).
+
+\paragraph{Anomalies.}
+An anomaly map colours H3 cells by the difference to the median of the same time window in user-selected
+comparison years, with value, median and rank on demand. Fire-day probabilities are computed only from
+VIIRS years, because adding satellites raises the share of days with any detection (0.32 to 0.41--0.45)
+without a real trend.
+
+\paragraph{Fire events.}
+Hotspots are grouped into events by union--find over H3 cells (neighbourhood ring~2, at most two days
+between detections, at least two hotspots). Events carry duration, harmonised fire count, FRP, a dense core
+and a three-day trend; merging events keep the older identifier.
+
+\paragraph{Cloud-obscuration layer.}
+A satellite cannot see a fire under clouds, so ``0 fires'' may mean ``no view''. For each $0.25^\circ$ cell
+and day we store the effective cloud fraction at the day ($\approx$~13~UTC) and night ($\approx$~02~UTC)
+VIIRS overpasses. A day is shown as cloudy when both overpasses exceed a configurable threshold (default
+0.5). Fires detected on the previous and the following day but not on the day itself, at a cloudy location,
+are drawn as ``probably hidden''. Fire counts are never altered. Between two fire days, a cloudy day remains
+without detection 3.2 times as often as a clear one (74.3\,\% vs.\ 22.9\,\% at threshold 0.7); 22--41\,\%
+of measured zero-fire region-days are cloudy, depending on the threshold. Clouds therefore hide fires
+measurably, mainly outside summer, but explain only a minority of gaps. Gap filling from neighbouring days
+was tested and rejected: it would add only 0.3--0.9\,\% of fires and is within a factor of two in only
+55\,\% of test cases.
+
+% ---------------------------------------------------------------------------
+\section{Fire-activity forecast}\label{sec:forecast}
+
+\paragraph{Targets and model.}
+Per region, the daily product gives the probability of a large-fire day (harmonised FRP
+$\geq$ \SI{100}{MW}) and of a fire day (based on Suomi~NPP, to avoid the satellite-count drift) for lead
+times of 1--10 days. A weekly product gives tercile probabilities (below, normal, above usual) for weeks
+2--4. Each lead time has an L2-regularised logistic regression with Platt calibration \cite{platt1999}.
+Inputs are the smoothed seasonal climatology of the target day, recent fire history (log-FRP over 1, 3, 7
+and 30 days, days since the last large fire, activity in the three nearest regions), a penalised regional
+effect and 22 weather features: the Canadian Fire Weather Index system (FFMC, DMC, DC, ISI, BUI, FWI)
+\cite{vanwagner1987}, the Fosberg index \cite{fosberg1978}, temperature, humidity, vapour-pressure deficit,
+gusts, antecedent rain and their anomalies. Weather is taken at the eight $0.25^\circ$ cells per region
+with the most VIIRS detections in the training years. Our FWI implementation reproduces the published test
+table \cite{vanwagnerpickett1985} to within 0.005.
+
+\paragraph{Honest evaluation.}
+Training covers 2012--2021, testing 2022--2026; hyper-parameters were chosen on a validation split
+(2020--2021), not on the test years. A forecast with perfect (reanalysis) weather would overstate skill.
+We therefore perturb the test-period weather with real ECMWF IFS errors per lead time (Open-Meteo previous
+runs against ERA5) and train on weather with such errors. Skill is the Brier skill score against seasonal
+climatology, $\mathrm{BSS} = 1 - \mathrm{BS}_{\mathrm{model}}/\mathrm{BS}_{\mathrm{clim}}$ \cite{brier1950},
+with 90\,\% intervals from bootstrapping over years. The model is served for a lead time only if the gain
+is positive and the lower bootstrap bound is $\geq 0$; otherwise the application shows climatology and
+says so.
+
+\begin{table}[ht]
+\centering\small
+\caption{Forecast of large-fire days, test 2022--2026: BSS relative to seasonal climatology.}
+\label{tab:forecast}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Lead time (days) & 1 & 3 & 5 & 7 & 10 \\
+\midrule
+Without weather & 0.213 & 0.078 & 0.037 & 0.020 & 0.005 \\
+With weather, real forecast errors & \textbf{0.250} & \textbf{0.147} & \textbf{0.109} & \textbf{0.077} & \textbf{0.053} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Calibration is good (expected calibration error $\leq 0.009$, reliability slope 1.01--1.13). On day~1 the
+model without weather reaches AUC~0.92 against 0.83 for climatology and beats climatology in all 15
+leave-one-year-out years. In the highest risk class, 54\,\% of region-days are large-fire days, against a
+base rate of 2.9\,\%. Weather adds no skill to the weekly outlook, whose ranked probability skill score
+\cite{wilks2011} is small but positive in week~2 (0.020) and indistinguishable from zero in week~4. The
+probability range shown to users comes from the ECMWF ensemble spread.
+
+% ---------------------------------------------------------------------------
+\section{System}\label{sec:system}
+
+The system consists of strictly separated stages that communicate only through files or the database:
+\begin{enumerate}
+  \item \emph{Ingestion} downloads FIRMS archive and NRT data through the FIRMS API.
+  \item \emph{Harmonisation} (Python) writes versioned Parquet tables with a manifest, hashes and a KPI
+        report; 54 automated tests and the KPI checks run with every full rebuild (about 90\,s).
+  \item \emph{Database and API}: PostgreSQL and a FastAPI service provide daily and calendar series,
+        hotspots, events, anomaly grids, cloud cover and forecasts for regions, countries or drawn polygons,
+        plus CSV export with uncertainty.
+  \item \emph{Web application} (React, MapLibre): area selection, H3 hex map with time slider, calendar,
+        season curve, year comparison, sensor comparison (raw vs.\ harmonised), event list, cloud strip,
+        forecast box and a guided tutorial, in English, Spanish and Portuguese.
+\end{enumerate}
+A daily job updates FIRMS data, harmonises and issues the forecast; a sync button in the application tops
+up NRT data between runs. The code is released under the Apache License~2.0.
+
+% ---------------------------------------------------------------------------
+\section{Compliance with the challenge statement}\label{sec:compliance}
+
+\begin{table}[ht]
+\centering\small
+\caption{Requirements derived from the challenge statement and their implementation.}
+\label{tab:compliance}
+\begin{tabularx}{\linewidth}{@{}p{3.6cm}LL@{}}
+\toprule
+Challenge wording & Requirement & Implementation \\
+\midrule
+``harmonizes these records'' & Continuous, comparable series; method transparent and tested &
+  Regional factors, VIIRS-equivalent scale, 42 pre-registered KPIs (Sec.~\ref{sec:method}--\ref{sec:validation}) \\
+``burning activity calendar'' & Calendar view of activity from hotspots &
+  Year $\times$ week/month heat map, ring calendar, daily time slider \\
+``selected area of interest'' & Region, country or drawn area &
+  NUTS-2, country, Iberia, free polygon; point weights keep values consistent \\
+``historical fire patterns'' & Typical season per area &
+  Median and IQR per calendar day, season start, end and peak \\
+``unusual conditions'' & Detect and flag deviations &
+  Anomaly map vs.\ comparison years; year-to-date vs.\ history \\
+``critical periods'' & Windows of typically high activity &
+  Peak phase; forecast risk classes for the next 10 days \\
+``wildfires and agricultural burns'' & Keep vegetation fires, remove industry &
+  \texttt{type}~0 filter and static-source mask; wildfire vs.\ agricultural split not yet implemented \\
+``web application'' & Running application, not a notebook &
+  React/MapLibre app on FastAPI and PostgreSQL \\
+``early warning \dots{} responders, scientists, land managers'' & Clear statements, uncertainty, no raw-data flood &
+  Bands and reliability labels, cloud layer, three languages, tutorial, CSV export \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ---------------------------------------------------------------------------
+\section{Limitations}
+
+\begin{itemize}
+  \item \textbf{Regional scope.} Factors are calibrated for Iberia and do not transfer: global FRP factors
+        range from 0.9 to 3.3. Other regions need their own calibration and region boundaries.
+  \item \textbf{Pre-2012 resolution.} MODIS misses about 60\,\% of region-days on which VIIRS detects fire.
+        Daily pre-2012 values are reliable for large-fire days, not for small fires.
+  \item \textbf{Measured-day bands} assume counting noise with a minimum factor; they are not yet narrowed
+        for days with three VIIRS satellites, and single-satellite outages are only flagged.
+  \item \textbf{Clouds} are visualised, not corrected; the layer covers 2012 onward.
+  \item \textbf{Weather data} for the forecast and the cloud layer currently come from a time-limited
+        commercial account; after it expires the system falls back to Open-Meteo, and the cloud layer stops
+        updating.
+  \item \textbf{Fire type.} Wildfires and agricultural burns are not separated yet; land-cover data would
+        allow this.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section{Conclusion}
+
+La Brasa turns 26 years of heterogeneous satellite hotspots into one consistent, VIIRS-equivalent record
+for Iberia and makes it usable in the browser. Its core design choices are: harmonise rather than merge,
+publish uncertainty with every number, separate ``zero'' from ``unobserved'', and judge every model
+against climatology with thresholds fixed in advance. The result answers the questions practitioners ask:
+how today compares with the past, where activity is unusual, where satellites may have been blind, and
+what the coming days are likely to bring.
+
+\paragraph{Code and data availability.}
+Source code, configuration, tests and method documentation are available at \url{https://github.com/Orbital-Fire-Watch/La-Brasa.git} under the
+Apache License~2.0. All fire data come from NASA FIRMS; region boundaries from Eurostat GISCO.
+
+% ---------------------------------------------------------------------------
+\begin{thebibliography}{99}\small
+
+\bibitem{brier1950}
+G.~W. Brier.
+\newblock Verification of forecasts expressed in terms of probability.
+\newblock \emph{Monthly Weather Review}, 78(1):1--3, 1950.
+
+\bibitem{nuts2021}
+Eurostat.
+\newblock \emph{NUTS -- Nomenclature of Territorial Units for Statistics, version 2021}.
+\newblock GISCO, European Commission, 2021.
+
+\bibitem{fosberg1978}
+M.~A. Fosberg.
+\newblock Weather in wildland fire management: the fire weather index.
+\newblock In \emph{Proceedings of the Conference on Sierra Nevada Meteorology}, pp.~1--4. American
+Meteorological Society, 1978.
+
+\bibitem{giglio2016}
+L.~Giglio, W.~Schroeder, and C.~O. Justice.
+\newblock The collection 6 MODIS active fire detection algorithm and fire products.
+\newblock \emph{Remote Sensing of Environment}, 178:31--41, 2016.
+
+\bibitem{hersbach2020}
+H.~Hersbach et~al.
+\newblock The ERA5 global reanalysis.
+\newblock \emph{Quarterly Journal of the Royal Meteorological Society}, 146(730):1999--2049, 2020.
+
+\bibitem{platt1999}
+J.~Platt.
+\newblock Probabilistic outputs for support vector machines and comparisons to regularized likelihood
+methods.
+\newblock In \emph{Advances in Large Margin Classifiers}, pp.~61--74. MIT Press, 1999.
+
+\bibitem{schroeder2014}
+W.~Schroeder, P.~Oliva, L.~Giglio, and I.~A. Csiszar.
+\newblock The New VIIRS 375\,m active fire detection data product: algorithm description and initial
+assessment.
+\newblock \emph{Remote Sensing of Environment}, 143:85--96, 2014.
+
+\bibitem{h3}
+Uber Technologies.
+\newblock H3: a hexagonal hierarchical geospatial indexing system.
+\newblock \url{https://h3geo.org}, accessed November 2026.
+
+\bibitem{vanwagnerpickett1985}
+C.~E. Van~Wagner and T.~L. Pickett.
+\newblock Equations and FORTRAN program for the Canadian Forest Fire Weather Index System.
+\newblock Forestry Technical Report 33, Canadian Forestry Service, Ottawa, 1985.
+
+\bibitem{vanwagner1987}
+C.~E. Van~Wagner.
+\newblock Development and structure of the Canadian Forest Fire Weather Index System.
+\newblock Forestry Technical Report 35, Canadian Forestry Service, Ottawa, 1987.
+
+\bibitem{wilks2011}
+D.~S. Wilks.
+\newblock \emph{Statistical Methods in the Atmospheric Sciences}, 3rd edition.
+\newblock Academic Press, 2011.
+
+\end{thebibliography}
+
+\end{document}
