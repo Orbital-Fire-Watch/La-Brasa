@@ -12,6 +12,8 @@ import { ageColors } from "../../lib/palette";
 import { usePrefs } from "../../hooks/usePrefs";
 import { ytdStat, type YtdStat } from "../../lib/ytd";
 import { Spinner, Tip } from "../ui/Elements";
+import { Segmented } from "../ui/Segmented";
+import { PLAYBACK_SPEEDS, type PlaybackSpeed } from "../../hooks/usePlayback";
 
 /** Lower-case first letter, for method names used inside a sentence. */
 export const inSentence = (s: string) => s.charAt(0).toLocaleLowerCase() + s.slice(1);
@@ -201,8 +203,9 @@ export function StrongestCard({ unit, name, loading, onShow }: { unit: FireUnit 
 
 // ------------------------------------------------------------------ time slider
 
-export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel }: {
+export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel, playback }: {
   value: string; anchor: string; min: string; max: string; onChange: (d: string) => void; bars: Values | null; barsLabel: string;
+  playback: { playing: boolean; onToggle: () => void; speed: PlaybackSpeed; onSpeed: (s: PlaybackSpeed) => void };
 }) {
   const { t, f } = useI18n();
   const total = daysBetween(min, max);
@@ -214,10 +217,19 @@ export function TimeSlider({ value, anchor, min, max, onChange, bars, barsLabel 
   return (
     <div className="ow-slider">
       <div className="ow-slider__head">
+        <button type="button" className="ow-btn ow-btn--small ow-btn--icon ow-slider__play" onClick={playback.onToggle} disabled={total === 0}
+          aria-pressed={playback.playing} aria-label={t(playback.playing ? "slider.pause" : "slider.play")} title={t(playback.playing ? "slider.pause" : "slider.play")}>
+          {playback.playing
+            ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z" fill="currentColor" /></svg>
+            : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z" fill="currentColor" /></svg>}
+        </button>
+        <Segmented label={t("slider.speed")} hideLabel size="small" value={playback.speed} onChange={playback.onSpeed}
+          options={PLAYBACK_SPEEDS.map((s) => ({ value: s, label: `${f.factor(s)}×` }))} />
         <button type="button" className="ow-btn ow-btn--small ow-btn--icon" onClick={() => onChange(addDays(value, -1))} disabled={value <= min} aria-label={t("slider.back")}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
         </button>
-        <output className="ow-slider__value" aria-live="polite">
+        {/* While playing, a screen reader would announce every day: the date is only announced on manual steps. */}
+        <output className="ow-slider__value" aria-live={playback.playing ? "off" : "polite"}>
           {f.date(value)}
           <span className="ow-muted">{diff === 0 ? t("slider.atReference") : t("slider.offset", { sign: diff > 0 ? "+" : "−", count: Math.abs(diff) })}</span>
         </output>

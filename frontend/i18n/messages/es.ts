@@ -315,6 +315,9 @@ export const es: Messages = {
   "slider.aria": "Control deslizante de fecha",
   "slider.bars": "{metric} diarios en el rango del control",
   "slider.reference": "{date} (referencia)",
+  "slider.play": "Reproducir: animar el mapa día a día",
+  "slider.pause": "Pausa",
+  "slider.speed": "Velocidad de reproducción",
 
   "an.seasonTitle": "Curva de temporada: {metric} por día",
   "an.seasonHelp": "Compara el año seleccionado con otros años y con el curso típico. El punto marca la fecha y sigue al control deslizante.",

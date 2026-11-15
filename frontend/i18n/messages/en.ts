@@ -317,6 +317,9 @@ export const en = {
   "slider.aria": "Time slider",
   "slider.bars": "Daily {metric} in the slider range",
   "slider.reference": "{date} (reference)",
+  "slider.play": "Play: animate the map day by day",
+  "slider.pause": "Pause",
+  "slider.speed": "Playback speed",
 
   "an.seasonTitle": "Season curve: {metric} per day",
   "an.seasonHelp": "Compares the selected year with other years and the typical course. The dot marks the date and follows the time slider.",

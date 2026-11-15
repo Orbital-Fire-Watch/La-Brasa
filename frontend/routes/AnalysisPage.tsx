@@ -12,6 +12,7 @@ import { useApiQuery } from "../hooks/useApiQuery";
 import { useAppData } from "../hooks/useAppData";
 import type { CompareSetting } from "../hooks/useAppState";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { usePlayback, usePlaybackClock } from "../hooks/usePlayback";
 import { useSelection } from "../hooks/useSelection";
 import { climatology, periodCells, seasonPhase, valueAt, windowAnomaly, type PeriodMode } from "../lib/analysis";
 import { divergingScale } from "../lib/colors";
@@ -67,7 +68,10 @@ export function AnalysisPage() {
   const sliderMin = clampDate(addDays(D0, -SLIDER_RANGE_DAYS), meta.first_date, meta.last_date);
   const sliderMax = clampDate(addDays(D0, SLIDER_RANGE_DAYS), meta.first_date, meta.last_date);
   const D = clampDate(state.d ?? D0, sliderMin, sliderMax);
-  const qD = useDebouncedValue(D, 300);
+  // Playback steps one day at a time and waits for the data itself, so it skips the debounce meant for dragging.
+  const playback = usePlayback();
+  const debouncedD = useDebouncedValue(D, 300);
+  const qD = playback.playing ? D : debouncedD;
   const qStart = clampDate(addDays(qD, -(L - 1)), meta.first_date, qD);
   // Labels and the export query are derived here, before the memos below: the React Compiler cannot tell that
   // these helpers leave their (string) arguments alone and would otherwise skip the memoised values.
@@ -129,6 +133,7 @@ export function AnalysisPage() {
   const detailGone = detail.status === "error" && detail.error instanceof ApiError && detail.error.code === "EVENT_NOT_FOUND";
   const [fit, setFit] = useState<{ bbox: [number, number, number, number]; key: string } | null>(null);
   const selectUnit = (u: FireUnit | null, zoom = true) => {
+    playback.stop();
     setState({ event: u?.id ?? null });
     if (u && zoom) setFit({ bbox: u.bbox, key: `${u.id}|${Date.now()}` });
   };
@@ -213,6 +218,16 @@ export function AnalysisPage() {
   const anomalyData = mapGrid.data && isGridAnomaly(mapGrid.data) ? mapGrid.data : null;
   const mapLoading = mapGrid.status === "loading" || pointsQuery.status === "loading" || unitsQuery.status === "loading";
   const mapError = [mapGrid, pointsQuery, unitsQuery].find((q) => q.status === "error");
+  usePlaybackClock({
+    playing: playback.playing, stop: playback.stop, speed: playback.speed,
+    value: D, max: sliderMax, ready: !mapLoading, failed: !!mapError, onStep: (d) => setState({ d }),
+  });
+  // Play runs over the whole slider: a new run starts at its first day, a paused run continues where it was.
+  const togglePlayback = () => {
+    if (playback.playing) return playback.pause();
+    if (playback.status === "stopped" || D >= sliderMax) setState({ d: sliderMin });
+    playback.play();
+  };
   const selectionFit = useMemo(() => (selection.bbox ? { bbox: selection.bbox, key: `sel|${selection.key}` } : null), [selection.bbox, selection.key]);
 
   // ---- season curve and year overview
@@ -231,6 +246,7 @@ export function AnalysisPage() {
   );
   const minYear = method === "events" ? EVENTS_COMPARABLE_FROM_YEAR : undefined;
   const pickDate = (end: string) => {
+    playback.stop();
     const d = end > meta.last_date ? meta.last_date : end;
     if (d < sliderMin || d > sliderMax) setState({ date: d, d: null, event: null });
     else setState({ d });
@@ -359,7 +375,9 @@ export function AnalysisPage() {
                   {mapError && mapError.status === "error" && <ErrorNote error={mapError.error} onRetry={mapError.reload} />}
                 </section>
               </OrbitalMap>
-              <TimeSlider value={D} anchor={D0} min={sliderMin} max={sliderMax} onChange={(d) => setState({ d })} bars={sliderBars} barsLabel={methodLong} />
+              <TimeSlider value={D} anchor={D0} min={sliderMin} max={sliderMax} onChange={(d) => { playback.stop(); setState({ d }); }}
+                bars={sliderBars} barsLabel={methodLong}
+                playback={{ playing: playback.playing, onToggle: togglePlayback, speed: playback.speed, onSpeed: playback.setSpeed }} />
             </div>
 
             <aside className="ow-maplayout__list" aria-labelledby="ow-list-title">
