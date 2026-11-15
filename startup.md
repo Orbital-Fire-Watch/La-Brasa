@@ -128,7 +128,7 @@ Gut zu wissen:
 
 - Die API kennt **NUTS-2-Regionen** (`ES11`, `PT16`), keine Provinzen. Das Frontend nimmt automatisch die feinste vorhandene Ebene für Kartengrenzen und „Gebiete, in denen es oft brennt“.
 - Die **Balearen** sind nicht in den Daten. Die Gebietsangabe lautet deshalb „Festland“.
-- **Ereignisse** bündeln Hotspots, deren H3-Zellen (Auflösung 8) gleich oder benachbart sind und höchstens 2 Tage auseinanderliegen. Am Stichtag D zählen nur Punkte bis D. Wachsen zwei Brände später zusammen, verschwindet die ID des jüngeren danach (`EVENT_NOT_FOUND`), das Frontend lädt die Liste neu.
+- **Ereignisse** bündeln Hotspots, deren H3-Zellen (Auflösung 8) höchstens 2 Zellen auseinanderliegen (ca. 1,8 km) und höchstens 2 Tage auseinanderliegen. Ein Ereignis braucht mindestens 2 Hotspots, ein einzelner Hotspot ohne Nachbarn ist keines (`event_id` = null). Der **Kern** ist die größte Gruppe direkt benachbarter Zellen; was nur über den zweiten Ring dazukommt, ist **Ausläufer** (`core_geometry` / `extension_geometry`, auf der Karte blass und gestrichelt). Am Stichtag D zählen nur Punkte bis D. Wachsen zwei Brände später zusammen, verschwindet die ID des jüngeren danach (`EVENT_NOT_FOUND`), das Frontend lädt die Liste neu.
 - **Nur Regionen, keine Provinzen:** Ereignisse heißen „Feuer in Galicia“ statt „Feuer bei Ourense“, und `/api/by-region` kennt nur `level: "region"`.
 - `last_date` ist der letzte Tag mit Daten und kann ein unvollständiger Tag sein. Das Harmonisierungsteam klärt das noch.
 - `fires` ist die Hauptzahl. Ein Feuer kann seit 2018 bis zu dreimal als Hotspot erscheinen (Gewicht 0,333), `hotspots` ist deshalb größer als `fires`.

@@ -146,6 +146,7 @@ export const pt: Messages = {
   "legend.loading": "A carregar dados do mapa",
   "legend.unusual": "{metric} invulgar",
   "legend.eventsByAge": "Incêndios por antiguidade",
+  "legend.extension": "Periferia: até 2 células do núcleo",
   "legend.cellsByAge": "Células H3 por antiguidade",
   "legend.anomalyTip": "Janela de pelo menos {days} dias, resolução máxima {res}. Azul significa menos e vermelho mais do que a mediana dos anos de comparação.",
   "legend.ageTip": "A partir do nível de zoom {zoom}, o mapa mostra focos individuais. Nas células H3, a opacidade indica a quantidade.",

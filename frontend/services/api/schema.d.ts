@@ -542,7 +542,7 @@ export interface components {
             active: boolean;
             /**
              * New
-             * @description start == D
+             * @description became an event on D (on D it reached 2 hotspots; usually start == D)
              */
             new: boolean;
             /**
@@ -588,6 +588,16 @@ export interface components {
             trend?: ("growing" | "stable" | "shrinking") | null;
             /** @description Could-have */
             landcover?: components["schemas"]["Landcover"] | null;
+            /**
+             * Core Geometry
+             * @description cells of the dense core (largest group of directly neighbouring cells); null = no extension
+             */
+            core_geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
+            /**
+             * Extension Geometry
+             * @description cells joined to the core only through the wider ring (2 cells); null = no extension
+             */
+            extension_geometry?: (components["schemas"]["Polygon"] | components["schemas"]["MultiPolygon"]) | null;
         };
         /** EventsRequest */
         EventsRequest: {

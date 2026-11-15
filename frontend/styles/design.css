@@ -319,6 +319,8 @@ a { color: var(--ow-blue); }
 .ow-agelegend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: 0.786rem; }
 .ow-agelegend li { display: inline-flex; align-items: center; gap: 5px; }
 .ow-swatch { width: 12px; height: 12px; border-radius: var(--ow-radius-sm); border: 1px solid rgb(0 0 0 / 25%); }
+/* extension of a fire event: pale fill in the age colour (currentColor) with a dashed outline, as on the map */
+.ow-swatch--extension { background: color-mix(in srgb, currentColor 25%, transparent); border: 1px dashed #3f1d0b; }
 
 /* ================================================================ start page */
 

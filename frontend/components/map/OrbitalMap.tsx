@@ -107,8 +107,16 @@ function addLayers(map: MlMap) {
     paint: { "fill-color": ["get", "color"], "fill-opacity": ["coalesce", ["get", "opacity"], 0.55] },
   }, labels);
   map.addLayer({
-    id: "events-line", type: "line", source: "events",
+    id: "events-line", type: "line", source: "events", filter: ["!=", ["get", "part"], "extension"],
     paint: { "line-color": ["get", "stroke"], "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 12, 1.5] },
+  });
+  // extension of an event (cells joined to the core only through the wider ring): dashed, so it reads as "loosely attached"
+  map.addLayer({
+    id: "events-extension-line", type: "line", source: "events", filter: ["==", ["get", "part"], "extension"],
+    paint: {
+      "line-color": ["get", "stroke"], "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 12, 1.5],
+      "line-dasharray": [2, 1.5],
+    },
   });
   map.addLayer({
     id: "event-points", type: "circle", source: "event-points", maxzoom: 10,

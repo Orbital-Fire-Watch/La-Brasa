@@ -132,17 +132,29 @@ export function unitAge(u: FireUnit): AgeClass {
   return u.days_since_last > 2 ? "ended" : ageClass(u.days_since_last);
 }
 
+/** Fill opacity of an event's core; its extension (cells joined only through the wider ring) is paler. */
+const CORE_OPACITY = { live: 0.6, ended: 0.3 };
+const EXTENSION_OPACITY = { live: 0.22, ended: 0.12 };
+
 export function eventShapes(units: FireUnit[], colors: Record<AgeClass, string>) {
   const maxFrp = Math.max(1, ...units.map((u) => u.frp_sum));
   const polygons: GeoJSON.FeatureCollection = {
     type: "FeatureCollection",
-    features: units.map((u) => {
+    features: units.flatMap((u): GeoJSON.Feature[] => {
       const age = unitAge(u);
-      return {
+      const state = age === "ended" ? "ended" : "live";
+      const style = { id: u.id, color: colors[age], stroke: age === "ended" ? "#757575" : "#3f1d0b" };
+      const core: GeoJSON.Feature = {
         type: "Feature",
-        properties: { id: u.id, color: colors[age], stroke: age === "ended" ? "#757575" : "#3f1d0b", opacity: age === "ended" ? 0.3 : 0.6 },
-        geometry: u.geometry,
+        properties: { ...style, part: "core", opacity: CORE_OPACITY[state] },
+        geometry: u.extensionGeometry && u.coreGeometry ? u.coreGeometry : u.geometry,
       };
+      if (!u.extensionGeometry || !u.coreGeometry) return [core];
+      return [core, {
+        type: "Feature",
+        properties: { ...style, part: "extension", opacity: EXTENSION_OPACITY[state] },
+        geometry: u.extensionGeometry,
+      }];
     }),
   };
   const points: GeoJSON.FeatureCollection = {

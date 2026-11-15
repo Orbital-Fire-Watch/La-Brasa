@@ -408,6 +408,9 @@ export function AnalysisPage() {
                   ) : (
                     <ul className="ow-agelegend">
                       {ageLegend.map((a) => <li key={a}><span className="ow-swatch" style={{ background: colors[a] }} />{t(`age.${a}`)}</li>)}
+                      {shapes && !showPoints && !eventOnMap && units.some((u) => u.extensionGeometry) && (
+                        <li><span className="ow-swatch ow-swatch--extension" style={{ color: colors.today }} />{t("legend.extension")}</li>
+                      )}
                     </ul>
                   )}
                   {pointsQuery.data?.truncated && <p className="ow-small">{t("legend.truncated", { returned: pointsQuery.data.returned, total: pointsQuery.data.total })}</p>}
