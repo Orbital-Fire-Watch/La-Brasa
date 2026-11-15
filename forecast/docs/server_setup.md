@@ -179,6 +179,16 @@ Zum Messen der Ressourcen:
 
 ## 7. Cron einrichten
 
+> **Seit 15.11.2026:** Es gibt `pipeline/update_daily.py`. Es aktualisiert die Feuerdaten (FIRMS), harmonisiert und
+> ruft danach `forecast/daily.py` auf. Auf dem Server reicht dann **ein** Cron-Eintrag für `update_daily.py` statt
+> des Eintrags unten (`pipeline/README.md`, Abschnitt 4). Dafür braucht der Server zusätzlich:
+> - `FIRMS_MAP_KEY` in `.env`,
+> - die Umgebung `harmonisation/.venv`,
+> - den Ordner `data/raw/` (etwa 120 MB, die FIRMS-CSVs),
+> - und den vollen Ordner `data/harmonised/`.
+>
+> Gemessen: höchstens 2,05 GB RAM, etwa 2 Minuten.
+
 `crontab -e` für den Benutzer, dem `/srv/La-Brasa` gehört. Die Zeiten sind in UTC, falls der Server auf UTC läuft:
 
 ```cron

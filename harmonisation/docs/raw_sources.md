@@ -37,6 +37,17 @@ Die Pipeline liest sie über `sources` in `pipeline_config.yaml`. Die SHA-256-We
 - **NRT-Ende:** SNPP-NRT endet am 02.11.2026, NOAA-20/21-NRT am 13.11.2026, MODIS-NRT am 12.11.2026. Die Tage 03. bis 13.11.
   sind damit nur von NOAA-20/21 gemessen.
 
+## Tägliche Aktualisierung (ab 15.11.2026)
+
+`pipeline/update_daily.py` hält die NRT- und Archivdateien über die FIRMS-API aktuell
+(`pipeline/ingestion/fetch_firms.py`, Beschreibung in `pipeline/README.md`):
+- Neue Zeilen werden in genau diese Dateien eingefügt, im Format des Downloads und ohne Dubletten.
+- Kommen neue Archivtage, werden die NRT-Zeilen derselben Tage entfernt.
+- MODIS und SNPP bleiben auf das bisherige Gebiet beschränkt.
+- Vor jeder Änderung wird `<datei>.bak` angelegt.
+- Die Zeilenzahlen und SHA-256-Werte oben gelten deshalb nur für den Stand der Downloads. Den aktuellen Stand nennt
+  `data/harmonised/manifest.json` (`input_files`).
+
 ## Neue Daten einspielen
 
 1. Neues FIRMS-Produkt in einen eigenen Unterordner von `data/raw/` legen, Dateinamen nicht ändern.

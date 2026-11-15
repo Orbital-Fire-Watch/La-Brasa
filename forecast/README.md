@@ -260,6 +260,8 @@ kleinen Matrizen vor allem selbst abstimmt. Vorher hat genau das den Laptop voll
 ### 2.2 Automatisierung: täglicher Lauf per Cron
 
 Eine Schritt-für-Schritt-Anleitung für den Server steht in [docs/server_setup.md](docs/server_setup.md).
+Die Feuerdaten hält `pipeline/update_daily.py` täglich aktuell. Es ruft danach `daily.py` selbst auf
+([../pipeline/README.md](../pipeline/README.md)).
 
 `daily.py` ist der tägliche Job. Er ermittelt die Daten selbst und macht der Reihe nach:
 
