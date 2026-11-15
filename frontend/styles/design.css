@@ -582,8 +582,13 @@ a { color: var(--ow-blue); }
 .ow-sync { display: inline-flex; align-items: center; gap: 6px; }
 .ow-sync .ow-headbtn:disabled { opacity: 0.75; cursor: progress; }
 .ow-sync .ow-spinner { margin: 0; }
-.ow-sync__status { display: inline-flex; align-items: center; gap: 2px; max-width: 220px; font-size: 0.786rem; color: var(--ow-muted); }
-.ow-sync__status[data-failed] { color: var(--ow-danger); }
+/* the status sits on top of the map (floating header), so it gets its own opaque surface for contrast in every theme */
+.ow-sync__status {
+  display: inline-flex; align-items: center; gap: 2px; max-width: 240px; padding: 4px 9px;
+  border: 1px solid var(--ow-tile-border); border-radius: var(--ow-radius); background: var(--ow-overlay);
+  font-size: 0.786rem; font-weight: 600; line-height: 1.3; color: var(--ow-text);
+}
+.ow-sync__status[data-failed] { color: var(--ow-danger); border-color: var(--ow-danger); }
 .ow-sync__status:empty { display: none; }
 
 /* exit from the selected region: top left of the map area */

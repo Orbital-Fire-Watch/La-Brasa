@@ -18,7 +18,12 @@ export function SyncButton() {
     status = state.result === "completed"
       ? t("sync.done", { time: f.time(state.at), count: state.newHotspots })
       : t("sync.upToDate", { time: f.time(state.at) });
-  } else if (state.status === "failed") status = t("sync.failed");
+  } else if (state.status === "failed") {
+    status = t(state.reason === "unavailable" ? "sync.unavailable" : "sync.failed");
+  }
+  const detail = state.status !== "failed" ? null
+    : state.reason === "unavailable" ? t("sync.unavailableHint")
+    : state.message ?? null;
   return (
     <div className="ow-sync">
       <button type="button" className="ow-headbtn" onClick={run} disabled={running} aria-busy={running}
@@ -33,7 +38,7 @@ export function SyncButton() {
       </button>
       <span className="ow-sync__status" role="status" aria-live="polite" data-failed={state.status === "failed" || undefined}>
         {status}
-        {state.status === "done" && state.result === "reload_only" && <Tip text={t("sync.reloadOnly")} />}
+        {detail && <Tip text={detail} />}
       </span>
     </div>
   );

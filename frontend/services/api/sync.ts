@@ -4,7 +4,8 @@
  *   POST /api/sync  → 202 SyncStatus: starts a sync, or returns the one already running
  *   GET  /api/sync  → 200 SyncStatus: the frontend polls it every 2 s while state is "running"
  *
- * 501 NOT_IMPLEMENTED: the server has no FIRMS key or no pipeline. The data is then only requested again.
+ * 404/405/501 (e.g. NOT_IMPLEMENTED: no FIRMS key or no pipeline): fetching is unavailable; nothing is reloaded,
+ * because no new data can have arrived.
  * After a successful load the backend reports a new data_version in /api/meta; every query key contains it,
  * so reloading /api/meta reloads all views (spec §6.1).
  */
@@ -12,8 +13,8 @@ import { apiRequest } from "./client";
 import { ApiError } from "./errors";
 import type { SyncStatus } from "./types";
 
-/** What the frontend got: a finished sync, or (server without sync) only a reload of all data. */
-export type SyncOutcome = { kind: "synced"; status: SyncStatus } | { kind: "reload_only" };
+/** What the frontend got: a finished sync, or a server that cannot fetch at all. */
+export type SyncOutcome = { kind: "synced"; status: SyncStatus } | { kind: "unavailable"; message?: string };
 
 export const SYNC_POLL_MS = 2000;
 /** Fetch, harmonisation and load can take several minutes; stop waiting after 30. */
@@ -27,8 +28,8 @@ export async function runSync(): Promise<SyncOutcome> {
   try {
     status = await apiRequest<SyncStatus>("POST", "/api/sync");
   } catch (e) {
-    // Server without sync: still request all data again.
-    if (e instanceof ApiError && (e.status === 404 || e.status === 405 || e.status === 501)) return { kind: "reload_only" };
+    // Server without sync: report it, do not pretend anything was fetched.
+    if (e instanceof ApiError && (e.status === 404 || e.status === 405 || e.status === 501)) return { kind: "unavailable", message: e.message };
     throw e;
   }
   for (let i = 0; status.state === "running"; i++) {
