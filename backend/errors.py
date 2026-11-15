@@ -8,10 +8,14 @@ Raise:      raise ApiError(404, "REGION_NOT_FOUND", "Unknown region 'ES-XX'.")
 Messages are English, user-facing text.
 """
 
+import logging
+
 import psycopg
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+log = logging.getLogger(__name__)
 
 
 class ApiError(Exception):
@@ -73,7 +77,9 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unexpected(request: Request, exc: Exception):
-        # Handle the database driver's QueryCanceled as 504 QUERY_TIMEOUT before this point
+        # Handle the database driver's QueryCanceled as 504 QUERY_TIMEOUT before this point.
+        # Logged, otherwise a 500 leaves no trace of its cause.
+        log.exception("Unhandled error in %s %s", request.method, request.url.path)
         return JSONResponse(status_code=500, content=error_body("INTERNAL_ERROR", "Internal error"))
 
 
