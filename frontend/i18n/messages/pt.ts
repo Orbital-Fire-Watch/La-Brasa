@@ -335,13 +335,14 @@ export const pt: Messages = {
   "an.heatAria": "Mapa de calor anual de {metric}; as linhas são anos",
   "an.ringAria": "Calendário circular de {metric}; os anos são anéis de dentro para fora",
 
-  "sync.button": "Sincronizar",
-  "sync.running": "A sincronizar",
+  "sync.button": "Obter",
+  "sync.running": "A obter",
   "sync.title": "Pedir os dados mais recentes à API",
   "sync.done": { one: "Atualizado às {time}, {count} foco novo", other: "Atualizado às {time}, {count} focos novos" },
   "sync.upToDate": "Atualizado ({time})",
-  "sync.reloadOnly": "A sincronização ainda não está disponível no servidor; os dados foram pedidos novamente.",
-  "sync.failed": "A sincronização falhou",
+  "sync.unavailable": "Obtenção indisponível",
+  "sync.unavailableHint": "O servidor não consegue obter dados novos (falta FIRMS_MAP_KEY ou o pipeline). Nada foi atualizado.",
+  "sync.failed": "A obtenção de dados falhou",
   "sync.version": "Versão dos dados {version}",
 
   "exit.button": "Sair de {name}",

@@ -337,13 +337,14 @@ export const en = {
   "an.heatAria": "Year heatmap of {metric}, rows are years",
   "an.ringAria": "Ring calendar of {metric}, years as rings from inside to outside",
 
-  "sync.button": "Sync",
-  "sync.running": "Syncing",
+  "sync.button": "Fetch",
+  "sync.running": "Fetching",
   "sync.title": "Request the latest data from the API",
   "sync.done": { one: "Updated {time}, {count} new hotspot", other: "Updated {time}, {count} new hotspots" },
   "sync.upToDate": "Up to date ({time})",
-  "sync.reloadOnly": "Sync is not available in the backend yet; the data was requested again.",
-  "sync.failed": "Sync failed",
+  "sync.unavailable": "Fetch not available",
+  "sync.unavailableHint": "The server cannot fetch new data (FIRMS_MAP_KEY or the pipeline is missing). Nothing was updated.",
+  "sync.failed": "Fetch failed",
   "sync.version": "Data version {version}",
 
   "exit.button": "Exit {name}",
