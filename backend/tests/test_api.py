@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import get_args
 
 import h3
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -23,7 +24,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from core.db import connect  # noqa: E402
 from dtos import Sensor  # noqa: E402
 from main import app  # noqa: E402
-from services.events import cluster, event_id  # noqa: E402
+from services.events import Groups, _selected, _table, cluster, event_id  # noqa: E402
 from services.scope import SENSOR_SQL  # noqa: E402
 
 PARQUET = Path(__file__).resolve().parents[2] / "data" / "harmonised"
@@ -426,3 +427,10 @@ def test_by_region_shares_add_up(hot):
 def test_errors(path, body, status, code):
     r = post(path, body, status)
     assert r["error"]["code"] == code and r["error"]["message"]
+
+
+def test_no_events_on_a_day_without_hotspots():
+    # Regression: an empty table had float columns, so _selected() failed with a TypeError (500 on /api/events
+    # for every day after a day without hotspots, e.g. near the end of the data).
+    empty = _table(None, Groups(points=np.zeros(0, np.int64), bounds=np.zeros(1, np.int64), roots=np.zeros(0, np.int64)), None)
+    assert _selected(empty, 0, high_only=True).sum() == 0

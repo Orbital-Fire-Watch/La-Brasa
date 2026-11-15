@@ -286,6 +286,8 @@ export const en = {
   "list.close": "Close",
   "list.gone": "This fire event no longer exists.",
   "list.notInWindow": "The selected fire event is not in the look-back window on this day.",
+  "list.upcoming": "Not started yet on this day: the fire event begins on {date}.",
+  "list.ended": "Already over on this day: the fire event was last seen on {date}.",
   "list.clear": "Clear",
   "list.empty": "No fires in the {window} up to {date}.",
   "list.countEvents": { one: "{count} fire event", other: "{count} fire events" },
@@ -378,6 +380,7 @@ export const en = {
   "cmp.cellTitle": "{family} raw detections",
   "cmp.legendFamily": "{family} raw detections per H3 cell",
   "cmp.analysisTitle": "Raw data: MODIS and VIIRS, 30 days up to {date}",
+  "cmp.playbackNote": "Stays on this day during playback.",
   "cmp.mapAria": "Map of raw {family} detections",
 
   "year.helpDisplay": "Harmonised: weighted hotspots, comparable across years. MODIS raw and VIIRS raw: uncorrected detections of one instrument family. Compare: both heatmaps on one shared colour scale, plus the raw detections per year.",

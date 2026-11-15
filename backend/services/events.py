@@ -335,8 +335,11 @@ class GroupTable:
 def _table(ix: EventIndex, g: Groups, mask: np.ndarray | None) -> GroupTable:
     p, starts = g.points, g.bounds[:-1]
     if len(starts) == 0:
-        empty = np.zeros(0)
-        return GroupTable(*(empty for _ in range(11)))
+        # No events (e.g. a day without any hotspot). The dtypes must match the filled case: _selected() combines
+        # last and in_area with `&`, which fails on float arrays.
+        no_int, no_float, no_bool = np.zeros(0, np.int64), np.zeros(0), np.zeros(0, bool)
+        return GroupTable(start=no_int, last=no_int, hotspots=no_int, frp_sum=no_float, area_km2=no_float,
+                          in_area=no_bool, has_high=no_bool, west=no_float, east=no_float, south=no_float, north=no_float)
     counts = np.diff(g.bounds)
     group_of_point = np.repeat(np.arange(len(starts)), counts)
     pairs = np.unique(group_of_point.astype(np.int64) * len(ix.cell_names) + ix.cell[p])
