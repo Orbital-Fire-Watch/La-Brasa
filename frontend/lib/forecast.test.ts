@@ -8,11 +8,9 @@ import { MockApi } from "../services/mock/handlers";
 import { buildWorld } from "../services/mock/world";
 import type { RegionsResponse } from "../services/api/types";
 import { RISK_COLOR } from "./colors";
-import { forecastScope, forecastVisible, RISK_ORDER, worstClass } from "./forecast";
-import { rectanglePolygon } from "./geo";
+import { describeChange, forecastVisible, outlookOf, RISK_ORDER, worstClass } from "./forecast";
 
 const regions = JSON.parse(readFileSync(new URL("../public/mock/regions.json", import.meta.url), "utf8")) as RegionsResponse;
-const byId = new Map(regions.features.map((f) => [f.properties.id, f]));
 const features = { areas: true, daily: true, events: true, anomaly: true, anomaly_window: true, grid_by_day: true, landcover: false };
 
 describe("forecast box", () => {
@@ -23,16 +21,27 @@ describe("forecast box", () => {
     expect(forecastVisible("2023-08-01", "2026-11-13")).toBe(false);
   });
 
-  it("maps region, province, country and drawn area to NUTS-2 regions", () => {
-    const f = regions.features;
-    expect(forecastScope(byId.get("PT11") ?? null, null, f)).toEqual({ kind: "region", ids: ["PT11"] });
-    expect(forecastScope(byId.get("ES-C") ?? null, null, f)).toEqual({ kind: "province", ids: ["ES-GA"] });
-    expect(forecastScope(byId.get("PT") ?? null, null, f).ids.sort()).toEqual(["PT11", "PT15", "PT16", "PT17", "PT18"]);
-    // a box across the Galicia / Asturias border touches both, nothing in the south
-    const area = forecastScope(null, rectanglePolygon([-7.6, 42.9], [-6.4, 43.4]), f);
-    expect(area.kind).toBe("area");
-    expect(area.ids).toEqual(expect.arrayContaining(["ES-AS", "ES-GA"]));
-    expect(area.ids).not.toContain("ES-AN");
+  it("describes the change against the usual value in round, readable numbers", () => {
+    expect(describeChange(0.06)).toEqual({ kind: "lower", percent: 95 });
+    expect(describeChange(0.001)).toEqual({ kind: "lower", percent: 99 });
+    expect(describeChange(0.95)).toEqual({ kind: "same" });
+    expect(describeChange(1.32)).toEqual({ kind: "higher", percent: 30 });
+    expect(describeChange(2.46)).toEqual({ kind: "times", factor: 2.5 });
+    expect(describeChange(7.6)).toEqual({ kind: "times", factor: 8 });
+    expect(describeChange(Number.NaN)).toEqual({ kind: "same" });
+  });
+
+  it("outlook: sums of the daily values and three parts (days 1-3, 4-7, 8-10)", () => {
+    const api = new MockApi(buildWorld(regions, "2026-11-13"), { ...features, forecast: true });
+    const days = api.forecastDaily({ region_id: "PT11" }).days;
+    const o = outlookOf(days);
+    expect(o).not.toBeNull();
+    if (!o) return;
+    expect(o.expectedDays).toBeCloseTo(days.reduce((s, d) => s + d.p_big_fire_day, 0), 12);
+    expect(o.parts.map((p) => [p.from, p.to])).toEqual([
+      ["2026-11-14", "2026-11-16"], ["2026-11-17", "2026-11-20"], ["2026-11-21", "2026-11-23"],
+    ]);
+    expect(outlookOf([])).toBeNull();
   });
 
   it("mock: 10 days per region after the last mock day, lo <= p <= hi, 503 when switched off", () => {
@@ -62,6 +71,6 @@ describe("forecast box", () => {
     const keys = (m: object) => Object.keys(m).filter((k) => k.startsWith("fc.")).sort();
     expect(keys(es)).toEqual(keys(en));
     expect(keys(pt)).toEqual(keys(en));
-    expect(keys(en).length).toBeGreaterThan(15);
+    expect(keys(en).length).toBeGreaterThan(10);
   });
 });

@@ -43,8 +43,7 @@ import { useRegionName, useSelectionInfo } from "../hooks/useSelectionInfo";
 import { compareSensors } from "../lib/sensors";
 import { useTour } from "../hooks/useTour";
 import { ForecastBox } from "../components/analysis/ForecastBox";
-import { forecastScope, forecastVisible } from "../lib/forecast";
-import type { AreaGeometry } from "../lib/geo";
+import { forecastVisible } from "../lib/forecast";
 
 const FALLBACK_RESOLUTION = 6;
 
@@ -65,6 +64,9 @@ export function AnalysisPage() {
   const colors = ageColors(prefs.palette);
   const { selection, withArea } = useSelection(state, setState);
   const info = useSelectionInfo(selection);
+  // The outlook exists only per NUTS-2 region: shown only when exactly such a region is selected.
+  const selectedRegion = state.region ? regionById.get(state.region) : undefined;
+  const forecastRegion = selectedRegion?.properties.level === "region" ? selectedRegion : null;
   const { conf, lookback: L } = state;
   const eventsAvailable = meta.features.events;
   const method = state.metric === "events" && !eventsAvailable ? "fires" : state.metric;
@@ -335,12 +337,8 @@ export function AnalysisPage() {
       {daily.status === "error" && <div className="ow-content"><ErrorNote error={daily.error} onRetry={daily.reload} /></div>}
 
       <main className="ow-content">
-        {meta.features.forecast && forecastVisible(D, meta.last_date) && (
-          <ForecastBox
-            scope={forecastScope(state.region ? regionById.get(state.region) ?? null : null,
-              selection.kind === "area" ? (selection.geometry as AreaGeometry | null) : null, regions?.features ?? [])}
-            regionName={(id) => { const r = regionById.get(id); return r ? regionName(r) : id; }}
-          />
+        {meta.features.forecast && forecastRegion && forecastVisible(D, meta.last_date) && (
+          <ForecastBox regionId={forecastRegion.properties.id} regionName={regionName(forecastRegion)} />
         )}
         <Tile title={t("an.short", { date: DLabel })} tour="short">
           <div className="ow-cards">

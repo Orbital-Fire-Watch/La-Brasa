@@ -39,11 +39,6 @@ export const RISK_COLOR: Record<RiskClass, string> = {
   high: "#e31a1c",
   very_high: "#800026",
 };
-/** Text on top of RISK_COLOR. */
-export const RISK_TEXT: Record<RiskClass, string> = {
-  low: "#3a3200", normal: "#3a2600", elevated: "#2b1200", high: "#ffffff", very_high: "#ffffff",
-};
-
 export const AGE_COLOR: Record<AgeClass, string> = {
   today: "#b2182b",
   recent: "#ef6c2f",
